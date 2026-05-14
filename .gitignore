@@ -2,6 +2,7 @@ config.json
 library-cache.json
 .env
 node_modules/
+data/
 npm-debug.log*
 *.log
 *.zip

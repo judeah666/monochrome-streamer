@@ -17,6 +17,7 @@ const configPath = path.join(__dirname, 'config.json');
 const defaultConfig = {
   title: 'Monochrome-Streamer',
   libraryPath: '',
+  dataDir: '',
   artistInfoPath: 'artist-info.json',
   artistOverridesPath: 'artist-overrides.json',
   albumOverridesPath: 'album-overrides.json',
@@ -180,17 +181,20 @@ async function loadConfig() {
   const fileConfig = existsSync(configPath)
     ? JSON.parse(await fs.readFile(configPath, 'utf8'))
     : {};
+  const dataDir = process.env.DATA_DIR || fileConfig.dataDir || defaultConfig.dataDir;
+  const dataPath = (filename) => (dataDir ? path.join(dataDir, filename) : filename);
 
   return {
     ...defaultConfig,
     ...fileConfig,
+    dataDir,
     title: process.env.APP_TITLE || fileConfig.title || defaultConfig.title,
     libraryPath: process.env.MUSIC_LIBRARY_PATH || fileConfig.libraryPath || defaultConfig.libraryPath,
     artistInfoPath: process.env.ARTIST_INFO_PATH || fileConfig.artistInfoPath || defaultConfig.artistInfoPath,
-    artistOverridesPath: process.env.ARTIST_OVERRIDES_PATH || fileConfig.artistOverridesPath || defaultConfig.artistOverridesPath,
-    albumOverridesPath: process.env.ALBUM_OVERRIDES_PATH || fileConfig.albumOverridesPath || defaultConfig.albumOverridesPath,
-    lyricsOverridesPath: process.env.LYRICS_OVERRIDES_PATH || fileConfig.lyricsOverridesPath || defaultConfig.lyricsOverridesPath,
-    lyricsSidecarPath: process.env.LYRICS_SIDECAR_PATH || fileConfig.lyricsSidecarPath || defaultConfig.lyricsSidecarPath,
+    artistOverridesPath: process.env.ARTIST_OVERRIDES_PATH || fileConfig.artistOverridesPath || dataPath(defaultConfig.artistOverridesPath),
+    albumOverridesPath: process.env.ALBUM_OVERRIDES_PATH || fileConfig.albumOverridesPath || dataPath(defaultConfig.albumOverridesPath),
+    lyricsOverridesPath: process.env.LYRICS_OVERRIDES_PATH || fileConfig.lyricsOverridesPath || dataPath(defaultConfig.lyricsOverridesPath),
+    lyricsSidecarPath: process.env.LYRICS_SIDECAR_PATH || fileConfig.lyricsSidecarPath || dataPath(defaultConfig.lyricsSidecarPath),
     host: process.env.HOST || fileConfig.host || defaultConfig.host,
     port: Number.parseInt(process.env.PORT || fileConfig.port || defaultConfig.port, 10),
   };

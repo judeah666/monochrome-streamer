@@ -2,6 +2,7 @@
 .env
 config.json
 sample-library
+data
 *.log
 library-cache.json
 *.zip

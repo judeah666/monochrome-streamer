@@ -1,6 +1,7 @@
 {
   "title": "Monochrome-Streamer",
   "libraryPath": "D:\\Music",
+  "dataDir": "",
   "artistInfoPath": "artist-info.json",
   "artistOverridesPath": "artist-overrides.json",
   "albumOverridesPath": "album-overrides.json",
