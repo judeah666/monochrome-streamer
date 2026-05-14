@@ -7,6 +7,11 @@
   "albumOverridesPath": "album-overrides.json",
   "lyricsOverridesPath": "lyrics-overrides.json",
   "lyricsSidecarPath": "lyrics",
+  "libraryFoldersPath": "library-folders.json",
+  "libraryCachePath": "library-cache.json",
+  "scanMetadata": "tags",
+  "scanDurations": false,
+  "autoScanOnStart": false,
   "host": "0.0.0.0",
   "port": 8888
 }

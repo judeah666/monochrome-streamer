@@ -133,6 +133,56 @@ docker run --rm -p 8888:8888 `
   monochrome-streamer
 ```
 
+### Dockge
+
+Dockge should usually use an image-only Compose file, not `build: .`, unless the full project folder exists inside the Dockge stack directory.
+
+Use [docker-compose.dockge.yml](docker-compose.dockge.yml) as the starting point:
+
+```yaml
+services:
+  monochrome-streamer:
+    image: judeah666/monochrome-streamer:latest
+    container_name: Monochrome-Streamer
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    environment:
+      APP_TITLE: Monochrome-Streamer
+      DATA_DIR: /data
+      SCAN_METADATA: tags
+      SCAN_DURATIONS: "false"
+      AUTO_SCAN_ON_START: "false"
+    volumes:
+      - /path/to/your/music:/music:ro
+      - /opt/monochrome-streamer/data:/data
+```
+
+Change `/path/to/your/music` to the real music folder on the server running Dockge. If Dockge is running on Linux, do not use Windows paths like `D:\Music`; use Linux paths like `/mnt/music`, `/media/music`, or `/home/yourname/Music`.
+
+If the container exits with code `137`, the server is probably killing the scan for memory. Try this safer scanner mode first:
+
+```yaml
+environment:
+  APP_TITLE: Monochrome-Streamer
+  DATA_DIR: /data
+  SCAN_METADATA: filename
+  SCAN_DURATIONS: "false"
+  AUTO_SCAN_ON_START: "false"
+```
+
+`SCAN_METADATA=filename` skips audio tag parsing and builds the library from folder/file names only. After the site is stable, switch it back to `tags`.
+
+On first Docker/Dockge launch, the app does not scan every folder automatically. Open Settings > System > Library Folders, select one or more top-level folders from `/music`, then click `Save & Scan`. Start with one folder, confirm the app stays stable, then add more folders and scan again.
+
+Scans are incremental after the first run. The app writes `/data/library-cache.json` and reuses unchanged files by size and modified time, so future scans only parse new or changed files.
+
+After deploy, Dockge should show the container as healthy. If it is running but the site does not open, test the API directly from the server:
+
+```bash
+curl http://127.0.0.1:8888/api/config
+```
+
 ## Configuration
 
 `config.json`
@@ -156,6 +206,9 @@ You can also override values with environment variables:
 - `APP_TITLE`
 - `DATA_DIR`
 - `APP_DATA_DIR` for Docker Compose host storage
+- `SCAN_METADATA` as `tags` or `filename`
+- `SCAN_DURATIONS` as `true` or `false`
+- `AUTO_SCAN_ON_START` as `true` or `false`
 - `ARTIST_INFO_PATH`
 - `ARTIST_OVERRIDES_PATH`
 - `ALBUM_OVERRIDES_PATH`
@@ -196,6 +249,8 @@ The online search uses MusicBrainz for release metadata and Cover Art Archive fo
 - `GET /api/config`
 - `GET /api/library`
 - `POST /api/rescan`
+- `GET /api/library/folders`
+- `POST /api/library/folders`
 - `GET /api/artists/:name/info`
 - `POST /api/artists/:name/info`
 - `POST /api/albums/:id/cover`

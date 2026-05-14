@@ -1,14 +1,16 @@
 services:
   monochrome-streamer:
-    build: .
     image: judeah666/monochrome-streamer:latest
     container_name: Monochrome-Streamer
     restart: unless-stopped
     ports:
       - "8888:8888"
     environment:
-      APP_TITLE: ${APP_TITLE:-Monochrome-Streamer}
+      APP_TITLE: Monochrome-Streamer
       DATA_DIR: /data
+      SCAN_METADATA: tags
+      SCAN_DURATIONS: "false"
+      AUTO_SCAN_ON_START: "false"
     volumes:
-      - ${MUSIC_DIR:-./sample-library}:/music:ro
-      - ${APP_DATA_DIR:-./data}:/data
+      - /path/to/your/music:/music:ro
+      - /opt/monochrome-streamer/data:/data

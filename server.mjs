@@ -6,6 +6,7 @@ import {
   buildByteRange,
   createTrackId,
   getContentType,
+  readEmbeddedCover,
   scanMusicLibrary,
 } from './lib/library.mjs';
 
@@ -23,6 +24,11 @@ const defaultConfig = {
   albumOverridesPath: 'album-overrides.json',
   lyricsOverridesPath: 'lyrics-overrides.json',
   lyricsSidecarPath: 'lyrics',
+  libraryFoldersPath: 'library-folders.json',
+  libraryCachePath: 'library-cache.json',
+  scanMetadata: 'tags',
+  scanDurations: false,
+  autoScanOnStart: false,
   host: '0.0.0.0',
   port: 8888,
 };
@@ -34,6 +40,8 @@ const artistOverridesPath = config.artistOverridesPath ? path.resolve(__dirname,
 const albumOverridesPath = config.albumOverridesPath ? path.resolve(__dirname, config.albumOverridesPath) : '';
 const lyricsOverridesPath = config.lyricsOverridesPath ? path.resolve(__dirname, config.lyricsOverridesPath) : '';
 const lyricsSidecarPath = config.lyricsSidecarPath ? path.resolve(__dirname, config.lyricsSidecarPath) : '';
+const libraryFoldersPath = config.libraryFoldersPath ? path.resolve(__dirname, config.libraryFoldersPath) : '';
+const libraryCachePath = config.libraryCachePath ? path.resolve(__dirname, config.libraryCachePath) : '';
 
 if (!libraryRoot || !existsSync(libraryRoot)) {
   console.error(`Music library path is missing or invalid: ${libraryRoot || '(empty)'}`);
@@ -44,11 +52,25 @@ if (!libraryRoot || !existsSync(libraryRoot)) {
 let libraryCache = null;
 let trackMap = new Map();
 let cachePromise = null;
+let scanState = {
+  status: 'idle',
+  startedAt: null,
+  finishedAt: null,
+  error: null,
+  selectedFolders: [],
+  currentFolder: '',
+  processedFiles: 0,
+  totalFiles: 0,
+  reusedFiles: 0,
+  parsedFiles: 0,
+  percent: 0,
+};
 let artistInfoCache = new Map();
 let manualArtistInfoCache = null;
 let artistOverridesCache = null;
 let albumOverridesCache = null;
 let lyricsOverridesCache = null;
+let selectedLibraryFoldersCache = null;
 
 class HttpError extends Error {
   constructor(statusCode, message) {
@@ -65,17 +87,25 @@ const server = http.createServer(async (request, response) => {
       return respondJson(response, 200, {
         title: config.title,
         generatedAt: libraryCache?.generatedAt ?? null,
+        scan: scanState,
       });
     }
 
     if (url.pathname === '/api/library') {
-      const library = await ensureLibrary();
-      return respondJson(response, 200, await createLibraryPayload(library));
+      return respondJson(response, 200, await createLibraryPayload(await getCurrentLibrary()));
     }
 
     if (url.pathname === '/api/rescan' && request.method === 'POST') {
-      const library = await refreshLibrary();
-      return respondJson(response, 200, await createLibraryPayload(library));
+      const scan = await startLibraryScan();
+      return respondJson(response, 202, { scan });
+    }
+
+    if (url.pathname === '/api/library/folders') {
+      if (request.method === 'POST') {
+        const result = await updateSelectedLibraryFolders(request);
+        return respondJson(response, 200, result);
+      }
+      return respondJson(response, 200, await getLibraryFoldersPayload());
     }
 
     const artistInfoMatch = /^\/api\/artists\/([^/]+)\/info$/u.exec(url.pathname);
@@ -169,12 +199,14 @@ const server = http.createServer(async (request, response) => {
   }
 });
 
-await refreshLibrary();
-await migrateLyricsOverridesToSidecars();
-
 server.listen(config.port, config.host, () => {
   console.log(`Monochrome-Streamer ready at http://${config.host}:${config.port}`);
   console.log(`Streaming from: ${libraryRoot}`);
+  if (config.autoScanOnStart) {
+    startLibraryScan();
+  } else {
+    console.log('Automatic startup scan is disabled. Select folders in Settings > System, then scan.');
+  }
 });
 
 async function loadConfig() {
@@ -195,8 +227,44 @@ async function loadConfig() {
     albumOverridesPath: process.env.ALBUM_OVERRIDES_PATH || fileConfig.albumOverridesPath || dataPath(defaultConfig.albumOverridesPath),
     lyricsOverridesPath: process.env.LYRICS_OVERRIDES_PATH || fileConfig.lyricsOverridesPath || dataPath(defaultConfig.lyricsOverridesPath),
     lyricsSidecarPath: process.env.LYRICS_SIDECAR_PATH || fileConfig.lyricsSidecarPath || dataPath(defaultConfig.lyricsSidecarPath),
+    libraryFoldersPath: process.env.LIBRARY_FOLDERS_PATH || fileConfig.libraryFoldersPath || dataPath(defaultConfig.libraryFoldersPath),
+    libraryCachePath: process.env.LIBRARY_CACHE_PATH || fileConfig.libraryCachePath || dataPath(defaultConfig.libraryCachePath),
+    scanMetadata: normalizeScanMetadata(process.env.SCAN_METADATA || fileConfig.scanMetadata || defaultConfig.scanMetadata),
+    scanDurations: parseBoolean(process.env.SCAN_DURATIONS ?? fileConfig.scanDurations ?? defaultConfig.scanDurations),
+    autoScanOnStart: parseBoolean(process.env.AUTO_SCAN_ON_START ?? fileConfig.autoScanOnStart ?? defaultConfig.autoScanOnStart),
     host: process.env.HOST || fileConfig.host || defaultConfig.host,
     port: Number.parseInt(process.env.PORT || fileConfig.port || defaultConfig.port, 10),
+  };
+}
+
+async function getCurrentLibrary() {
+  if (libraryCache) return libraryCache;
+  const cachedLibrary = await readLibraryCache();
+  if (cachedLibrary.tracks.length > 0 || cachedLibrary.albums.length > 0) {
+    libraryCache = cachedLibrary;
+    trackMap = new Map(cachedLibrary.tracks.map((track) => [track.id, track]));
+    scanState = {
+      ...scanState,
+      status: 'ready',
+      finishedAt: cachedLibrary.generatedAt || scanState.finishedAt || new Date().toISOString(),
+      error: null,
+      currentFolder: '',
+      processedFiles: cachedLibrary.trackCount,
+      totalFiles: cachedLibrary.trackCount,
+      percent: 100,
+    };
+    return libraryCache;
+  }
+  return createEmptyLibrary();
+}
+
+function createEmptyLibrary() {
+  return {
+    generatedAt: null,
+    trackCount: 0,
+    albumCount: 0,
+    tracks: [],
+    albums: [],
   };
 }
 
@@ -210,16 +278,197 @@ async function ensureLibrary() {
   return cachePromise;
 }
 
-async function refreshLibrary() {
-  cachePromise = scanMusicLibrary(libraryRoot).then((library) => {
+async function refreshLibrary(selectedFoldersInput = null) {
+  const selectedFolders = selectedFoldersInput || (await getSelectedLibraryFolders());
+  const cachedLibrary = await readLibraryCache();
+  scanState = {
+    status: 'scanning',
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    error: null,
+    selectedFolders,
+    currentFolder: selectedFolders[0] || '',
+    processedFiles: 0,
+    totalFiles: 0,
+    reusedFiles: 0,
+    parsedFiles: 0,
+    percent: 0,
+  };
+
+  cachePromise = scanMusicLibrary(libraryRoot, {
+    scanMetadata: config.scanMetadata,
+    scanDurations: config.scanDurations,
+    includeFolders: selectedFolders,
+    cachedTracks: cachedLibrary.tracks,
+    onProgress: updateScanProgress,
+  }).then((library) => {
     libraryCache = library;
     trackMap = new Map(library.tracks.map((track) => [track.id, track]));
+    return writeLibraryCache(library).then(() => library);
+  }).then((library) => {
+    scanState = {
+      ...scanState,
+      status: 'ready',
+      finishedAt: new Date().toISOString(),
+      error: null,
+      currentFolder: '',
+      processedFiles: library.trackCount,
+      totalFiles: scanState.totalFiles || library.trackCount,
+      percent: 100,
+    };
     return library;
+  }).catch((error) => {
+    scanState = {
+      ...scanState,
+      status: 'error',
+      finishedAt: new Date().toISOString(),
+      error: error instanceof Error ? error.message : 'Library scan failed',
+    };
+    throw error;
   });
 
   return cachePromise.finally(() => {
     cachePromise = null;
   });
+}
+
+async function startLibraryScan() {
+  if (cachePromise) return scanState;
+  const selectedFolders = await getSelectedLibraryFolders();
+  scanState = {
+    ...scanState,
+    status: 'scanning',
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    error: null,
+    selectedFolders,
+    currentFolder: selectedFolders[0] || '',
+    processedFiles: 0,
+    totalFiles: 0,
+    reusedFiles: 0,
+    parsedFiles: 0,
+    percent: 0,
+  };
+  refreshLibrary(selectedFolders)
+    .then(() => migrateLyricsOverridesToSidecars())
+    .catch((error) => {
+      console.error('Library scan failed:', error);
+    });
+  return scanState;
+}
+
+function updateScanProgress(progress) {
+  scanState = {
+    ...scanState,
+    currentFolder: progress.currentFolder || scanState.currentFolder || '',
+    processedFiles: Number.isFinite(progress.processedFiles) ? progress.processedFiles : scanState.processedFiles,
+    totalFiles: Number.isFinite(progress.totalFiles) ? progress.totalFiles : scanState.totalFiles,
+    reusedFiles: Number.isFinite(progress.reusedFiles) ? progress.reusedFiles : scanState.reusedFiles,
+    parsedFiles: Number.isFinite(progress.parsedFiles) ? progress.parsedFiles : scanState.parsedFiles,
+    percent: Number.isFinite(progress.percent) ? progress.percent : scanState.percent,
+  };
+}
+
+async function readLibraryCache() {
+  if (!libraryCachePath || !existsSync(libraryCachePath)) return createEmptyLibrary();
+
+  try {
+    const raw = JSON.parse(await fs.readFile(libraryCachePath, 'utf8'));
+    const tracks = Array.isArray(raw.tracks) ? raw.tracks : [];
+    return {
+      generatedAt: raw.generatedAt || null,
+      trackCount: tracks.length,
+      albumCount: Array.isArray(raw.albums) ? raw.albums.length : 0,
+      tracks,
+      albums: Array.isArray(raw.albums) ? raw.albums : [],
+    };
+  } catch {
+    return createEmptyLibrary();
+  }
+}
+
+async function writeLibraryCache(library) {
+  if (!libraryCachePath) return;
+  await fs.mkdir(path.dirname(libraryCachePath), { recursive: true });
+  await fs.writeFile(libraryCachePath, `${JSON.stringify(library, null, 2)}\n`, 'utf8');
+}
+
+async function getLibraryFoldersPayload() {
+  const [available, selected] = await Promise.all([
+    listLibraryFolders(),
+    getSelectedLibraryFolders(),
+  ]);
+
+  return {
+    root: libraryRoot,
+    available,
+    selected,
+    scan: scanState,
+  };
+}
+
+async function listLibraryFolders() {
+  const entries = await fs.readdir(libraryRoot, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+async function getSelectedLibraryFolders() {
+  if (selectedLibraryFoldersCache) return selectedLibraryFoldersCache;
+  if (!libraryFoldersPath || !existsSync(libraryFoldersPath)) {
+    selectedLibraryFoldersCache = [];
+    return selectedLibraryFoldersCache;
+  }
+
+  try {
+    const raw = JSON.parse(await fs.readFile(libraryFoldersPath, 'utf8'));
+    selectedLibraryFoldersCache = normalizeLibraryFolders(raw.folders || []);
+  } catch {
+    selectedLibraryFoldersCache = [];
+  }
+
+  return selectedLibraryFoldersCache;
+}
+
+async function updateSelectedLibraryFolders(request) {
+  const payload = await readRequestJson(request, 256 * 1024);
+  const selected = normalizeLibraryFolders(payload.folders || []);
+  await writeSelectedLibraryFolders(selected);
+  libraryCache = null;
+  trackMap = new Map();
+  return getLibraryFoldersPayload();
+}
+
+async function writeSelectedLibraryFolders(folders) {
+  if (!libraryFoldersPath) throw new HttpError(400, 'Library folder selection is not configured.');
+  await fs.mkdir(path.dirname(libraryFoldersPath), { recursive: true });
+  await fs.writeFile(libraryFoldersPath, `${JSON.stringify({ folders }, null, 2)}\n`, 'utf8');
+  selectedLibraryFoldersCache = folders;
+}
+
+function normalizeLibraryFolders(folders) {
+  const seen = new Set();
+  const safeFolders = [];
+
+  for (const folder of Array.isArray(folders) ? folders : []) {
+    const normalized = String(folder || '').replace(/\\/gu, '/').replace(/^\/+|\/+$/gu, '').trim();
+    if (!normalized || normalized.includes('..') || path.isAbsolute(normalized) || seen.has(normalized)) continue;
+    seen.add(normalized);
+    safeFolders.push(normalized);
+  }
+
+  return safeFolders.sort((left, right) => left.localeCompare(right));
+}
+
+function normalizeScanMetadata(value) {
+  return String(value || '').toLowerCase() === 'filename' ? 'filename' : 'tags';
+}
+
+function parseBoolean(value) {
+  if (typeof value === 'boolean') return value;
+  return ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase());
 }
 
 async function createLibraryPayload(library) {
@@ -266,7 +515,7 @@ async function createLibraryPayload(library) {
       const albumOverride = trackAlbumOverrideMap.get(track.id) || null;
       const album = trackAlbumMap.get(track.id) || null;
       const trackOverride = albumOverride?.tracks?.[track.id] || null;
-      const scannedCoverUrl = track.coverArtPath || track.embeddedCover ? `/api/tracks/${track.id}/cover` : null;
+      const scannedCoverUrl = track.coverArtPath || track.hasEmbeddedCover ? `/api/tracks/${track.id}/cover` : null;
       return {
         id: track.id,
         albumId: album?.id || '',
@@ -323,7 +572,7 @@ async function streamTrack(response, trackId, rangeHeader) {
 
 async function streamCover(response, trackId) {
   const track = trackMap.get(trackId);
-  if (!track?.coverArtPath && !track?.embeddedCover) {
+  if (!track?.coverArtPath && !track?.hasEmbeddedCover) {
     return respondJson(response, 404, { error: 'Cover art not found' });
   }
 
@@ -338,12 +587,18 @@ async function streamCover(response, trackId) {
     return;
   }
 
+  const embeddedCover = await readEmbeddedCover(track.path);
+  if (!embeddedCover) {
+    track.hasEmbeddedCover = false;
+    return respondJson(response, 404, { error: 'Cover art not found' });
+  }
+
   response.writeHead(200, {
-    'Content-Length': String(track.embeddedCover.data.length),
-    'Content-Type': track.embeddedCover.format || 'image/jpeg',
+    'Content-Length': String(embeddedCover.data.length),
+    'Content-Type': embeddedCover.format || 'image/jpeg',
     'Cache-Control': 'public, max-age=300',
   });
-  response.end(track.embeddedCover.data);
+  response.end(embeddedCover.data);
 }
 
 async function updateAlbumCoverOverride(albumId, request) {

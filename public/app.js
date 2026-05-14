@@ -2,7 +2,6 @@ const appTitle = document.querySelector('#app-title');
 const albumCount = document.querySelector('#album-count');
 const trackCount = document.querySelector('#track-count');
 const libraryStatus = document.querySelector('#library-status');
-const rescanButton = document.querySelector('#rescan-button');
 const searchInput = document.querySelector('#search-input');
 const clearSearchButton = document.querySelector('#clear-search-button');
 const backButton = document.querySelector('#back-button');
@@ -49,6 +48,7 @@ const favoriteTrackList = document.querySelector('#favorite-track-list');
 const settingsTabs = document.querySelector('#settings-tabs');
 const settingsPanels = document.querySelector('#settings-panels');
 const settingsStatus = document.querySelector('#settings-status');
+const appFavicon = document.querySelector('#app-favicon');
 const albumHero = document.querySelector('#album-hero');
 const albumDetailCover = document.querySelector('#album-detail-cover');
 const albumDetailCoverFallback = document.querySelector('#album-detail-cover-fallback');
@@ -233,7 +233,9 @@ const DEFAULT_SETTINGS = {
   showLibrary: true,
   showFavorites: true,
   closePanelsOnNavigation: true,
-  nowPlayingClickAction: 'album',
+  nowPlayingClickAction: 'fullscreen',
+  nowPlayingClickActionUserSet: false,
+  appIconUrl: '',
   playbackQuality: 'auto',
   playerLayout: 'floating',
   showQualityInfo: true,
@@ -417,6 +419,13 @@ const AUDIO_QUALITY_ICONS = {
   hires: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSjzgkp7vuwaecsDEPlp7MlW-oqGVNzD26tWA&s',
   cd: 'https://upload.wikimedia.org/wikipedia/commons/8/8b/CD_Audio_icon.png',
 };
+const RENDER_LIMITS = {
+  albums: 180,
+  artists: 180,
+  tracks: 240,
+  queue: 220,
+  folders: 160,
+};
 
 const state = {
   title: 'Monochrome-Streamer',
@@ -425,6 +434,10 @@ const state = {
   tracks: [],
   trackMap: new Map(),
   albumMap: new Map(),
+  albumTracksMap: new Map(),
+  artistGroups: [],
+  artistGroupMap: new Map(),
+  libraryFolders: { available: [], selected: [], scan: null },
   homeAlbumIds: [],
   searchTerm: '',
   browseView: 'home',
@@ -466,6 +479,8 @@ const state = {
   analyser: null,
   analyserData: null,
   visualizerFrameId: 0,
+  scanPollId: null,
+  scanPollInFlight: false,
 };
 
 init().catch((error) => {
@@ -474,12 +489,14 @@ init().catch((error) => {
 });
 
 async function init() {
-  const [config, library] = await Promise.all([
+  const [config, library, libraryFolders] = await Promise.all([
     fetchJson('/api/config'),
     fetchJson('/api/library'),
+    fetchJson('/api/library/folders').catch(() => ({ available: [], selected: [], scan: null })),
   ]);
 
   state.settings = readStoredSettings();
+  state.libraryFolders = libraryFolders;
   hydrateLibrary(config, library);
   state.favoriteTrackIds = readStoredIdSet(STORAGE_KEYS.favoriteTracks);
   state.favoriteAlbumIds = readStoredIdSet(STORAGE_KEYS.favoriteAlbums);
@@ -496,6 +513,7 @@ async function init() {
   render();
   syncVolumeUi();
   updatePlayerUi();
+  startScanStatusPolling(1200);
 }
 
 function bindEvents() {
@@ -651,21 +669,6 @@ function bindEvents() {
     }
   });
 
-  rescanButton.addEventListener('click', async () => {
-    rescanButton.disabled = true;
-    rescanButton.textContent = 'Rescanning...';
-    try {
-      const library = await fetchJson('/api/rescan', { method: 'POST' });
-      hydrateLibrary({ title: state.title }, library);
-      sanitizeStoredFavorites();
-      render();
-      updatePlayerUi();
-    } finally {
-      rescanButton.disabled = false;
-      rescanButton.textContent = 'Rescan library';
-    }
-  });
-
   playAlbumButton.addEventListener('click', () => {
     const album = getCurrentAlbum();
     if (!album) return;
@@ -813,9 +816,15 @@ function hydrateLibrary(config, library) {
   state.tracks = library.tracks;
   state.trackMap = new Map(library.tracks.map((track) => [track.id, track]));
   state.albumMap = new Map(library.albums.map((album) => [album.id, album]));
+  state.albumTracksMap = new Map(library.albums.map((album) => [
+    album.id,
+    album.trackIds.map((id) => state.trackMap.get(id)).filter(Boolean).sort(compareTrackOrder),
+  ]));
+  state.artistGroups = buildArtistGroups(library.tracks);
+  state.artistGroupMap = new Map(state.artistGroups.map((artist) => [artist.name, artist]));
   state.homeAlbumIds = getRandomAlbumIds(library.albums, 50);
   appTitle.textContent = getDisplayTitle();
-  libraryStatus.textContent = `Library indexed on ${formatTimestamp(library.generatedAt)}.`;
+  updateSidebarScanStatus();
 }
 
 function sanitizeStoredFavorites() {
@@ -1128,6 +1137,10 @@ function renderAppearanceSettings() {
         <input type="text" data-setting="libraryTitle" value="${escapeHtml(state.settings.libraryTitle)}" placeholder="${escapeHtml(state.title)}" />
       </label>
       <label class="settings-field">
+        <span>App / Browser Tab Icon URL</span>
+        <input type="url" data-setting="appIconUrl" value="${escapeHtml(state.settings.appIconUrl)}" placeholder="/icon.png or https://example.com/icon.png" />
+      </label>
+      <label class="settings-field">
         <span>Home Eyebrow</span>
         <input type="text" data-setting="homeBannerEyebrow" value="${escapeHtml(state.settings.homeBannerEyebrow)}" />
       </label>
@@ -1166,9 +1179,9 @@ function renderInterfaceSettings() {
         <span>Now Playing Click Action</span>
         <select data-setting="nowPlayingClickAction">
           ${selectOptions([
-            ['album', 'Go to Album'],
-            ['fullscreen', 'Go to Now Playing'],
-            ['artist', 'Go to Artist'],
+            ['album', 'Go To Album'],
+            ['fullscreen', 'Go To Now Playing'],
+            ['artist', 'Go To Artist'],
             ['none', 'Do Nothing'],
           ], state.settings.nowPlayingClickAction)}
         </select>
@@ -1280,7 +1293,46 @@ function renderInstanceSettings() {
 }
 
 function renderSystemSettings() {
+  const folders = state.libraryFolders || { available: [], selected: [], scan: null };
+  const selectedFolders = new Set(folders.selected || []);
+  const folderRows = folders.available?.length
+    ? folders.available.map((folder) => `
+      <label class="library-folder-option">
+        <input type="checkbox" data-library-folder="${escapeHtml(folder)}" ${selectedFolders.has(folder) ? 'checked' : ''} />
+        <span>${escapeHtml(folder)}</span>
+      </label>
+    `).join('')
+    : '<p class="settings-help">No top-level folders were found in the mounted music folder.</p>';
+  const scan = folders.scan || {};
+  const selectedLabel = folders.selected?.length ? folders.selected.join(', ') : 'No folders selected yet';
+  const percent = Number.isFinite(scan.percent) ? scan.percent : 0;
+  const processed = Number.isFinite(scan.processedFiles) ? scan.processedFiles : 0;
+  const total = Number.isFinite(scan.totalFiles) ? scan.totalFiles : 0;
+  const reused = Number.isFinite(scan.reusedFiles) ? scan.reusedFiles : 0;
+  const parsed = Number.isFinite(scan.parsedFiles) ? scan.parsedFiles : 0;
+
   return `
+    ${settingsGroup('Scan Status', 'Watch the current scan and choose which folders are included.', `
+      <div class="setting-row scan-status-row">
+        <div>
+          <strong>${escapeHtml(toTitleCase(scan.status || 'idle'))} · ${percent}%</strong>
+          <span>${escapeHtml(scan.currentFolder ? `Scanning ${scan.currentFolder}` : selectedLabel)} · ${processed}/${total} files · ${reused} cached · ${parsed} parsed · ${state.tracks.length} tracks · ${state.albums.length} albums</span>
+        </div>
+        <button type="button" class="secondary-button" data-settings-action="refresh-library-folders">Refresh Folders</button>
+      </div>
+      <div class="scan-progress" aria-label="Scan progress">
+        <span style="width: ${percent}%"></span>
+      </div>
+      <p class="settings-help">Selected folders: ${escapeHtml(selectedLabel)}</p>
+    `)}
+    ${settingsGroup('Library Folders', 'Choose which top-level folders inside your mounted music folder should be indexed.', `
+      <div class="library-folder-list">${folderRows}</div>
+      <div class="settings-actions">
+        <button type="button" class="secondary-button" data-settings-action="save-library-folders">Save Selected Folders</button>
+        <button type="button" class="primary-button" data-settings-action="save-and-scan-library-folders">Save & Scan</button>
+      </div>
+      <p class="settings-help">Tip: start with one artist folder, scan, then add more folders after the app is stable.</p>
+    `)}
     ${settingsGroup('Library System', 'Maintenance for your local index and browser data.', `
       <div class="setting-row">
         <div><strong>Cache</strong><span>${state.settings.cacheEnabled ? 'Browser settings cache is enabled.' : 'Browser settings cache is disabled.'}</span></div>
@@ -1343,8 +1395,13 @@ function handleSettingsAction(button) {
     renderSettingsView();
     showSettingsStatus('Settings cache cleared and defaults restored.');
   } else if (action === 'rescan-library') {
-    rescanButton.click();
-    showSettingsStatus('Rescan started.');
+    startLibraryScanAndPoll();
+  } else if (action === 'refresh-library-folders') {
+    refreshLibraryFolders();
+  } else if (action === 'save-library-folders') {
+    saveLibraryFolders(false);
+  } else if (action === 'save-and-scan-library-folders') {
+    saveLibraryFolders(true);
   } else if (action === 'check-instance') {
     fetchJson('/api/config')
       .then(() => showSettingsStatus('Local API is online.'))
@@ -1352,10 +1409,109 @@ function handleSettingsAction(button) {
   }
 }
 
+async function refreshLibraryFolders() {
+  state.libraryFolders = await fetchJson('/api/library/folders');
+  updateSidebarScanStatus();
+  renderSettingsView();
+  showSettingsStatus('Library folder list refreshed.');
+}
+
+async function saveLibraryFolders(shouldScan) {
+  const folders = [...settingsPanels.querySelectorAll('[data-library-folder]:checked')]
+    .map((input) => input.dataset.libraryFolder)
+    .filter(Boolean);
+
+  state.libraryFolders = await fetchJson('/api/library/folders', {
+    method: 'POST',
+    body: JSON.stringify({ folders }),
+  });
+  updateSidebarScanStatus();
+  showSettingsStatus(`Saved ${folders.length} selected folder${folders.length === 1 ? '' : 's'}.`);
+  renderSettingsView();
+
+  if (!shouldScan) return;
+
+  await startLibraryScanAndPoll();
+}
+
+async function startLibraryScanAndPoll() {
+  showSettingsStatus('Scanning selected folders...');
+  await fetchJson('/api/rescan', { method: 'POST' });
+  await pollLibraryScan();
+}
+
+async function pollLibraryScan() {
+  if (state.scanPollId) {
+    window.clearTimeout(state.scanPollId);
+    state.scanPollId = null;
+  }
+
+  await refreshScanStatus();
+  startScanStatusPolling(getScanPollDelay());
+}
+
+function startScanStatusPolling(delay = 5000) {
+  if (state.scanPollId) {
+    window.clearTimeout(state.scanPollId);
+  }
+  state.scanPollId = window.setTimeout(() => {
+    pollLibraryScan().catch((error) => {
+      console.error(error);
+      startScanStatusPolling(5000);
+    });
+  }, delay);
+}
+
+function getScanPollDelay() {
+  return state.libraryFolders?.scan?.status === 'scanning' ? 1000 : 5000;
+}
+
+async function refreshScanStatus() {
+  if (state.scanPollInFlight) return;
+  state.scanPollInFlight = true;
+
+  try {
+    const config = await fetchJson('/api/config');
+    const previousGeneratedAt = state.generatedAt;
+    const scan = config.scan || {};
+    state.title = config.title || state.title;
+    state.libraryFolders = {
+      ...(state.libraryFolders || {}),
+      scan,
+    };
+    updateSidebarScanStatus(config.generatedAt || state.generatedAt);
+
+    const shouldRefreshLibrary = config.generatedAt
+      && config.generatedAt !== previousGeneratedAt
+      && scan.status !== 'scanning';
+
+    if (shouldRefreshLibrary) {
+      const library = await fetchJson('/api/library');
+      hydrateLibrary({ title: state.title }, library);
+      sanitizeStoredFavorites();
+      render();
+      updatePlayerUi();
+    } else if (state.settingsTab === 'system') {
+      renderSettingsView();
+    }
+
+    if (scan.status === 'scanning') {
+      showSettingsStatus(`Scanning selected folders... ${scan.percent || 0}%`);
+    } else if (scan.status === 'error') {
+      showSettingsStatus(`Scan failed: ${scan.error || 'Unknown error'}`);
+    } else if (shouldRefreshLibrary) {
+      showSettingsStatus(`Scan complete: ${state.tracks.length} tracks, ${state.albums.length} albums.`);
+    }
+  } finally {
+    state.scanPollInFlight = false;
+  }
+}
+
 function updateSetting(key, value, avoidFullRender = false) {
   state.settings = {
     ...state.settings,
     [key]: value,
+    ...(key === 'nowPlayingClickAction' ? { nowPlayingClickActionUserSet: true } : {}),
   };
   persistSettings();
   applySettings();
@@ -1393,6 +1549,7 @@ function applySettings() {
   audioPlayer.webkitPreservesPitch = Boolean(state.settings.preservePitch);
   audioPlayer.volume = getEffectiveVolume(state.volume);
   audioQualityInfo.hidden = !state.settings.showQualityInfo || !state.currentTrackId;
+  applyAppIcon();
   const currentTrack = state.trackMap.get(state.currentTrackId);
   if (currentTrack) {
     downloadTrackLink.download = formatDownloadName(currentTrack);
@@ -1445,6 +1602,16 @@ function applyThemeSettings() {
 
 function getDisplayTitle() {
   return state.settings?.libraryTitle?.trim() || DEFAULT_SETTINGS.libraryTitle;
+}
+
+function applyAppIcon() {
+  if (!appFavicon) return;
+  const iconUrl = String(state.settings.appIconUrl || '').trim();
+  if (iconUrl) {
+    appFavicon.href = iconUrl;
+    return;
+  }
+  appFavicon.href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23111111'/%3E%3Ccircle cx='32' cy='32' r='19' fill='%23eb9200'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23111111'/%3E%3C/svg%3E";
 }
 
 function getReadableTextColor(hexColor) {
@@ -1507,6 +1674,21 @@ function showSettingsStatus(message) {
   settingsStatus.textContent = message;
 }
 
+function updateSidebarScanStatus(indexedAt = state.generatedAt) {
+  const scan = state.libraryFolders?.scan || {};
+  const rawStatus = scan.status || 'idle';
+  const status = rawStatus === 'idle' && indexedAt ? 'ready' : rawStatus;
+  const percent = Number.isFinite(scan.percent) && rawStatus !== 'idle'
+    ? scan.percent
+    : (status === 'ready' ? 100 : 0);
+  const indexedText = indexedAt ? `Indexed ${formatTimestamp(indexedAt)}` : 'Not indexed yet';
+  libraryStatus.innerHTML = `
+    <strong>${escapeHtml(toTitleCase(status))} · ${percent}%</strong>
+    <span>${escapeHtml(indexedText)}</span>
+    <span class="sidebar-scan-bar"><i style="width: ${Math.max(0, Math.min(100, percent))}%"></i></span>
+  `;
+}
+
 function setLibraryTab(tab) {
   state.libraryTab = tab;
   render();
@@ -1552,9 +1734,10 @@ function renderLibraryAlbumsPanel(albums) {
 
   const grid = document.createElement('div');
   grid.className = 'library-album-grid';
-  for (const album of albums) {
+  for (const album of albums.slice(0, RENDER_LIMITS.albums)) {
     grid.append(createAlbumCard(album, { compact: true }));
   }
+  appendLimitNotice(grid, albums.length, RENDER_LIMITS.albums, 'albums');
   libraryPanelAlbums.append(grid);
 }
 
@@ -1569,8 +1752,12 @@ function renderFolderBrowser(filteredTracks) {
   const tree = buildFolderTree(filteredTracks);
   const fragment = document.createDocumentFragment();
 
-  for (const folder of tree.folders.values()) {
+  const folders = [...tree.folders.values()];
+  for (const folder of folders.slice(0, RENDER_LIMITS.folders)) {
     fragment.append(createFolderNode(folder, filteredTracks, folder.name));
+  }
+  if (folders.length > RENDER_LIMITS.folders) {
+    fragment.append(createLimitNotice(folders.length, RENDER_LIMITS.folders, 'folders'));
   }
 
   libraryPanelFolders.append(fragment);
@@ -1579,7 +1766,7 @@ function renderFolderBrowser(filteredTracks) {
 function renderArtistsBrowser(filteredTracks) {
   libraryPanelArtists.innerHTML = '';
 
-  const artists = buildArtistGroups(filteredTracks);
+  const artists = state.searchTerm ? buildArtistGroups(filteredTracks) : state.artistGroups;
   if (artists.length === 0) {
     libraryPanelArtists.innerHTML = '<p class="empty-state">No artists matched this search.</p>';
     return;
@@ -1587,9 +1774,10 @@ function renderArtistsBrowser(filteredTracks) {
 
   const grid = document.createElement('div');
   grid.className = 'artist-card-grid';
-  for (const artist of artists) {
-    grid.append(createArtistCard(artist));
+  for (const [index, artist] of artists.slice(0, RENDER_LIMITS.artists).entries()) {
+    grid.append(createArtistCard(artist, { preloadInfo: index < 24 }));
   }
+  appendLimitNotice(grid, artists.length, RENDER_LIMITS.artists, 'artists');
   libraryPanelArtists.append(grid);
 }
 
@@ -1640,16 +1828,17 @@ function renderPlaylistsBrowser(filteredTracks) {
   if (activePlaylist.tracks.length === 0) {
     trackList.innerHTML = '<p class="empty-state">This playlist is empty right now.</p>';
   } else {
-    for (const track of activePlaylist.tracks) {
+    for (const track of activePlaylist.tracks.slice(0, RENDER_LIMITS.tracks)) {
       trackList.append(createTrackRow(track, activePlaylist.tracks));
     }
+    appendLimitNotice(trackList, activePlaylist.tracks.length, RENDER_LIMITS.tracks, 'tracks');
   }
 
   shell.append(list, detail);
   libraryPanelPlaylists.append(shell);
 }
 
-function createArtistCard(artist) {
+function createArtistCard(artist, { preloadInfo = false } = {}) {
   const info = state.artistInfoMap.get(artist.name) || null;
   const card = document.createElement('article');
   card.className = 'artist-card';
@@ -1678,7 +1867,9 @@ function createArtistCard(artist) {
     event.stopPropagation();
     playArtistFromCard(artist);
   });
-  loadArtistInfo(artist.name);
+  if (preloadInfo) {
+    loadArtistInfo(artist.name);
+  }
   return card;
 }
 
@@ -1804,9 +1995,25 @@ function renderTrackCollection(container, tracks, queueTracks, emptyMessage) {
     return;
   }
 
-  for (const track of tracks) {
+  for (const track of tracks.slice(0, RENDER_LIMITS.tracks)) {
     container.append(createTrackRow(track, queueTracks));
   }
+  appendLimitNotice(container, tracks.length, RENDER_LIMITS.tracks, 'tracks');
+}
+
+function createLimitNotice(total, shown, label) {
+  const notice = document.createElement('p');
+  notice.className = 'render-limit-notice';
+  notice.textContent = total > shown
+    ? `Showing ${shown} of ${total} ${label}. Use search or select fewer folders to narrow this view.`
+    : '';
+  notice.hidden = total <= shown;
+  return notice;
+}
+
+function appendLimitNotice(container, total, shown, label) {
+  if (total <= shown) return;
+  container.append(createLimitNotice(total, shown, label));
 }
 
 function renderAlbumDetail(album) {
@@ -1892,18 +2099,23 @@ function renderRelatedAlbums({ section, titleElement, grid, albums, title }) {
 
   section.hidden = false;
   titleElement.textContent = title;
-  for (const album of albums) {
+  for (const album of albums.slice(0, RENDER_LIMITS.albums)) {
     grid.append(createAlbumCard(album, { compact: true }));
   }
+  appendLimitNotice(grid, albums.length, RENDER_LIMITS.albums, 'albums');
 }
 
 function renderQueuePanel() {
-  const queueIds = getPlaybackQueue();
-  const queue = queueIds.map((id) => state.trackMap.get(id)).filter(Boolean);
-
   queuePanel.hidden = !state.queueOpen;
   queueOverlay.hidden = !state.queueOpen;
   queueList.innerHTML = '';
+
+  if (!state.queueOpen) {
+    return;
+  }
+
+  const queueIds = getPlaybackQueue();
+  const queue = queueIds.map((id) => state.trackMap.get(id)).filter(Boolean);
 
   queueDownloadButton.disabled = queue.length === 0;
   queueFavoriteButton.disabled = queue.length === 0;
@@ -1914,7 +2126,7 @@ function renderQueuePanel() {
     return;
   }
 
-  for (const [index, track] of queue.entries()) {
+  for (const [index, track] of queue.slice(0, RENDER_LIMITS.queue).entries()) {
     const favorite = isFavoriteTrack(track.id);
     const isCurrent = track.id === state.currentTrackId;
     const item = document.createElement('article');
@@ -1997,6 +2209,7 @@ function renderQueuePanel() {
 
     queueList.append(item);
   }
+  appendLimitNotice(queueList, queue.length, RENDER_LIMITS.queue, 'queue tracks');
 }
 
 function createAlbumCard(album, { compact }) {
@@ -3421,19 +3634,16 @@ function createFolderNode(node, queueTracks, folderPath) {
 
   const body = document.createElement('div');
   body.className = 'folder-node-body';
-
-  for (const child of node.folders.values()) {
-    body.append(createFolderNode(child, queueTracks, `${folderPath}/${child.name}`));
-  }
-
-  for (const track of node.tracks) {
-    body.append(createFolderTrackRow(track, queueTracks));
-  }
+  body.dataset.rendered = 'false';
 
   details.append(body);
+  if (details.open) {
+    renderFolderNodeBody(body, node, queueTracks, folderPath);
+  }
   details.addEventListener('toggle', () => {
     if (details.open) {
       state.expandedFolderPaths.add(folderPath);
+      renderFolderNodeBody(body, node, queueTracks, folderPath);
     } else {
       state.expandedFolderPaths.delete(folderPath);
     }
@@ -3448,6 +3658,27 @@ function createFolderNode(node, queueTracks, folderPath) {
     playTrack(folderTracks[0], folderTracks);
   });
   return details;
+}
+
+function renderFolderNodeBody(body, node, queueTracks, folderPath) {
+  if (body.dataset.rendered === 'true') return;
+
+  const children = [...node.folders.values()];
+  for (const child of children.slice(0, RENDER_LIMITS.folders)) {
+    body.append(createFolderNode(child, queueTracks, `${folderPath}/${child.name}`));
+  }
+  if (children.length > RENDER_LIMITS.folders) {
+    body.append(createLimitNotice(children.length, RENDER_LIMITS.folders, 'folders'));
+  }
+
+  for (const track of node.tracks.slice(0, RENDER_LIMITS.tracks)) {
+    body.append(createFolderTrackRow(track, queueTracks));
+  }
+  if (node.tracks.length > RENDER_LIMITS.tracks) {
+    body.append(createLimitNotice(node.tracks.length, RENDER_LIMITS.tracks, 'tracks'));
+  }
+
+  body.dataset.rendered = 'true';
 }
 
 function collectFolderTracks(node) {
@@ -3549,10 +3780,12 @@ function getSmartPlaylists(filteredTracks) {
 }
 
 function getFilteredTracks() {
+  if (!state.searchTerm) return state.tracks;
   return state.tracks.filter((track) => trackMatchesSearch(track));
 }
 
 function getFilteredAlbums(filteredTracks) {
+  if (!state.searchTerm) return state.albums;
   const filteredAlbumIds = new Set(filteredTracks.map((track) => track.albumId).filter(Boolean));
   if (filteredAlbumIds.size > 0) {
     return state.albums.filter((album) => filteredAlbumIds.has(album.id));
@@ -3614,7 +3847,7 @@ function getCurrentTrack() {
 }
 
 function getArtistGroup(artistName) {
-  return buildArtistGroups(state.tracks).find((artist) => artist.name === artistName) ?? null;
+  return state.artistGroupMap.get(artistName) ?? null;
 }
 
 function getArtistInitials(name) {
@@ -3628,12 +3861,7 @@ function getArtistInitials(name) {
 }
 
 function getAlbumTracks(albumId) {
-  const album = state.albumMap.get(albumId);
-  if (!album) return [];
-  return album.trackIds
-    .map((id) => state.trackMap.get(id))
-    .filter(Boolean)
-    .sort(compareTrackOrder);
+  return state.albumTracksMap.get(albumId) || [];
 }
 
 function compareTrackOrder(left, right) {
@@ -3832,6 +4060,9 @@ function readStoredSettings() {
   if (parsed.nowPlayingClickAction === 'library') {
     parsed.nowPlayingClickAction = 'artist';
   }
+  if (parsed.nowPlayingClickAction === 'album' && !parsed.nowPlayingClickActionUserSet) {
+    parsed.nowPlayingClickAction = DEFAULT_SETTINGS.nowPlayingClickAction;
+  }
   if (parsed.nowPlayingClickAction && !NOW_PLAYING_CLICK_ACTIONS.has(parsed.nowPlayingClickAction)) {
     delete parsed.nowPlayingClickAction;
   }
@@ -3858,6 +4089,9 @@ function importSettings() {
         removeLegacySettings(parsed);
         if (parsed.nowPlayingClickAction === 'library') {
           parsed.nowPlayingClickAction = 'artist';
+        }
+        if (parsed.nowPlayingClickAction === 'album' && !parsed.nowPlayingClickActionUserSet) {
+          parsed.nowPlayingClickAction = DEFAULT_SETTINGS.nowPlayingClickAction;
         }
         if (parsed.nowPlayingClickAction && !NOW_PLAYING_CLICK_ACTIONS.has(parsed.nowPlayingClickAction)) {
           delete parsed.nowPlayingClickAction;
