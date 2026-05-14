@@ -1,0 +1,33 @@
+services:
+  monochrome-streamer:
+    build:
+      context: .
+    image: monochrome-streamer:latest
+    container_name: Monochrome-Streamer
+    environment:
+      APP_TITLE: ${APP_TITLE:-Monochrome-Streamer}
+      HOST: 0.0.0.0
+      PORT: 8888
+      MUSIC_LIBRARY_PATH: /music
+      ARTIST_INFO_PATH: /artist-info/artist-info.json
+      ARTIST_OVERRIDES_PATH: /data/artist-overrides.json
+      ALBUM_OVERRIDES_PATH: /data/album-overrides.json
+      LYRICS_OVERRIDES_PATH: /data/lyrics-overrides.json
+      LYRICS_SIDECAR_PATH: /data/lyrics
+    ports:
+      - "8888:8888"
+    volumes:
+      - type: bind
+        source: ${MUSIC_DIR:?Set MUSIC_DIR in .env to your music folder}
+        target: /music
+        read_only: ${MUSIC_READ_ONLY:-false}
+      - type: bind
+        source: ${ARTIST_INFO_DIR:-.}
+        target: /artist-info
+        read_only: true
+      - type: volume
+        source: monochrome-streamer-data
+        target: /data
+
+volumes:
+  monochrome-streamer-data:

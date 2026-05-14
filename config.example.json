@@ -1,0 +1,11 @@
+{
+  "title": "Monochrome-Streamer",
+  "libraryPath": "D:\\Music",
+  "artistInfoPath": "artist-info.json",
+  "artistOverridesPath": "artist-overrides.json",
+  "albumOverridesPath": "album-overrides.json",
+  "lyricsOverridesPath": "lyrics-overrides.json",
+  "lyricsSidecarPath": "lyrics",
+  "host": "0.0.0.0",
+  "port": 8888
+}

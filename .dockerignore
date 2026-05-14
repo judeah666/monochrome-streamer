@@ -1,0 +1,13 @@
+.git
+.env
+config.json
+sample-library
+*.log
+library-cache.json
+*.zip
+lyrics/
+lyrics-overrides.json
+artist-overrides.json
+album-overrides.json
+upstream-*
+-

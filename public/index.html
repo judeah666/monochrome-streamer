@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monochrome-Streamer | Local Streamer</title>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <span class="brand-mark">◧</span>
+          <div>
+            <p class="eyebrow">Self-Hosted</p>
+            <h1 id="app-title">Monochrome-Streamer</h1>
+          </div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <button id="nav-home" class="nav-link is-active" type="button">
+            <i class="fa-solid fa-house" aria-hidden="true"></i>
+            <span>Home</span>
+          </button>
+          <button id="nav-library" class="nav-link" type="button">
+            <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+            <span>Library</span>
+          </button>
+          <button id="nav-favorites" class="nav-link" type="button">
+            <i class="fa-solid fa-heart" aria-hidden="true"></i>
+            <span>Favorites</span>
+          </button>
+          <button id="nav-settings" class="nav-link" type="button">
+            <i class="fa-solid fa-gear" aria-hidden="true"></i>
+            <span>Settings</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="sidebar-stats">
+            <div class="stat-card stat-card-albums">
+              <span class="stat-icon"><i class="fa-solid fa-compact-disc" aria-hidden="true"></i></span>
+              <span class="label">Albums</span>
+              <strong id="album-count">0</strong>
+            </div>
+            <div class="stat-card stat-card-tracks">
+              <span class="stat-icon"><i class="fa-solid fa-wave-square" aria-hidden="true"></i></span>
+              <span class="label">Tracks</span>
+              <strong id="track-count">0</strong>
+            </div>
+          </div>
+
+          <button id="rescan-button" class="ghost-button" type="button">Rescan library</button>
+          <p id="library-status" class="sidebar-status">Scanning your library...</p>
+        </div>
+      </aside>
+
+      <div class="page-shell">
+        <header class="topbar">
+          <button id="back-button" class="icon-button" type="button" hidden aria-label="Back to library">
+            <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+          </button>
+
+          <label class="search-bar">
+            <i class="fa-solid fa-magnifying-glass search-icon" aria-hidden="true"></i>
+            <input id="search-input" type="search" placeholder="Search for tracks, artists, albums..." />
+          </label>
+
+          <button id="clear-search-button" class="icon-button" type="button" hidden aria-label="Clear search">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        <main class="content">
+          <section id="home-view" class="view">
+            <section id="home-hero" class="home-hero">
+              <p id="home-hero-eyebrow" class="eyebrow">Local Audio</p>
+              <h2 id="home-hero-title">Your server, your collection, your rules.</h2>
+              <p id="home-hero-subtitle" class="lede">Browse your albums, open them like a proper detail page, and control playback from a full bottom player.</p>
+            </section>
+
+            <section class="content-section">
+              <div class="section-heading">
+                <div>
+                  <h3>Albums</h3>
+                  <p id="home-album-caption"></p>
+                </div>
+              </div>
+              <div id="album-grid" class="album-grid"></div>
+            </section>
+          </section>
+
+          <section id="library-view" class="view" hidden>
+            <section class="content-section library-browser">
+              <div class="section-heading">
+                <div>
+                  <h3>Browse Library</h3>
+                  <p id="library-browser-caption">Explore your server by folders, albums, artists, and playlists.</p>
+                </div>
+              </div>
+
+              <div class="library-browser-tabs" role="tablist" aria-label="Library browser">
+                <button id="library-tab-folders" class="library-tab is-active" type="button" role="tab" aria-selected="true">Folders</button>
+                <button id="library-tab-albums" class="library-tab" type="button" role="tab" aria-selected="false">Albums</button>
+                <button id="library-tab-artists" class="library-tab" type="button" role="tab" aria-selected="false">Artists</button>
+                <button id="library-tab-playlists" class="library-tab" type="button" role="tab" aria-selected="false">Playlists</button>
+              </div>
+
+              <div id="library-panel-folders" class="library-panel" role="tabpanel"></div>
+              <div id="library-panel-albums" class="library-panel" role="tabpanel" hidden></div>
+              <div id="library-panel-artists" class="library-panel" role="tabpanel" hidden></div>
+              <div id="library-panel-playlists" class="library-panel" role="tabpanel" hidden></div>
+            </section>
+          </section>
+
+          <section id="favorites-view" class="view" hidden>
+            <section class="content-section">
+              <div class="section-heading">
+                <div>
+                  <h3>Favorite Albums</h3>
+                  <p id="favorite-album-caption">Albums you marked for quick access.</p>
+                </div>
+              </div>
+              <div id="favorite-album-grid" class="album-grid"></div>
+            </section>
+
+            <section class="content-section">
+              <div class="section-heading">
+                <div>
+                  <h3>Favorite Tracks</h3>
+                  <p id="favorite-track-caption">Tracks you marked for quick access.</p>
+                </div>
+              </div>
+              <div id="favorite-track-list" class="track-list"></div>
+            </section>
+          </section>
+
+          <section id="settings-view" class="view" hidden>
+            <section class="content-section settings-shell">
+              <div class="section-heading">
+                <div>
+                  <h3>Settings</h3>
+                  <p>Local-first controls adapted from Monochrome for your self-hosted library.</p>
+                </div>
+              </div>
+
+              <div id="settings-tabs" class="settings-tabs" role="tablist" aria-label="Settings sections"></div>
+              <div id="settings-panels" class="settings-panels"></div>
+              <p id="settings-status" class="settings-status" aria-live="polite"></p>
+            </section>
+          </section>
+
+          <section id="artist-view" class="view" hidden>
+            <section id="artist-hero" class="artist-hero">
+              <div class="artist-hero-image">
+                <img id="artist-detail-image" alt="" hidden />
+                <div id="artist-detail-fallback" class="artist-image-fallback">
+                  <i class="fa-solid fa-user" aria-hidden="true"></i>
+                  <span>Artist</span>
+                </div>
+              </div>
+              <div class="artist-hero-copy">
+                <p class="eyebrow">Artist</p>
+                <h2 id="artist-detail-name">Artist Name</h2>
+                <p id="artist-detail-meta" class="artist-detail-meta"></p>
+                <p id="artist-detail-bio" class="artist-detail-bio"></p>
+                <div class="artist-actions">
+                  <a id="artist-detail-source" class="artist-source-link" href="#" target="_blank" rel="noreferrer" hidden>Source</a>
+                  <button id="edit-artist-button" class="secondary-button" type="button">
+                    <i class="fa-solid fa-image" aria-hidden="true"></i>
+                    <span>Edit image/info</span>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section class="content-section">
+              <div class="section-heading">
+                <div>
+                  <h3 id="artist-albums-title">Albums</h3>
+                  <p id="artist-albums-caption">Albums from this artist in your local library.</p>
+                </div>
+              </div>
+              <div id="artist-album-grid" class="library-album-grid"></div>
+            </section>
+          </section>
+
+          <section id="album-view" class="view" hidden>
+            <section id="album-hero" class="album-hero">
+              <div class="album-hero-scrim"></div>
+              <div class="album-hero-content">
+                <div class="album-cover-frame">
+                  <img id="album-detail-cover" alt="" hidden />
+                <div id="album-detail-cover-fallback" class="cover-fallback">
+                  <i class="fa-solid fa-record-vinyl" aria-hidden="true"></i>
+                </div>
+                </div>
+
+                <div class="album-hero-copy">
+                  <p id="album-detail-format" class="album-detail-format"></p>
+                  <h2 id="album-detail-title">Album Title</h2>
+                  <p id="album-detail-meta" class="album-detail-meta"></p>
+                  <p id="album-detail-artist" class="album-detail-artist"></p>
+                  <div class="album-actions">
+                    <button id="play-album-button" class="primary-button" type="button">Play album</button>
+                    <button id="shuffle-album-button" class="secondary-button" type="button">Shuffle</button>
+                    <button id="edit-album-cover-button" class="icon-button album-edit-button" type="button" aria-label="Edit album cover">
+                      <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
+                    </button>
+                    <button id="favorite-album-button" class="icon-button album-favorite-button" type="button" aria-label="Favorite album">
+                      <i class="fa-solid fa-heart" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <div class="album-content-layout">
+              <section class="album-main">
+                <div class="track-table-header">
+                  <span>#</span>
+                  <span>Title</span>
+                  <span>Album</span>
+                  <span>Action</span>
+                </div>
+                <div id="album-track-list" class="track-table"></div>
+              </section>
+
+              <aside class="album-sidebar">
+                <section id="more-albums-section" class="content-section" hidden>
+                  <h3 id="more-albums-title">More albums</h3>
+                  <div id="more-albums-grid" class="side-card-grid"></div>
+                </section>
+
+                <section id="eps-section" class="content-section" hidden>
+                  <h3 id="eps-title">EPs and Singles</h3>
+                  <div id="eps-grid" class="side-card-grid"></div>
+                </section>
+              </aside>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <footer class="now-playing-bar">
+      <div class="track-info">
+        <img id="player-cover" class="cover" alt="" hidden />
+        <div id="player-cover-fallback" class="player-cover-fallback">
+          <i class="fa-solid fa-record-vinyl" aria-hidden="true"></i>
+        </div>
+        <div class="details">
+          <div id="player-title" class="title">Select a track</div>
+          <div id="player-album" class="album"></div>
+          <div id="player-artist" class="artist">Your queue will appear here.</div>
+        </div>
+      </div>
+
+      <div class="player-controls">
+        <div class="buttons">
+          <button id="shuffle-btn" class="transport-icon-button" type="button" title="Shuffle" aria-label="Shuffle">
+            <i class="fa-solid fa-shuffle" aria-hidden="true"></i>
+          </button>
+          <button id="prev-btn" type="button" title="Previous" aria-label="Previous">
+            <i class="fa-solid fa-backward-step" aria-hidden="true"></i>
+          </button>
+          <button id="play-pause-btn" class="play-pause-btn" type="button" title="Play" aria-label="Play">
+            <i class="fa-solid fa-play" aria-hidden="true"></i>
+          </button>
+          <button id="next-btn" type="button" title="Next" aria-label="Next">
+            <i class="fa-solid fa-forward-step" aria-hidden="true"></i>
+          </button>
+          <button id="repeat-btn" class="transport-icon-button" type="button" title="Repeat" aria-label="Repeat">
+            <i class="fa-solid fa-repeat" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <div class="progress-container">
+          <span id="current-time">0:00</span>
+          <div id="progress-bar" class="progress-bar" aria-label="Seek">
+            <div id="progress-fill" class="progress-fill"></div>
+          </div>
+          <span id="total-duration">0:00</span>
+        </div>
+      </div>
+
+      <div class="volume-controls">
+        <div class="queue-status">
+          <span class="label">Queue</span>
+          <strong id="queue-status">0 of 0</strong>
+        </div>
+        <a id="download-track-link" class="icon-button icon-link" href="#" download aria-label="Download current track">
+          <i class="fa-solid fa-download" aria-hidden="true"></i>
+        </a>
+        <button id="queue-toggle-button" class="icon-button" type="button" aria-label="Open queue">
+          <i class="fa-solid fa-list" aria-hidden="true"></i>
+        </button>
+        <button id="volume-btn" class="icon-button" type="button" aria-label="Mute">
+          <i class="fa-solid fa-volume-high" aria-hidden="true"></i>
+        </button>
+        <div id="volume-bar" class="volume-bar" aria-label="Volume">
+          <div id="volume-fill" class="volume-fill"></div>
+        </div>
+        <div id="audio-quality-info" class="audio-quality-info" title="Audio quality" hidden>
+          <img id="audio-quality-icon" alt="" hidden />
+          <i id="audio-quality-fallback-icon" class="fa-solid fa-file-audio" aria-hidden="true"></i>
+          <span id="audio-quality-label">Audio quality unknown</span>
+        </div>
+      </div>
+    </footer>
+
+    <section id="fullscreen-cover-overlay" class="fullscreen-cover-overlay" aria-label="Now playing full view" hidden>
+      <div class="fullscreen-backdrop"></div>
+      <canvas id="fullscreen-visualizer" class="fullscreen-visualizer" aria-hidden="true"></canvas>
+      <div class="fullscreen-top-actions">
+        <button id="close-fullscreen-cover-btn" type="button" aria-label="Close fullscreen player">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+        <button id="toggle-fullscreen-lyrics-btn" type="button" aria-label="Toggle lyrics panel">
+          <i class="fa-solid fa-microphone-lines" aria-hidden="true"></i>
+        </button>
+        <button id="fs-visualizer-btn" type="button" aria-label="Visualizer">
+          <i class="fa-solid fa-wave-square" aria-hidden="true"></i>
+        </button>
+        <button id="toggle-ui-btn" type="button" aria-label="Toggle fullscreen controls">
+          <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <div class="fullscreen-shell">
+        <div class="fullscreen-main-view">
+          <div class="fullscreen-media-column">
+            <div id="fullscreen-artwork-card" class="fullscreen-artwork-card">
+              <img id="fullscreen-cover-image" alt="" hidden />
+              <div id="fullscreen-cover-fallback" class="cover-fallback">
+                <i class="fa-solid fa-record-vinyl" aria-hidden="true"></i>
+              </div>
+            </div>
+
+            <div class="fullscreen-track-info">
+              <div class="fullscreen-track-text">
+                <h2 id="fullscreen-track-title">Select a track</h2>
+                <h3 id="fullscreen-track-artist">Your queue will appear here.</h3>
+              </div>
+              <div class="fullscreen-actions">
+                <button id="fs-like-btn" class="btn-icon" type="button" aria-label="Favorite current track">
+                  <i class="fa-solid fa-heart" aria-hidden="true"></i>
+                </button>
+                <button id="fs-edit-btn" class="btn-icon" type="button" aria-label="Open current album">
+                  <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
+                </button>
+                <a id="fs-download-btn" class="btn-icon" href="#" download aria-label="Download current track">
+                  <i class="fa-solid fa-download" aria-hidden="true"></i>
+                </a>
+                <button id="fs-lyrics-edit-btn" class="btn-icon" type="button" aria-label="Add or edit lyrics">
+                  <i class="fa-solid fa-microphone-lines" aria-hidden="true"></i>
+                </button>
+                <button id="fs-queue-btn" class="btn-icon" type="button" aria-label="Open queue">
+                  <i class="fa-solid fa-list" aria-hidden="true"></i>
+                </button>
+              </div>
+              <div id="fullscreen-next-track" class="fullscreen-next-track" hidden>
+                <span class="label">Up Next</span>
+                <span id="fullscreen-next-track-value" class="value"></span>
+              </div>
+            </div>
+
+            <div class="fullscreen-controls">
+              <div class="fullscreen-progress-container">
+                <span id="fs-current-time">0:00</span>
+                <div id="fs-progress-bar" class="progress-bar" aria-label="Seek">
+                  <div id="fs-progress-fill" class="progress-fill"></div>
+                </div>
+                <span id="fs-total-duration">0:00</span>
+              </div>
+              <div class="fullscreen-buttons">
+                <button id="fs-shuffle-btn" type="button" title="Shuffle" aria-label="Shuffle">
+                  <i class="fa-solid fa-shuffle" aria-hidden="true"></i>
+                </button>
+                <button id="fs-prev-btn" type="button" title="Previous" aria-label="Previous">
+                  <i class="fa-solid fa-backward-step" aria-hidden="true"></i>
+                </button>
+                <button id="fs-play-pause-btn" class="play-pause-btn" type="button" title="Play" aria-label="Play">
+                  <i class="fa-solid fa-play" aria-hidden="true"></i>
+                </button>
+                <button id="fs-next-btn" type="button" title="Next" aria-label="Next">
+                  <i class="fa-solid fa-forward-step" aria-hidden="true"></i>
+                </button>
+                <button id="fs-repeat-btn" type="button" title="Repeat" aria-label="Repeat">
+                  <i class="fa-solid fa-repeat" aria-hidden="true"></i>
+                </button>
+              </div>
+              <div class="fullscreen-volume-container">
+                <button id="fs-volume-btn" class="fs-volume-btn" type="button" aria-label="Mute">
+                  <i class="fa-solid fa-volume-high" aria-hidden="true"></i>
+                </button>
+                <div id="fs-volume-bar" class="fs-volume-bar" aria-label="Volume">
+                  <div id="fs-volume-fill" class="fs-volume-fill"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside id="fullscreen-lyrics-pane" class="fullscreen-lyrics-pane">
+            <div class="fullscreen-lyrics-shell">
+              <div id="fullscreen-lyrics-content" class="fullscreen-lyrics-content">
+                <div class="fullscreen-lyrics-empty">Start playing a track to fill this view.</div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <aside id="queue-panel" class="queue-panel" hidden>
+      <div class="queue-panel-header">
+        <h2>Queue</h2>
+        <div class="queue-panel-actions">
+          <button id="queue-download-button" class="icon-button" type="button" aria-label="Download queue">
+            <i class="fa-solid fa-download" aria-hidden="true"></i>
+          </button>
+          <button id="queue-favorite-button" class="icon-button" type="button" aria-label="Favorite queue">
+            <i class="fa-solid fa-heart" aria-hidden="true"></i>
+          </button>
+          <button id="queue-clear-button" class="icon-button" type="button" aria-label="Clear queue">
+            <i class="fa-solid fa-broom" aria-hidden="true"></i>
+          </button>
+          <button id="queue-close-button" class="icon-button" type="button" aria-label="Close queue">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+      <div id="queue-list" class="queue-list"></div>
+    </aside>
+    <div id="queue-overlay" class="queue-overlay" hidden></div>
+
+    <div id="tag-editor-overlay" class="modal-overlay" hidden></div>
+    <section id="tag-editor-modal" class="tag-editor-modal" role="dialog" aria-modal="true" aria-labelledby="tag-editor-title" hidden>
+      <header class="tag-editor-header">
+        <div>
+          <p class="eyebrow">Album Tag Editor</p>
+          <h2 id="tag-editor-title">Edit album tags</h2>
+          <p id="tag-editor-caption">Save local metadata overrides without rewriting your music files.</p>
+        </div>
+        <button id="tag-editor-close-button" class="icon-button" type="button" aria-label="Close tag editor">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </header>
+
+      <div class="tag-editor-body">
+        <form id="tag-editor-form" class="tag-editor-form">
+          <div class="tag-editor-cover">
+            <img id="tag-editor-cover-preview" alt="" hidden />
+            <div id="tag-editor-cover-fallback" class="cover-fallback">
+              <i class="fa-solid fa-record-vinyl" aria-hidden="true"></i>
+            </div>
+          </div>
+
+          <div class="tag-editor-fields">
+            <label>
+              <span>Album title</span>
+              <input id="tag-album-title" type="text" autocomplete="off" />
+            </label>
+            <label>
+              <span>Album artist</span>
+              <input id="tag-album-artist" type="text" autocomplete="off" />
+            </label>
+            <label>
+              <span>Year</span>
+              <input id="tag-album-date" type="text" placeholder="2021" autocomplete="off" inputmode="numeric" />
+            </label>
+            <label>
+              <span>Genre</span>
+              <input id="tag-album-genre" type="text" autocomplete="off" />
+            </label>
+            <fieldset class="wide-field media-type-picker">
+              <span>Media type</span>
+              <div class="media-type-options" id="tag-album-media-types">
+                <label>
+                  <input type="checkbox" value="CD" />
+                  <i class="fa-solid fa-compact-disc" aria-hidden="true"></i>
+                  <span>CD</span>
+                </label>
+                <label>
+                  <input type="checkbox" value="Digital Media" />
+                  <i class="fa-solid fa-file-audio" aria-hidden="true"></i>
+                  <span>Digital</span>
+                </label>
+                <label>
+                  <input type="checkbox" value="Vinyl" />
+                  <i class="fa-solid fa-record-vinyl" aria-hidden="true"></i>
+                  <span>Vinyl</span>
+                </label>
+              </div>
+            </fieldset>
+            <label>
+              <span>Status</span>
+              <select id="tag-album-status">
+                <option>Collection</option>
+                <option>Wanted</option>
+              </select>
+            </label>
+            <label class="wide-field">
+              <span>Cover URL</span>
+              <input id="tag-album-cover-url" type="url" placeholder="https://..." autocomplete="off" />
+            </label>
+          </div>
+        </form>
+
+        <section class="tag-scraper-panel">
+          <div class="tag-scraper-search">
+            <label>
+              <span>Online search</span>
+              <input id="tag-scraper-query" type="search" autocomplete="off" />
+            </label>
+            <button id="tag-scraper-search-button" class="secondary-button" type="button">Search MusicBrainz</button>
+          </div>
+          <p id="tag-scraper-status" class="tag-scraper-status">Search results will appear here.</p>
+          <div id="tag-scraper-results" class="tag-scraper-results"></div>
+        </section>
+
+        <section class="tag-track-editor">
+          <div class="section-heading">
+            <div>
+              <h3>Tracks</h3>
+              <p>Edit track titles, artists, disc, and track numbers for this album.</p>
+            </div>
+          </div>
+          <div id="tag-track-list" class="tag-track-list"></div>
+        </section>
+      </div>
+
+      <footer class="tag-editor-footer">
+        <button id="tag-editor-reset-button" class="secondary-button" type="button">Reset overrides</button>
+        <div>
+          <button id="tag-editor-cancel-button" class="secondary-button" type="button">Cancel</button>
+          <button id="tag-editor-save-button" class="primary-button" type="button">Save tags</button>
+        </div>
+      </footer>
+    </section>
+
+    <div id="artist-editor-overlay" class="modal-overlay" hidden></div>
+    <section id="artist-editor-modal" class="tag-editor-modal artist-editor-modal" role="dialog" aria-modal="true" aria-labelledby="artist-editor-title" hidden>
+      <header class="tag-editor-header">
+        <div>
+          <p class="eyebrow">Artist Editor</p>
+          <h2 id="artist-editor-title">Edit artist info</h2>
+          <p id="artist-editor-caption">Add an artist image and local profile info.</p>
+        </div>
+        <button id="artist-editor-close-button" class="icon-button" type="button" aria-label="Close artist editor">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </header>
+
+      <div class="tag-editor-body">
+        <form class="artist-editor-form">
+          <label>
+            <span>Image URL</span>
+            <input id="artist-image-url" type="url" placeholder="https://..." autocomplete="off" />
+          </label>
+          <label>
+            <span>Artist info</span>
+            <textarea id="artist-bio" rows="7" placeholder="Short artist bio or notes..."></textarea>
+          </label>
+          <label>
+            <span>Source URL</span>
+            <input id="artist-source-url" type="url" placeholder="https://..." autocomplete="off" />
+          </label>
+        </form>
+      </div>
+
+      <footer class="tag-editor-footer">
+        <button id="artist-editor-reset-button" class="secondary-button" type="button">Clear edited info</button>
+        <div>
+          <button id="artist-editor-cancel-button" class="secondary-button" type="button">Cancel</button>
+          <button id="artist-editor-save-button" class="primary-button" type="button">Save artist</button>
+        </div>
+      </footer>
+    </section>
+
+    <div id="lyrics-editor-overlay" class="modal-overlay" hidden></div>
+    <section id="lyrics-editor-modal" class="tag-editor-modal lyrics-editor-modal" role="dialog" aria-modal="true" aria-labelledby="lyrics-editor-title" hidden>
+      <header class="tag-editor-header">
+        <div>
+          <p class="eyebrow">Lyrics Editor</p>
+          <h2 id="lyrics-editor-title">Add lyrics</h2>
+          <p id="lyrics-editor-caption">Save synced LRC or plain lyrics locally and beside the music file.</p>
+        </div>
+        <button id="lyrics-editor-close-button" class="icon-button" type="button" aria-label="Close lyrics editor">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </header>
+
+      <div class="tag-editor-body lyrics-editor-body">
+        <section class="tag-scraper-panel">
+          <div class="tag-scraper-search">
+            <label>
+              <span>Online search</span>
+              <input id="lyrics-scraper-query" type="search" autocomplete="off" />
+            </label>
+            <button id="lyrics-scraper-search-button" class="secondary-button" type="button">Search LRCLIB</button>
+          </div>
+          <p id="lyrics-scraper-status" class="tag-scraper-status">Search LRCLIB for synced or plain lyrics.</p>
+          <div id="lyrics-scraper-results" class="tag-scraper-results"></div>
+        </section>
+
+        <form class="lyrics-editor-form">
+          <label>
+            <span>Synced lyrics (LRC)</span>
+            <textarea id="lyrics-synced-input" rows="12" placeholder="[00:12.50] First lyric line"></textarea>
+          </label>
+          <label>
+            <span>Plain lyrics</span>
+            <textarea id="lyrics-plain-input" rows="12" placeholder="Paste plain lyrics here..."></textarea>
+          </label>
+        </form>
+      </div>
+
+      <footer class="tag-editor-footer">
+        <button id="lyrics-editor-reset-button" class="secondary-button" type="button">Reset lyrics</button>
+        <div>
+          <button id="lyrics-editor-cancel-button" class="secondary-button" type="button">Cancel</button>
+          <button id="lyrics-editor-save-button" class="primary-button" type="button">Save lyrics</button>
+        </div>
+      </footer>
+    </section>
+
+    <audio id="audio-player" preload="metadata" style="display: none"></audio>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

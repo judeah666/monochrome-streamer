@@ -1,0 +1,10 @@
+{
+  "artists": {
+    "Example Artist": {
+      "imageUrl": "https://example.com/artist.jpg",
+      "bio": "Short artist bio shown on the local artist page.",
+      "sourceUrl": "https://example.com/artist",
+      "source": "manual"
+    }
+  }
+}

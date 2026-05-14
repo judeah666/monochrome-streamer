@@ -1,0 +1,13 @@
+config.json
+library-cache.json
+.env
+node_modules/
+npm-debug.log*
+*.log
+*.zip
+lyrics/
+lyrics-overrides.json
+artist-overrides.json
+album-overrides.json
+upstream-*
+-
