@@ -17,7 +17,7 @@ A small self-hosted music streamer inspired by the look and feel of [Monochrome]
 - Groups music by folder structure:
   - `Artist/Album/01 - Track.mp3`
   - `Artist/Album/1-01 - Track.flac`
-- Provides a dark Monochrome-inspired web UI for browsing albums, artists, favorites, playlists, and folders
+- Provides Multiple web UI Theme for browsing albums, artists, favorites, playlists, and folders
 
 ## Screenshots
 
