@@ -4,15 +4,12 @@ A small self-hosted music streamer inspired by the look and feel of [Monochrome]
 
 ## What this version does
 
+- Streams music files from your server
 - Scans a local folder on your server for audio files
-- Streams those files in the browser with HTTP range support
-- Reads embedded tags for track title, album, artist, track number, duration, and embedded cover art when `music-metadata` is installed
+- Reads embedded tags for track title, album, artist, track number, duration, and embedded cover art
 - Detects album art from sidecar images like `cover.jpg`, `folder.jpg`, or `front.png`
-- Lets you edit local album metadata overrides from an album tag editor window
 - Saves synced lyrics as `.lrc` files beside your music files
-- Uses Font Awesome icons throughout the app
 - Searches MusicBrainz and Cover Art Archive for album metadata, track lists, and cover art
-- Shows artist pages with manual artist metadata first, then an online Wikipedia fallback when reachable
 - Lets you add or edit artist images and artist info from the artist page
 - Groups music by folder structure:
   - `Artist/Album/01 - Track.mp3`
@@ -100,8 +97,8 @@ Copy-Item .env.example .env
 Then edit `.env`:
 
 ```text
-MUSIC_DIR=D:\Music
-APP_DATA_DIR=D:\Monochrome-Streamer\data
+MUSIC_DIR=/path/to/your/music
+APP_DATA_DIR=/monochrome-streamer/data
 APP_TITLE=Monochrome-Streamer
 ```
 
@@ -128,8 +125,8 @@ docker build -t monochrome-streamer .
 ```powershell
 docker run --rm -p 8888:8888 `
   -e APP_TITLE="Monochrome-Streamer" `
-  --mount type=bind,source="D:\Music",target=/music,readonly `
-  --mount type=bind,source="D:\Monochrome-Streamer\data",target=/data `
+  --mount type=bind,source="/path/to/your/Music",target=/music,readonly `
+  --mount type=bind,source="/opt/monochrome-streamer/data",target=/data `
   monochrome-streamer
 ```
 
@@ -143,7 +140,7 @@ Use [docker-compose.dockge.yml](docker-compose.dockge.yml) as the starting point
 services:
   monochrome-streamer:
     image: judeah666/monochrome-streamer:latest
-    container_name: Monochrome-Streamer
+    container_name: monochrome-streamer
     restart: unless-stopped
     ports:
       - "8888:8888"
@@ -152,7 +149,6 @@ services:
       DATA_DIR: /data
       SCAN_METADATA: tags
       SCAN_DURATIONS: "false"
-      AUTO_SCAN_ON_START: "false"
     volumes:
       - /path/to/your/music:/music:ro
       - /opt/monochrome-streamer/data:/data
@@ -190,7 +186,7 @@ curl http://127.0.0.1:8888/api/config
 ```json
 {
   "title": "Monochrome-Streamer",
-  "libraryPath": "D:\\Music",
+  "libraryPath": "/path/to/your/music",
   "dataDir": "",
   "artistInfoPath": "artist-info.json",
   "artistOverridesPath": "artist-overrides.json",
@@ -223,9 +219,9 @@ Artist pages try `artist-info.json` first. Copy `artist-info.example.json` to `a
 {
   "artists": {
     "Brownman Revival": {
-      "imageUrl": "https://example.com/brownman-revival.jpg",
+      "imageUrl": "https://example.com/artist-image.jpg",
       "bio": "Short bio to show on the artist page.",
-      "sourceUrl": "https://example.com/brownman-revival",
+      "sourceUrl": "https://example.com/artist-info",
       "source": "manual"
     }
   }
