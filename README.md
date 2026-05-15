@@ -18,6 +18,30 @@ A small self-hosted music streamer inspired by the look and feel of [Monochrome]
 
 ## Screenshots
 
+### Home Screen
+
+![Home Screen](docs/screenshots/home-screen.png)
+
+### Library
+
+![Library](docs/screenshots/library.png)
+
+### Album
+
+![Album](docs/screenshots/album.png)
+
+### Artist
+
+![Artist](docs/screenshots/artist.png)
+
+### Fullscreen Now Playing
+
+![Fullscreen Now Playing](docs/screenshots/now-playing.png)
+
+### Add your Folder in settings
+
+![Add Your Folder in settings](docs/screenshots/add-folder.png)
+
 ### Floating Player
 
 ![Floating player layout](docs/screenshots/floating-player.png)
