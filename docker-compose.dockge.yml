@@ -8,6 +8,8 @@ services:
     environment:
       APP_TITLE: Monochrome-Streamer
       DATA_DIR: /data
+      LIBRARY_DATABASE_PATH: /data/library.sqlite
+      COVER_CACHE_PATH: /data/covers
       SCAN_METADATA: tags
       SCAN_DURATIONS: "false"
       AUTO_SCAN_ON_START: "false"

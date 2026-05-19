@@ -9,6 +9,8 @@
   "lyricsSidecarPath": "lyrics",
   "libraryFoldersPath": "library-folders.json",
   "libraryCachePath": "library-cache.json",
+  "libraryDatabasePath": "library.sqlite",
+  "coverCachePath": "covers",
   "scanMetadata": "tags",
   "scanDurations": false,
   "autoScanOnStart": false,

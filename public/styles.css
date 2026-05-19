@@ -189,6 +189,82 @@ button:disabled {
   font-weight: 700;
 }
 
+.library-pager {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+}
+
+.alphabet-index {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+}
+
+.alphabet-index button {
+  min-width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.alphabet-index button:hover {
+  background: var(--hover-surface);
+  color: var(--text);
+}
+
+.alphabet-index button.is-active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.library-pager > div {
+  margin-right: auto;
+  color: var(--muted);
+}
+
+.library-pager strong {
+  color: var(--text);
+  font-family: var(--font-display);
+  margin-right: 4px;
+}
+
+.library-pager label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.library-pager select {
+  min-width: 76px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--input-surface);
+  color: var(--text);
+  padding: 8px 12px;
+}
+
 .eyebrow,
 .label {
   margin: 0 0 8px;

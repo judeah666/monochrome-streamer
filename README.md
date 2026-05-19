@@ -126,7 +126,7 @@ APP_DATA_DIR=/monochrome-streamer/data
 APP_TITLE=Monochrome-Streamer
 ```
 
-`APP_DATA_DIR` is the local server folder where album edits, artist edits, and saved `.lrc` lyrics are stored. Inside Docker it is mounted as `/data`.
+`APP_DATA_DIR` is the local server folder where album edits, artist edits, saved `.lrc` lyrics, the SQLite library index, and cached cover art are stored. Inside Docker it is mounted as `/data`.
 
 Start it in the background:
 
@@ -226,6 +226,8 @@ You can also override values with environment variables:
 - `APP_TITLE`
 - `DATA_DIR`
 - `APP_DATA_DIR` for Docker Compose host storage
+- `LIBRARY_DATABASE_PATH` defaults to `/data/library.sqlite` in Docker
+- `COVER_CACHE_PATH` defaults to `/data/covers` in Docker
 - `SCAN_METADATA` as `tags` or `filename`
 - `SCAN_DURATIONS` as `true` or `false`
 - `AUTO_SCAN_ON_START` as `true` or `false`

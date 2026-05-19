@@ -9,6 +9,18 @@ import {
   readEmbeddedCover,
   scanMusicLibrary,
 } from './lib/library.mjs';
+import {
+  readLibraryAlbumPage,
+  readLibraryDatabase,
+  readLibraryDatabaseSummary,
+  readArtistLibrary,
+  readArtistPage,
+  readFolderLibrary,
+  readFolderListing,
+  readTrackPage,
+  readTrackFromDatabase,
+  writeLibraryDatabase,
+} from './lib/library-db.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,6 +38,8 @@ const defaultConfig = {
   lyricsSidecarPath: 'lyrics',
   libraryFoldersPath: 'library-folders.json',
   libraryCachePath: 'library-cache.json',
+  libraryDatabasePath: 'library.sqlite',
+  coverCachePath: 'covers',
   scanMetadata: 'tags',
   scanDurations: false,
   autoScanOnStart: false,
@@ -42,6 +56,8 @@ const lyricsOverridesPath = config.lyricsOverridesPath ? path.resolve(__dirname,
 const lyricsSidecarPath = config.lyricsSidecarPath ? path.resolve(__dirname, config.lyricsSidecarPath) : '';
 const libraryFoldersPath = config.libraryFoldersPath ? path.resolve(__dirname, config.libraryFoldersPath) : '';
 const libraryCachePath = config.libraryCachePath ? path.resolve(__dirname, config.libraryCachePath) : '';
+const libraryDatabasePath = config.libraryDatabasePath ? path.resolve(__dirname, config.libraryDatabasePath) : '';
+const coverCachePath = config.coverCachePath ? path.resolve(__dirname, config.coverCachePath) : '';
 
 if (!libraryRoot || !existsSync(libraryRoot)) {
   console.error(`Music library path is missing or invalid: ${libraryRoot || '(empty)'}`);
@@ -84,15 +100,91 @@ const server = http.createServer(async (request, response) => {
     const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
 
     if (url.pathname === '/api/config') {
+      const librarySummary = libraryCache
+        ? { generatedAt: libraryCache.generatedAt, trackCount: libraryCache.trackCount, albumCount: libraryCache.albumCount }
+        : await readLibraryDatabaseSummary(libraryDatabasePath);
       return respondJson(response, 200, {
         title: config.title,
-        generatedAt: libraryCache?.generatedAt ?? null,
+        generatedAt: librarySummary.generatedAt,
+        trackCount: librarySummary.trackCount,
+        albumCount: librarySummary.albumCount,
         scan: scanState,
       });
     }
 
     if (url.pathname === '/api/library') {
+      if (url.searchParams.has('limit') || url.searchParams.has('offset') || url.searchParams.has('search')) {
+        const pageOptions = {
+          limit: url.searchParams.get('limit'),
+          offset: url.searchParams.get('offset'),
+          search: url.searchParams.get('search'),
+          letter: url.searchParams.get('letter'),
+        };
+        let library = await readLibraryAlbumPage(libraryDatabasePath, pageOptions);
+        if (library.albumCount === 0 && library.trackCount === 0) {
+          library = createPagedLibrary(await getCurrentLibrary(), pageOptions);
+        }
+        primeTrackMap(library.tracks);
+        return respondJson(response, 200, await createLibraryPayload(library));
+      }
       return respondJson(response, 200, await createLibraryPayload(await getCurrentLibrary()));
+    }
+
+    if (url.pathname === '/api/tracks') {
+      const trackIds = url.searchParams.get('ids')
+        ? url.searchParams.get('ids').split(',').map((id) => id.trim()).filter(Boolean)
+        : [];
+      const library = await readTrackPage(libraryDatabasePath, {
+        limit: url.searchParams.get('limit'),
+        offset: url.searchParams.get('offset'),
+        search: url.searchParams.get('search'),
+        letter: url.searchParams.get('letter'),
+        trackIds,
+      });
+      primeTrackMap(library.tracks);
+      return respondJson(response, 200, await createLibraryPayload(library));
+    }
+
+    if (url.pathname === '/api/folders') {
+      const listing = await readFolderListing(libraryDatabasePath, url.searchParams.get('path') || '', {
+        search: url.searchParams.get('search') || '',
+      });
+      primeTrackMap(listing.tracks);
+      return respondJson(response, 200, {
+        ...listing,
+        tracks: (await createLibraryPayload({
+          generatedAt: null,
+          trackCount: listing.tracks.length,
+          albumCount: 0,
+          albums: [],
+          tracks: listing.tracks,
+        })).tracks,
+      });
+    }
+
+    if (url.pathname === '/api/folders/playqueue') {
+      const library = await readFolderLibrary(libraryDatabasePath, url.searchParams.get('path') || '', {
+        search: url.searchParams.get('search') || '',
+      });
+      primeTrackMap(library.tracks);
+      return respondJson(response, 200, await createLibraryPayload(library));
+    }
+
+    if (url.pathname === '/api/artists') {
+      return respondJson(response, 200, await readArtistPage(libraryDatabasePath, {
+        limit: url.searchParams.get('limit'),
+        offset: url.searchParams.get('offset'),
+        search: url.searchParams.get('search'),
+        letter: url.searchParams.get('letter'),
+      }));
+    }
+
+    const artistLibraryMatch = /^\/api\/artists\/([^/]+)\/library$/u.exec(url.pathname);
+    if (artistLibraryMatch) {
+      const artistName = decodeURIComponent(artistLibraryMatch[1]);
+      const library = await readArtistLibrary(libraryDatabasePath, artistName);
+      primeTrackMap(library.tracks);
+      return respondJson(response, 200, await createLibraryPayload(library));
     }
 
     if (url.pathname === '/api/rescan' && request.method === 'POST') {
@@ -229,6 +321,8 @@ async function loadConfig() {
     lyricsSidecarPath: process.env.LYRICS_SIDECAR_PATH || fileConfig.lyricsSidecarPath || dataPath(defaultConfig.lyricsSidecarPath),
     libraryFoldersPath: process.env.LIBRARY_FOLDERS_PATH || fileConfig.libraryFoldersPath || dataPath(defaultConfig.libraryFoldersPath),
     libraryCachePath: process.env.LIBRARY_CACHE_PATH || fileConfig.libraryCachePath || dataPath(defaultConfig.libraryCachePath),
+    libraryDatabasePath: process.env.LIBRARY_DATABASE_PATH || fileConfig.libraryDatabasePath || dataPath(defaultConfig.libraryDatabasePath),
+    coverCachePath: process.env.COVER_CACHE_PATH || fileConfig.coverCachePath || dataPath(defaultConfig.coverCachePath),
     scanMetadata: normalizeScanMetadata(process.env.SCAN_METADATA || fileConfig.scanMetadata || defaultConfig.scanMetadata),
     scanDurations: parseBoolean(process.env.SCAN_DURATIONS ?? fileConfig.scanDurations ?? defaultConfig.scanDurations),
     autoScanOnStart: parseBoolean(process.env.AUTO_SCAN_ON_START ?? fileConfig.autoScanOnStart ?? defaultConfig.autoScanOnStart),
@@ -258,6 +352,22 @@ async function getCurrentLibrary() {
   return createEmptyLibrary();
 }
 
+function primeTrackMap(tracks) {
+  for (const track of tracks || []) {
+    trackMap.set(track.id, track);
+  }
+}
+
+async function getTrackById(trackId) {
+  const cachedTrack = trackMap.get(trackId);
+  if (cachedTrack) return cachedTrack;
+  const databaseTrack = await readTrackFromDatabase(libraryDatabasePath, trackId);
+  if (databaseTrack) {
+    trackMap.set(databaseTrack.id, databaseTrack);
+  }
+  return databaseTrack;
+}
+
 function createEmptyLibrary() {
   return {
     generatedAt: null,
@@ -265,6 +375,36 @@ function createEmptyLibrary() {
     albumCount: 0,
     tracks: [],
     albums: [],
+  };
+}
+
+function createPagedLibrary(library, options = {}) {
+  const limit = [25, 50, 100].includes(Number.parseInt(options.limit || 50, 10))
+    ? Number.parseInt(options.limit || 50, 10)
+    : 50;
+  const offset = Math.max(0, Number.parseInt(options.offset || 0, 10) || 0);
+  const search = String(options.search || '').trim().toLowerCase();
+  const albums = search
+    ? library.albums.filter((album) => [album.title, album.artist, album.albumArtist].some((value) =>
+      String(value || '').toLowerCase().includes(search)
+    ))
+    : library.albums;
+  const pageAlbums = albums.slice(offset, offset + limit);
+  const trackIds = new Set(pageAlbums.flatMap((album) => album.trackIds || []));
+  const tracks = library.tracks.filter((track) => trackIds.has(track.id));
+
+  return {
+    ...library,
+    albums: pageAlbums,
+    tracks,
+    albumCount: albums.length,
+    page: {
+      limit,
+      offset,
+      total: albums.length,
+      hasNext: offset + limit < albums.length,
+      hasPrevious: offset > 0,
+    },
   };
 }
 
@@ -301,6 +441,9 @@ async function refreshLibrary(selectedFoldersInput = null) {
     includeFolders: selectedFolders,
     cachedTracks: cachedLibrary.tracks,
     onProgress: updateScanProgress,
+  }).then(async (library) => {
+    await populateAlbumCoverCache(library);
+    return library;
   }).then((library) => {
     libraryCache = library;
     trackMap = new Map(library.tracks.map((track) => [track.id, track]));
@@ -369,7 +512,78 @@ function updateScanProgress(progress) {
   };
 }
 
+async function populateAlbumCoverCache(library) {
+  if (!coverCachePath) return;
+
+  await fs.mkdir(coverCachePath, { recursive: true });
+  const tracksById = new Map(library.tracks.map((track) => [track.id, track]));
+
+  for (const album of library.albums || []) {
+    const track = album.coverTrackId ? tracksById.get(album.coverTrackId) : null;
+    if (!track) continue;
+
+    if (track.cachedCoverPath && existsSync(track.cachedCoverPath)) {
+      continue;
+    }
+
+    const cachedCover = await cacheAlbumCover(album, track);
+    if (cachedCover) {
+      track.cachedCoverPath = cachedCover.path;
+      track.cachedCoverFormat = cachedCover.format;
+      track.hasEmbeddedCover = true;
+    }
+  }
+}
+
+async function cacheAlbumCover(album, track) {
+  if (track.coverArtPath && existsSync(track.coverArtPath)) {
+    const extension = path.extname(track.coverArtPath).toLowerCase() || '.jpg';
+    const targetPath = getCachedCoverPath(album.id, extension);
+    try {
+      await fs.copyFile(track.coverArtPath, targetPath);
+      return {
+        path: targetPath,
+        format: getContentType(targetPath),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  if (!track.hasEmbeddedCover) return null;
+
+  const embeddedCover = await readEmbeddedCover(track.path);
+  if (!embeddedCover?.data) return null;
+
+  const extension = getImageExtension(embeddedCover.format);
+  const targetPath = getCachedCoverPath(album.id, extension);
+  await fs.writeFile(targetPath, embeddedCover.data);
+  return {
+    path: targetPath,
+    format: embeddedCover.format || getContentType(targetPath),
+  };
+}
+
+function getCachedCoverPath(albumId, extension) {
+  const safeExtension = ['.jpg', '.jpeg', '.png', '.webp', '.avif'].includes(extension) ? extension : '.jpg';
+  return path.join(coverCachePath, `${albumId}${safeExtension}`);
+}
+
+function getImageExtension(contentType = '') {
+  const normalized = String(contentType).toLowerCase();
+  if (normalized.includes('png')) return '.png';
+  if (normalized.includes('webp')) return '.webp';
+  if (normalized.includes('avif')) return '.avif';
+  if (normalized.includes('jpeg') || normalized.includes('jpg')) return '.jpg';
+  return '.jpg';
+}
+
 async function readLibraryCache() {
+  const databaseLibrary = await readLibraryDatabase(libraryDatabasePath);
+  if (databaseLibrary.tracks.length > 0 || databaseLibrary.albums.length > 0) {
+    return databaseLibrary;
+  }
+
   if (!libraryCachePath || !existsSync(libraryCachePath)) return createEmptyLibrary();
 
   try {
@@ -388,9 +602,7 @@ async function readLibraryCache() {
 }
 
 async function writeLibraryCache(library) {
-  if (!libraryCachePath) return;
-  await fs.mkdir(path.dirname(libraryCachePath), { recursive: true });
-  await fs.writeFile(libraryCachePath, `${JSON.stringify(library, null, 2)}\n`, 'utf8');
+  await writeLibraryDatabase(libraryDatabasePath, library);
 }
 
 async function getLibraryFoldersPayload() {
@@ -491,9 +703,13 @@ async function createLibraryPayload(library) {
     generatedAt: library.generatedAt,
     trackCount: library.trackCount,
     albumCount: library.albumCount,
+    page: library.page || null,
     albums: library.albums.map((album) => {
       const override = overrides.albums?.[album.id] || null;
-      const scannedCoverUrl = album.coverTrackId ? `/api/tracks/${album.coverTrackId}/cover` : null;
+      const coverTrack = album.coverTrackId ? trackMap.get(album.coverTrackId) : null;
+      const scannedCoverUrl = coverTrack?.cachedCoverPath || coverTrack?.coverArtPath || coverTrack?.hasEmbeddedCover
+        ? `/api/tracks/${album.coverTrackId}/cover`
+        : null;
       return {
         ...album,
         title: override?.albumTitle || album.title,
@@ -515,7 +731,9 @@ async function createLibraryPayload(library) {
       const albumOverride = trackAlbumOverrideMap.get(track.id) || null;
       const album = trackAlbumMap.get(track.id) || null;
       const trackOverride = albumOverride?.tracks?.[track.id] || null;
-      const scannedCoverUrl = track.coverArtPath || track.hasEmbeddedCover ? `/api/tracks/${track.id}/cover` : null;
+      const scannedCoverUrl = track.cachedCoverPath || track.coverArtPath || track.hasEmbeddedCover
+        ? `/api/tracks/${track.id}/cover`
+        : null;
       return {
         id: track.id,
         albumId: album?.id || '',
@@ -536,7 +754,7 @@ async function createLibraryPayload(library) {
 }
 
 async function streamTrack(response, trackId, rangeHeader) {
-  const track = trackMap.get(trackId);
+  const track = await getTrackById(trackId);
   if (!track) {
     return respondJson(response, 404, { error: 'Track not found' });
   }
@@ -571,9 +789,20 @@ async function streamTrack(response, trackId, rangeHeader) {
 }
 
 async function streamCover(response, trackId) {
-  const track = trackMap.get(trackId);
-  if (!track?.coverArtPath && !track?.hasEmbeddedCover) {
+  const track = await getTrackById(trackId);
+  if (!track?.cachedCoverPath && !track?.coverArtPath && !track?.hasEmbeddedCover) {
     return respondJson(response, 404, { error: 'Cover art not found' });
+  }
+
+  if (track.cachedCoverPath && existsSync(track.cachedCoverPath)) {
+    const stats = await fs.stat(track.cachedCoverPath);
+    response.writeHead(200, {
+      'Content-Length': String(stats.size),
+      'Content-Type': track.cachedCoverFormat || getContentType(track.cachedCoverPath),
+      'Cache-Control': 'public, max-age=604800, immutable',
+    });
+    createReadStream(track.cachedCoverPath).pipe(response);
+    return;
   }
 
   if (track.coverArtPath) {
@@ -581,7 +810,7 @@ async function streamCover(response, trackId) {
     response.writeHead(200, {
       'Content-Length': String(stats.size),
       'Content-Type': getContentType(track.coverArtPath),
-      'Cache-Control': 'public, max-age=300',
+      'Cache-Control': 'public, max-age=604800',
     });
     createReadStream(track.coverArtPath).pipe(response);
     return;
@@ -596,7 +825,7 @@ async function streamCover(response, trackId) {
   response.writeHead(200, {
     'Content-Length': String(embeddedCover.data.length),
     'Content-Type': embeddedCover.format || 'image/jpeg',
-    'Cache-Control': 'public, max-age=300',
+    'Cache-Control': 'public, max-age=604800',
   });
   response.end(embeddedCover.data);
 }

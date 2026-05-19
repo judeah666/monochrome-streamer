@@ -219,6 +219,7 @@ const DEFAULT_SETTINGS = {
   theme: 'black',
   fontPreset: 'jakarta',
   fontSize: 100,
+  libraryPageSize: 50,
   customAccent: '#eb9200',
   customThemeBase: 'dark',
   libraryTitle: 'Monochrome-Streamer',
@@ -426,6 +427,7 @@ const RENDER_LIMITS = {
   queue: 220,
   folders: 160,
 };
+const ALPHABET_FILTERS = ['all', '#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
 
 const state = {
   title: 'Monochrome-Streamer',
@@ -438,8 +440,14 @@ const state = {
   artistGroups: [],
   artistGroupMap: new Map(),
   libraryFolders: { available: [], selected: [], scan: null },
+  libraryPage: { limit: 50, offset: 0, total: 0, hasNext: false, hasPrevious: false },
+  artistPage: { limit: 50, offset: 0, total: 0, hasNext: false, hasPrevious: false },
+  libraryTotals: { albums: 0, tracks: 0 },
+  folderCache: new Map(),
+  folderLoading: new Set(),
   homeAlbumIds: [],
   searchTerm: '',
+  alphabetFilter: 'all',
   browseView: 'home',
   route: { view: 'home', albumId: null },
   currentTrackId: null,
@@ -459,6 +467,7 @@ const state = {
   libraryTab: 'folders',
   settingsTab: 'appearance',
   settings: { ...DEFAULT_SETTINGS },
+  pendingLibraryFolders: null,
   expandedFolderPaths: new Set(),
   selectedPlaylistId: 'favorites-tracks',
   artistInfoMap: new Map(),
@@ -481,6 +490,8 @@ const state = {
   visualizerFrameId: 0,
   scanPollId: null,
   scanPollInFlight: false,
+  searchFetchId: 0,
+  artistFetchId: 0,
 };
 
 init().catch((error) => {
@@ -489,13 +500,14 @@ init().catch((error) => {
 });
 
 async function init() {
-  const [config, library, libraryFolders] = await Promise.all([
+  state.settings = readStoredSettings();
+
+  const [config, libraryFolders] = await Promise.all([
     fetchJson('/api/config'),
-    fetchJson('/api/library'),
     fetchJson('/api/library/folders').catch(() => ({ available: [], selected: [], scan: null })),
   ]);
+  const library = await fetchLibraryPagePayload(0);
 
-  state.settings = readStoredSettings();
   state.libraryFolders = libraryFolders;
   hydrateLibrary(config, library);
   state.favoriteTrackIds = readStoredIdSet(STORAGE_KEYS.favoriteTracks);
@@ -519,14 +531,14 @@ async function init() {
 function bindEvents() {
   searchInput.addEventListener('input', () => {
     state.searchTerm = searchInput.value.trim().toLowerCase();
-    render();
+    queueVisiblePageFetch(0);
   });
 
   clearSearchButton.addEventListener('click', () => {
     searchInput.value = '';
     state.searchTerm = '';
     searchInput.focus();
-    render();
+    queueVisiblePageFetch(0);
   });
 
   backButton.addEventListener('click', () => navigateToView(state.browseView));
@@ -546,6 +558,38 @@ function bindEvents() {
   });
   settingsPanels.addEventListener('input', handleSettingsInput);
   settingsPanels.addEventListener('change', handleSettingsInput);
+  settingsPanels.addEventListener('change', handleLibraryFolderSelectionChange);
+  document.addEventListener('click', (event) => {
+    const alphabetButton = event.target.closest('[data-alphabet-filter]');
+    if (alphabetButton) {
+      state.alphabetFilter = alphabetButton.dataset.alphabetFilter || 'all';
+      queueVisiblePageFetch(0);
+      return;
+    }
+
+    const button = event.target.closest('[data-library-page-action]');
+    if (!button) return;
+    const limit = state.libraryPage.limit || state.settings.libraryPageSize || 50;
+    const offset = button.dataset.libraryPageAction === 'next'
+      ? state.libraryPage.offset + limit
+      : Math.max(0, state.libraryPage.offset - limit);
+    loadLibraryPage(offset).catch((error) => console.error(error));
+  });
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-artist-page-action]');
+    if (!button) return;
+    const limit = state.artistPage.limit || state.settings.libraryPageSize || 50;
+    const offset = button.dataset.artistPageAction === 'next'
+      ? state.artistPage.offset + limit
+      : Math.max(0, state.artistPage.offset - limit);
+    loadArtistPage(offset).catch((error) => console.error(error));
+  });
+  document.addEventListener('change', (event) => {
+    const select = event.target.closest('[data-library-page-size]');
+    if (!select) return;
+    updateSetting('libraryPageSize', Number(select.value), true);
+    loadLibraryPage(0).catch((error) => console.error(error));
+  });
   settingsPanels.addEventListener('click', (event) => {
     const button = event.target.closest('[data-settings-action], [data-setting-value]');
     if (!button) return;
@@ -814,12 +858,18 @@ function hydrateLibrary(config, library) {
   state.generatedAt = library.generatedAt;
   state.albums = library.albums;
   state.tracks = library.tracks;
-  state.trackMap = new Map(library.tracks.map((track) => [track.id, track]));
-  state.albumMap = new Map(library.albums.map((album) => [album.id, album]));
-  state.albumTracksMap = new Map(library.albums.map((album) => [
-    album.id,
-    album.trackIds.map((id) => state.trackMap.get(id)).filter(Boolean).sort(compareTrackOrder),
-  ]));
+  state.libraryTotals = {
+    albums: library.page?.total ?? library.albumCount ?? library.albums.length,
+    tracks: library.trackCount ?? library.tracks.length,
+  };
+  state.libraryPage = library.page || {
+    limit: state.settings.libraryPageSize || 50,
+    offset: 0,
+    total: state.libraryTotals.albums,
+    hasNext: false,
+    hasPrevious: false,
+  };
+  mergeLibraryData(library);
   state.artistGroups = buildArtistGroups(library.tracks);
   state.artistGroupMap = new Map(state.artistGroups.map((artist) => [artist.name, artist]));
   state.homeAlbumIds = getRandomAlbumIds(library.albums, 50);
@@ -827,9 +877,163 @@ function hydrateLibrary(config, library) {
   updateSidebarScanStatus();
 }
 
+function mergeLibraryData(library) {
+  state.trackMap = new Map([
+    ...state.trackMap,
+    ...(library.tracks || []).map((track) => [track.id, track]),
+  ]);
+  state.albumMap = new Map([
+    ...state.albumMap,
+    ...(library.albums || []).map((album) => [album.id, album]),
+  ]);
+  for (const album of library.albums || []) {
+    state.albumTracksMap.set(
+      album.id,
+      album.trackIds.map((id) => state.trackMap.get(id)).filter(Boolean).sort(compareTrackOrder),
+    );
+  }
+}
+
+async function fetchLibraryPagePayload(offset = 0) {
+  const params = new URLSearchParams({
+    limit: String(state.settings.libraryPageSize || 50),
+    offset: String(Math.max(0, offset)),
+  });
+  if (state.searchTerm) {
+    params.set('search', state.searchTerm);
+  }
+  if (state.alphabetFilter !== 'all') {
+    params.set('letter', state.alphabetFilter);
+  }
+  return fetchJson(`/api/library?${params.toString()}`);
+}
+
+function queueLibraryPageFetch(offset = 0) {
+  const fetchId = ++state.searchFetchId;
+  window.setTimeout(() => {
+    if (fetchId !== state.searchFetchId) return;
+    loadLibraryPage(offset).catch((error) => console.error(error));
+  }, 220);
+}
+
+function queueVisiblePageFetch(offset = 0) {
+  if (state.route.view === 'library' && state.libraryTab === 'folders') {
+    state.folderCache.clear();
+    loadFolderListing('').catch((error) => console.error(error));
+    render();
+    return;
+  }
+  if (state.route.view === 'library' && state.libraryTab === 'artists') {
+    queueArtistPageFetch(offset);
+    return;
+  }
+  queueLibraryPageFetch(offset);
+}
+
+async function loadLibraryPage(offset = 0) {
+  const library = await fetchLibraryPagePayload(offset);
+  hydrateLibrary({ title: state.title }, library);
+  sanitizeStoredFavorites();
+  render();
+  updatePlayerUi();
+}
+
+async function fetchArtistPagePayload(offset = 0) {
+  const params = new URLSearchParams({
+    limit: String(state.settings.libraryPageSize || 50),
+    offset: String(Math.max(0, offset)),
+  });
+  if (state.searchTerm) {
+    params.set('search', state.searchTerm);
+  }
+  if (state.alphabetFilter !== 'all') {
+    params.set('letter', state.alphabetFilter);
+  }
+  return fetchJson(`/api/artists?${params.toString()}`);
+}
+
+function queueArtistPageFetch(offset = 0) {
+  const fetchId = ++state.artistFetchId;
+  window.setTimeout(() => {
+    if (fetchId !== state.artistFetchId) return;
+    loadArtistPage(offset).catch((error) => console.error(error));
+  }, 220);
+}
+
+async function loadArtistPage(offset = 0) {
+  const payload = await fetchArtistPagePayload(offset);
+  state.artistGroups = payload.artists || [];
+  state.artistGroupMap = new Map(state.artistGroups.map((artist) => [artist.name, artist]));
+  state.artistPage = payload.page || {
+    limit: state.settings.libraryPageSize || 50,
+    offset: 0,
+    total: state.artistGroups.length,
+    hasNext: false,
+    hasPrevious: false,
+  };
+  render();
+}
+
+async function loadArtistLibrary(artistName) {
+  const existing = state.artistGroupMap.get(artistName);
+  if (existing?.tracks?.length > 0 && existing?.albums?.length > 0) return existing;
+
+  const library = await fetchJson(`/api/artists/${encodeURIComponent(artistName)}/library`);
+  mergeLibraryData(library);
+  const group = buildArtistGroups(library.tracks).find((artist) => artist.name === artistName) || {
+    name: artistName,
+    tracks: library.tracks,
+    albums: library.albums,
+    albumIds: new Set(library.albums.map((album) => album.id)),
+  };
+  state.artistGroupMap.set(artistName, group);
+  state.artistGroups = [
+    ...state.artistGroups.filter((artist) => artist.name !== artistName),
+    group,
+  ].sort((left, right) => left.name.localeCompare(right.name));
+  return group;
+}
+
+async function loadFolderListing(folderPath = '') {
+  const normalizedPath = normalizeFolderPath(folderPath);
+  if (state.folderLoading.has(normalizedPath)) return state.folderCache.get(normalizedPath) || null;
+  state.folderLoading.add(normalizedPath);
+  try {
+    const params = new URLSearchParams({ path: normalizedPath });
+    if (state.searchTerm) {
+      params.set('search', state.searchTerm);
+    }
+    const listing = await fetchJson(`/api/folders?${params.toString()}`);
+    mergeLibraryData({ tracks: listing.tracks || [], albums: [] });
+    state.folderCache.set(normalizedPath, listing);
+    if (state.route.view === 'library' && state.libraryTab === 'folders') {
+      render();
+    }
+    return listing;
+  } finally {
+    state.folderLoading.delete(normalizedPath);
+  }
+}
+
+async function loadFolderPlayQueue(folderPath = '') {
+  const params = new URLSearchParams({ path: normalizeFolderPath(folderPath) });
+  if (state.searchTerm) {
+    params.set('search', state.searchTerm);
+  }
+  const library = await fetchJson(`/api/folders/playqueue?${params.toString()}`);
+  mergeLibraryData(library);
+  return library.tracks || [];
+}
+
+function normalizeFolderPath(folderPath) {
+  return String(folderPath || '')
+    .replace(/\\/gu, '/')
+    .replace(/^\/+|\/+$/gu, '')
+    .replace(/\/+/gu, '/')
+    .trim();
+}
+
 function sanitizeStoredFavorites() {
-  state.favoriteTrackIds = new Set([...state.favoriteTrackIds].filter((id) => state.trackMap.has(id)));
-  state.favoriteAlbumIds = new Set([...state.favoriteAlbumIds].filter((id) => state.albumMap.has(id)));
   persistFavorites();
 }
 
@@ -922,12 +1126,16 @@ function updateRouteFromLocation() {
       albumId: decodeURIComponent(albumMatch[1]),
       artistName: null,
     };
-  } else if (artistMatch && getArtistGroup(decodeURIComponent(artistMatch[1]))) {
+  } else if (artistMatch) {
+    const artistName = decodeURIComponent(artistMatch[1]);
     state.route = {
       view: 'artist',
       albumId: null,
-      artistName: decodeURIComponent(artistMatch[1]),
+      artistName,
     };
+    loadArtistLibrary(artistName)
+      .then(() => render())
+      .catch((error) => console.error(error));
   } else {
     state.route = {
       view: state.browseView,
@@ -960,6 +1168,7 @@ function openAlbum(albumId) {
 }
 
 function openArtist(artistName) {
+  loadArtistLibrary(artistName).catch((error) => console.error(error));
   window.location.hash = `artist/${encodeURIComponent(artistName)}`;
 }
 
@@ -1002,15 +1211,15 @@ function render() {
   const currentAlbum = getCurrentAlbum();
   const currentArtist = getCurrentArtist();
   const isAlbumView = state.route.view === 'album' && !!currentAlbum;
-  const isArtistView = state.route.view === 'artist' && !!currentArtist;
+  const isArtistView = state.route.view === 'artist';
   const isFavoritesView = state.route.view === 'favorites';
   const isSettingsView = state.route.view === 'settings';
   const isFullscreenView = state.route.view === 'fullscreen';
   const isLibraryView = state.route.view === 'library' && !isAlbumView && !isArtistView;
   const isHomeView = state.route.view === 'home' && !isAlbumView && !isArtistView;
 
-  albumCount.textContent = String(filteredAlbums.length);
-  trackCount.textContent = String(filteredTracks.length);
+  albumCount.textContent = String(state.libraryTotals.albums || filteredAlbums.length);
+  trackCount.textContent = String(state.libraryTotals.tracks || filteredTracks.length);
 
   homeView.hidden = !isHomeView;
   libraryView.hidden = !isLibraryView;
@@ -1048,7 +1257,7 @@ function render() {
   } else if (isFullscreenView) {
     renderFullscreenView();
   } else {
-    renderAlbumCollection(albumGrid, homeAlbums, 'No albums matched this search.');
+    renderAlbumCollection(albumGrid, homeAlbums, 'No albums matched this search.', { pageable: true });
   }
 
   renderQueuePanel();
@@ -1176,6 +1385,12 @@ function renderInterfaceSettings() {
     ${settingsGroup('Navigation', 'Interaction behavior adapted to this local app.', `
       ${settingToggle('closePanelsOnNavigation', 'Close Panels on Navigation', 'Close queue and editor panels when switching views.')}
       <label class="settings-field">
+        <span>Library Albums Per Page</span>
+        <select data-setting="libraryPageSize">
+          ${selectOptions([[25, '25'], [50, '50'], [100, '100']], state.settings.libraryPageSize)}
+        </select>
+      </label>
+      <label class="settings-field">
         <span>Now Playing Click Action</span>
         <select data-setting="nowPlayingClickAction">
           ${selectOptions([
@@ -1294,7 +1509,8 @@ function renderInstanceSettings() {
 
 function renderSystemSettings() {
   const folders = state.libraryFolders || { available: [], selected: [], scan: null };
-  const selectedFolders = new Set(folders.selected || []);
+  const effectiveSelectedFolders = state.pendingLibraryFolders || folders.selected || [];
+  const selectedFolders = new Set(effectiveSelectedFolders);
   const folderRows = folders.available?.length
     ? folders.available.map((folder) => `
       <label class="library-folder-option">
@@ -1304,7 +1520,7 @@ function renderSystemSettings() {
     `).join('')
     : '<p class="settings-help">No top-level folders were found in the mounted music folder.</p>';
   const scan = folders.scan || {};
-  const selectedLabel = folders.selected?.length ? folders.selected.join(', ') : 'No folders selected yet';
+  const selectedLabel = effectiveSelectedFolders.length ? effectiveSelectedFolders.join(', ') : 'No folders selected yet';
   const percent = Number.isFinite(scan.percent) ? scan.percent : 0;
   const processed = Number.isFinite(scan.processedFiles) ? scan.processedFiles : 0;
   const total = Number.isFinite(scan.totalFiles) ? scan.totalFiles : 0;
@@ -1316,14 +1532,14 @@ function renderSystemSettings() {
       <div class="setting-row scan-status-row">
         <div>
           <strong>${escapeHtml(toTitleCase(scan.status || 'idle'))} · ${percent}%</strong>
-          <span>${escapeHtml(scan.currentFolder ? `Scanning ${scan.currentFolder}` : selectedLabel)} · ${processed}/${total} files · ${reused} cached · ${parsed} parsed · ${state.tracks.length} tracks · ${state.albums.length} albums</span>
+          <span>${escapeHtml(scan.currentFolder ? `Scanning ${scan.currentFolder}` : selectedLabel)} · ${processed}/${total} files · ${reused} cached · ${parsed} parsed · ${state.libraryTotals.tracks || state.tracks.length} tracks · ${state.libraryTotals.albums || state.albums.length} albums</span>
         </div>
         <button type="button" class="secondary-button" data-settings-action="refresh-library-folders">Refresh Folders</button>
       </div>
       <div class="scan-progress" aria-label="Scan progress">
         <span style="width: ${percent}%"></span>
       </div>
-      <p class="settings-help">Selected folders: ${escapeHtml(selectedLabel)}</p>
+      <p class="settings-help" data-library-folder-summary>Selected folders: ${escapeHtml(selectedLabel)}</p>
     `)}
     ${settingsGroup('Library Folders', 'Choose which top-level folders inside your mounted music folder should be indexed.', `
       <div class="library-folder-list">${folderRows}</div>
@@ -1371,6 +1587,13 @@ function handleSettingsInput(event) {
     input.previousElementSibling?.querySelector('strong')?.replaceChildren(`${value}%`);
   }
   updateSetting(key, value, event.type === 'input');
+  if (key === 'libraryPageSize') {
+    if (state.libraryTab === 'artists') {
+      loadArtistPage(0).catch((error) => console.error(error));
+    } else {
+      loadLibraryPage(0).catch((error) => console.error(error));
+    }
+  }
 }
 
 function handleSettingsAction(button) {
@@ -1417,14 +1640,13 @@ async function refreshLibraryFolders() {
 }
 
 async function saveLibraryFolders(shouldScan) {
-  const folders = [...settingsPanels.querySelectorAll('[data-library-folder]:checked')]
-    .map((input) => input.dataset.libraryFolder)
-    .filter(Boolean);
+  const folders = readCheckedLibraryFolders();
 
   state.libraryFolders = await fetchJson('/api/library/folders', {
     method: 'POST',
     body: JSON.stringify({ folders }),
   });
+  state.pendingLibraryFolders = null;
   updateSidebarScanStatus();
   showSettingsStatus(`Saved ${folders.length} selected folder${folders.length === 1 ? '' : 's'}.`);
   renderSettingsView();
@@ -1432,6 +1654,27 @@ async function saveLibraryFolders(shouldScan) {
   if (!shouldScan) return;
 
   await startLibraryScanAndPoll();
+}
+
+function handleLibraryFolderSelectionChange(event) {
+  if (!event.target.closest('[data-library-folder]')) return;
+  state.pendingLibraryFolders = readCheckedLibraryFolders();
+  updateLibraryFolderSummary();
+}
+
+function readCheckedLibraryFolders() {
+  return [...settingsPanels.querySelectorAll('[data-library-folder]:checked')]
+    .map((input) => input.dataset.libraryFolder)
+    .filter(Boolean);
+}
+
+function updateLibraryFolderSummary() {
+  const selectedLabel = state.pendingLibraryFolders?.length
+    ? state.pendingLibraryFolders.join(', ')
+    : 'No folders selected yet';
+  settingsPanels.querySelectorAll('[data-library-folder-summary]').forEach((element) => {
+    element.textContent = `Selected folders: ${selectedLabel}`;
+  });
 }
 
 async function startLibraryScanAndPoll() {
@@ -1486,8 +1729,9 @@ async function refreshScanStatus() {
       && scan.status !== 'scanning';
 
     if (shouldRefreshLibrary) {
-      const library = await fetchJson('/api/library');
+      const library = await fetchLibraryPagePayload(0);
       hydrateLibrary({ title: state.title }, library);
+      state.folderCache.clear();
       sanitizeStoredFavorites();
       render();
       updatePlayerUi();
@@ -1691,6 +1935,12 @@ function updateSidebarScanStatus(indexedAt = state.generatedAt) {
 
 function setLibraryTab(tab) {
   state.libraryTab = tab;
+  if (tab === 'folders') {
+    loadFolderListing('').catch((error) => console.error(error));
+  }
+  if (tab === 'artists') {
+    loadArtistPage(0).catch((error) => console.error(error));
+  }
   render();
 }
 
@@ -1726,9 +1976,11 @@ function renderLibraryView(filteredTracks, filteredAlbums) {
 
 function renderLibraryAlbumsPanel(albums) {
   libraryPanelAlbums.innerHTML = '';
+  libraryPanelAlbums.append(createAlphabetIndex());
 
   if (albums.length === 0) {
-    libraryPanelAlbums.innerHTML = '<p class="empty-state">No albums matched this search.</p>';
+    libraryPanelAlbums.append(createEmptyState('No albums matched this filter.'));
+    libraryPanelAlbums.append(createLibraryPager());
     return;
   }
 
@@ -1737,27 +1989,36 @@ function renderLibraryAlbumsPanel(albums) {
   for (const album of albums.slice(0, RENDER_LIMITS.albums)) {
     grid.append(createAlbumCard(album, { compact: true }));
   }
-  appendLimitNotice(grid, albums.length, RENDER_LIMITS.albums, 'albums');
   libraryPanelAlbums.append(grid);
+  libraryPanelAlbums.append(createLibraryPager());
 }
 
 function renderFolderBrowser(filteredTracks) {
   libraryPanelFolders.innerHTML = '';
+  const listing = state.folderCache.get('') || null;
 
-  if (filteredTracks.length === 0) {
-    libraryPanelFolders.innerHTML = '<p class="empty-state">No folders matched this search.</p>';
+  if (!listing) {
+    libraryPanelFolders.append(createEmptyState('Loading folders from database...'));
+    loadFolderListing('').catch((error) => {
+      console.error(error);
+      libraryPanelFolders.innerHTML = '';
+      libraryPanelFolders.append(createEmptyState('Unable to load folders.'));
+    });
     return;
   }
 
-  const tree = buildFolderTree(filteredTracks);
   const fragment = document.createDocumentFragment();
-
-  const folders = [...tree.folders.values()];
-  for (const folder of folders.slice(0, RENDER_LIMITS.folders)) {
-    fragment.append(createFolderNode(folder, filteredTracks, folder.name));
+  for (const folder of listing.folders || []) {
+    fragment.append(createFolderNode(folder));
   }
-  if (folders.length > RENDER_LIMITS.folders) {
-    fragment.append(createLimitNotice(folders.length, RENDER_LIMITS.folders, 'folders'));
+
+  for (const track of listing.tracks || []) {
+    fragment.append(createFolderTrackRow(track, listing.tracks));
+  }
+
+  if (!fragment.childNodes.length) {
+    libraryPanelFolders.append(createEmptyState('No folders matched this filter.'));
+    return;
   }
 
   libraryPanelFolders.append(fragment);
@@ -1765,10 +2026,12 @@ function renderFolderBrowser(filteredTracks) {
 
 function renderArtistsBrowser(filteredTracks) {
   libraryPanelArtists.innerHTML = '';
+  libraryPanelArtists.append(createAlphabetIndex());
 
-  const artists = state.searchTerm ? buildArtistGroups(filteredTracks) : state.artistGroups;
+  const artists = state.artistGroups;
   if (artists.length === 0) {
-    libraryPanelArtists.innerHTML = '<p class="empty-state">No artists matched this search.</p>';
+    libraryPanelArtists.append(createEmptyState('No artists matched this filter.'));
+    libraryPanelArtists.append(createArtistPager());
     return;
   }
 
@@ -1777,8 +2040,8 @@ function renderArtistsBrowser(filteredTracks) {
   for (const [index, artist] of artists.slice(0, RENDER_LIMITS.artists).entries()) {
     grid.append(createArtistCard(artist, { preloadInfo: index < 24 }));
   }
-  appendLimitNotice(grid, artists.length, RENDER_LIMITS.artists, 'artists');
   libraryPanelArtists.append(grid);
+  libraryPanelArtists.append(createArtistPager());
 }
 
 function renderPlaylistsBrowser(filteredTracks) {
@@ -1874,13 +2137,40 @@ function createArtistCard(artist, { preloadInfo = false } = {}) {
 }
 
 function playArtistFromCard(artist) {
-  if (artist.tracks.length === 0) return;
+  if (!artist.tracks?.length) {
+    loadArtistLibrary(artist.name)
+      .then((loadedArtist) => playArtistFromCard(loadedArtist))
+      .catch((error) => console.error(error));
+    return;
+  }
   state.shuffleActive = false;
   rebuildShuffledQueue();
   playTrack(artist.tracks[0], artist.tracks);
 }
 
 function renderArtistDetail(artist) {
+  if (!artist) {
+    const artistName = state.route.artistName || 'Artist';
+    artistDetailName.textContent = artistName;
+    artistDetailMeta.textContent = 'Loading artist library...';
+    artistDetailBio.textContent = 'Loading albums and tracks from the database.';
+    artistAlbumGrid.innerHTML = '<p class="empty-state">Loading artist albums...</p>';
+    setImageOrFallback({
+      imageElement: artistDetailImage,
+      fallbackElement: artistDetailFallback,
+      src: '',
+      alt: `${artistName} artist image`,
+    });
+    artistDetailFallback.innerHTML = createArtistPlaceholderContent(artistName);
+    artistHero.style.removeProperty('--artist-image');
+    artistDetailSource.hidden = true;
+    editArtistButton.innerHTML = materialIcon('edit');
+    loadArtistLibrary(artistName)
+      .then(() => render())
+      .catch((error) => console.error(error));
+    return;
+  }
+
   const info = state.artistInfoMap.get(artist.name) || null;
 
   artistDetailName.textContent = artist.name;
@@ -1974,17 +2264,91 @@ async function resetArtistEditor() {
   }
 }
 
-function renderAlbumCollection(container, albums, emptyMessage) {
+function renderAlbumCollection(container, albums, emptyMessage, { pageable = false } = {}) {
   container.innerHTML = '';
+  if (pageable) {
+    container.append(createAlphabetIndex());
+  }
 
   if (albums.length === 0) {
-    container.innerHTML = `<p class="empty-state">${emptyMessage}</p>`;
+    container.append(createEmptyState(emptyMessage));
+    if (pageable) container.append(createLibraryPager());
     return;
   }
 
   for (const album of albums) {
     container.append(createAlbumCard(album, { compact: false }));
   }
+  if (pageable) container.append(createLibraryPager());
+}
+
+function createAlphabetIndex() {
+  const nav = document.createElement('div');
+  nav.className = 'alphabet-index';
+  nav.setAttribute('aria-label', 'Alphabet filter');
+  for (const letter of ALPHABET_FILTERS) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.alphabetFilter = letter;
+    button.className = letter === state.alphabetFilter ? 'is-active' : '';
+    button.textContent = letter === 'all' ? 'All' : letter;
+    button.setAttribute('aria-pressed', String(letter === state.alphabetFilter));
+    nav.append(button);
+  }
+  return nav;
+}
+
+function createEmptyState(message) {
+  const empty = document.createElement('p');
+  empty.className = 'empty-state';
+  empty.textContent = message;
+  return empty;
+}
+
+function createLibraryPager() {
+  const page = state.libraryPage || {};
+  const total = page.total || state.libraryTotals.albums || state.albums.length;
+  const limit = page.limit || state.settings.libraryPageSize || 50;
+  const offset = page.offset || 0;
+  const start = total === 0 ? 0 : offset + 1;
+  const end = Math.min(total, offset + limit);
+  const pager = document.createElement('div');
+  pager.className = 'library-pager';
+  pager.innerHTML = `
+    <div>
+      <strong>${start}-${end}</strong>
+      <span>of ${total} album${total === 1 ? '' : 's'}</span>
+    </div>
+    <label>
+      <span>Per page</span>
+      <select data-library-page-size>
+        ${selectOptions([[25, '25'], [50, '50'], [100, '100']], limit)}
+      </select>
+    </label>
+    <button type="button" class="secondary-button" data-library-page-action="previous" ${page.hasPrevious ? '' : 'disabled'}>Previous</button>
+    <button type="button" class="secondary-button" data-library-page-action="next" ${page.hasNext ? '' : 'disabled'}>Next</button>
+  `;
+  return pager;
+}
+
+function createArtistPager() {
+  const page = state.artistPage || {};
+  const total = page.total || state.artistGroups.length;
+  const limit = page.limit || state.settings.libraryPageSize || 50;
+  const offset = page.offset || 0;
+  const start = total === 0 ? 0 : offset + 1;
+  const end = Math.min(total, offset + limit);
+  const pager = document.createElement('div');
+  pager.className = 'library-pager';
+  pager.innerHTML = `
+    <div>
+      <strong>${start}-${end}</strong>
+      <span>of ${total} artist${total === 1 ? '' : 's'}</span>
+    </div>
+    <button type="button" class="secondary-button" data-artist-page-action="previous" ${page.hasPrevious ? '' : 'disabled'}>Previous</button>
+    <button type="button" class="secondary-button" data-artist-page-action="next" ${page.hasNext ? '' : 'disabled'}>Next</button>
+  `;
+  return pager;
 }
 
 function renderTrackCollection(container, tracks, queueTracks, emptyMessage) {
@@ -3611,11 +3975,14 @@ function buildFolderTree(tracks) {
   return root;
 }
 
-function createFolderNode(node, queueTracks, folderPath) {
+function createFolderNode(folder) {
+  const folderPath = normalizeFolderPath(folder.path || folder.name);
+  const canPlayFolder = Boolean(folder.canPlayFolder)
+    || Number(folder.directTrackCount || 0) > 0
+    || Boolean(folder.hasDirectTracks);
   const details = document.createElement('details');
   details.className = 'folder-node';
-  details.open = Boolean(state.searchTerm) || state.expandedFolderPaths.has(folderPath);
-  const folderTracks = collectFolderTracks(node);
+  details.open = state.expandedFolderPaths.has(folderPath);
   details.innerHTML = `
     <summary>
       <span class="folder-node-arrow" aria-hidden="true">
@@ -3623,12 +3990,14 @@ function createFolderNode(node, queueTracks, folderPath) {
         <span class="folder-arrow-open">${materialIcon('chevronDown')}</span>
       </span>
       <span class="folder-node-main">
-        <span class="folder-node-name">${escapeHtml(node.name)}</span>
-        <span class="folder-node-meta">${node.trackCount} track${node.trackCount === 1 ? '' : 's'}</span>
+        <span class="folder-node-name">${escapeHtml(folder.name)}</span>
+        <span class="folder-node-meta">${folder.trackCount} track${folder.trackCount === 1 ? '' : 's'}</span>
       </span>
-      <button type="button" class="folder-node-play" aria-label="Play ${escapeHtml(node.name)} folder">
-        ${materialIcon('play')}
-      </button>
+      ${canPlayFolder ? `
+        <button type="button" class="folder-node-play" aria-label="Play ${escapeHtml(folder.name)} folder">
+          ${materialIcon('play')}
+        </button>
+      ` : ''}
     </summary>
   `;
 
@@ -3638,55 +4007,57 @@ function createFolderNode(node, queueTracks, folderPath) {
 
   details.append(body);
   if (details.open) {
-    renderFolderNodeBody(body, node, queueTracks, folderPath);
+    renderFolderNodeBody(body, folderPath);
   }
   details.addEventListener('toggle', () => {
     if (details.open) {
       state.expandedFolderPaths.add(folderPath);
-      renderFolderNodeBody(body, node, queueTracks, folderPath);
+      renderFolderNodeBody(body, folderPath);
     } else {
       state.expandedFolderPaths.delete(folderPath);
     }
   });
-  details.querySelector('.folder-node-play').addEventListener('click', (event) => {
+  details.querySelector('.folder-node-play')?.addEventListener('click', async (event) => {
     event.preventDefault();
     event.stopPropagation();
-    if (folderTracks.length === 0) return;
-    state.expandedFolderPaths.add(folderPath);
-    state.shuffleActive = false;
-    rebuildShuffledQueue();
-    playTrack(folderTracks[0], folderTracks);
+    const folderTracks = await loadFolderPlayQueue(folderPath);
+    if (folderTracks.length > 0) {
+      state.expandedFolderPaths.add(folderPath);
+      state.shuffleActive = false;
+      rebuildShuffledQueue();
+      playTrack(folderTracks[0], folderTracks);
+    }
   });
   return details;
 }
 
-function renderFolderNodeBody(body, node, queueTracks, folderPath) {
+function renderFolderNodeBody(body, folderPath) {
   if (body.dataset.rendered === 'true') return;
+  const listing = state.folderCache.get(folderPath);
+  if (!listing) {
+    body.innerHTML = '<p class="empty-state">Loading folder...</p>';
+    loadFolderListing(folderPath)
+      .then(() => {
+        body.dataset.rendered = 'false';
+        body.innerHTML = '';
+        renderFolderNodeBody(body, folderPath);
+      })
+      .catch((error) => {
+        console.error(error);
+        body.innerHTML = '<p class="empty-state">Unable to load this folder.</p>';
+      });
+    return;
+  }
 
-  const children = [...node.folders.values()];
-  for (const child of children.slice(0, RENDER_LIMITS.folders)) {
-    body.append(createFolderNode(child, queueTracks, `${folderPath}/${child.name}`));
-  }
-  if (children.length > RENDER_LIMITS.folders) {
-    body.append(createLimitNotice(children.length, RENDER_LIMITS.folders, 'folders'));
+  for (const child of listing.folders || []) {
+    body.append(createFolderNode(child));
   }
 
-  for (const track of node.tracks.slice(0, RENDER_LIMITS.tracks)) {
-    body.append(createFolderTrackRow(track, queueTracks));
-  }
-  if (node.tracks.length > RENDER_LIMITS.tracks) {
-    body.append(createLimitNotice(node.tracks.length, RENDER_LIMITS.tracks, 'tracks'));
+  for (const track of listing.tracks || []) {
+    body.append(createFolderTrackRow(track, listing.tracks));
   }
 
   body.dataset.rendered = 'true';
-}
-
-function collectFolderTracks(node) {
-  const tracks = [...node.tracks];
-  for (const child of node.folders.values()) {
-    tracks.push(...collectFolderTracks(child));
-  }
-  return tracks;
 }
 
 function createFolderTrackRow(track, queueTracks) {
