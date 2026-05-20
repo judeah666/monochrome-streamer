@@ -1,8 +1,8 @@
 services:
   monochrome-streamer:
     build: .
-    image: judeah666/monochrome-streamer:latest
-    container_name: Monochrome-Streamer
+    image: judeah666/monochrome-streamer:${IMAGE_TAG:-0.1.0}
+    container_name: monochrome-streamer
     restart: unless-stopped
     ports:
       - "8888:8888"

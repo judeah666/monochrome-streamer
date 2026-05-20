@@ -120,6 +120,13 @@ const server = http.createServer(async (request, response) => {
           search: url.searchParams.get('search'),
           letter: url.searchParams.get('letter'),
         };
+        const mediaTypeAlbumFilter = await getAlbumIdFilterForMediaTypes(url.searchParams.get('mediaTypes'));
+        if (mediaTypeAlbumFilter?.albumIds) {
+          pageOptions.albumIds = mediaTypeAlbumFilter.albumIds;
+        }
+        if (mediaTypeAlbumFilter?.excludeAlbumIds) {
+          pageOptions.excludeAlbumIds = mediaTypeAlbumFilter.excludeAlbumIds;
+        }
         let library = await readLibraryAlbumPage(libraryDatabasePath, pageOptions);
         if (library.albumCount === 0 && library.trackCount === 0) {
           library = createPagedLibrary(await getCurrentLibrary(), pageOptions);
@@ -396,11 +403,20 @@ function createPagedLibrary(library, options = {}) {
     : 50;
   const offset = Math.max(0, Number.parseInt(options.offset || 0, 10) || 0);
   const search = String(options.search || '').trim().toLowerCase();
+  const restrictAlbumIds = Array.isArray(options.albumIds);
+  const albumIds = restrictAlbumIds ? new Set(options.albumIds.filter(Boolean)) : null;
+  const excludeAlbumIds = new Set(Array.isArray(options.excludeAlbumIds) ? options.excludeAlbumIds.filter(Boolean) : []);
+  const includedAlbums = restrictAlbumIds
+    ? library.albums.filter((album) => albumIds.has(album.id))
+    : library.albums;
+  const baseAlbums = excludeAlbumIds.size > 0
+    ? includedAlbums.filter((album) => !excludeAlbumIds.has(album.id))
+    : includedAlbums;
   const albums = search
-    ? library.albums.filter((album) => [album.title, album.artist, album.albumArtist].some((value) =>
+    ? baseAlbums.filter((album) => [album.title, album.artist, album.albumArtist].some((value) =>
       String(value || '').toLowerCase().includes(search)
     ))
-    : library.albums;
+    : baseAlbums;
   const pageAlbums = albums.slice(offset, offset + limit);
   const trackIds = new Set(pageAlbums.flatMap((album) => album.trackIds || []));
   const tracks = library.tracks.filter((track) => trackIds.has(track.id));
@@ -697,6 +713,7 @@ function parseBoolean(value) {
 
 async function createLibraryPayload(library) {
   const overrides = await getAlbumOverrides();
+  const librarySummary = await readLibraryDatabaseSummary(libraryDatabasePath);
   const trackAlbumOverrideMap = new Map();
   const trackAlbumMap = new Map();
 
@@ -715,6 +732,8 @@ async function createLibraryPayload(library) {
     generatedAt: library.generatedAt,
     trackCount: library.trackCount,
     albumCount: library.albumCount,
+    totalTrackCount: librarySummary.trackCount,
+    totalAlbumCount: librarySummary.albumCount,
     page: library.page || null,
     albums: library.albums.map((album) => {
       const override = overrides.albums?.[album.id] || null;
@@ -770,6 +789,32 @@ async function getWantedAlbumIds() {
   return Object.entries(overrides.albums || {})
     .filter(([, override]) => normalizeAlbumStatus(override?.status) === 'Wanted')
     .map(([albumId]) => albumId);
+}
+
+async function getAlbumIdFilterForMediaTypes(value) {
+  const selected = normalizeMediaTypeFilter(value);
+  if (selected.length === 0) return null;
+
+  const selectedSet = new Set(selected);
+  if (selectedSet.size >= 4) return null;
+
+  const overrides = await getAlbumOverrides();
+  const overrideEntries = Object.entries(overrides.albums || {})
+    .filter(([, override]) => override?.mediaTypes?.length > 0 || override?.mediaType);
+
+  if (selectedSet.has('Digital Media')) {
+    return {
+      excludeAlbumIds: overrideEntries
+        .filter(([, override]) => !normalizeMediaTypes(override.mediaTypes || override.mediaType).some((mediaType) => selectedSet.has(mediaType)))
+        .map(([albumId]) => albumId),
+    };
+  }
+
+  return {
+    albumIds: overrideEntries
+      .filter(([, override]) => normalizeMediaTypes(override.mediaTypes || override.mediaType).some((mediaType) => selectedSet.has(mediaType)))
+      .map(([albumId]) => albumId),
+  };
 }
 
 async function streamTrack(response, trackId, rangeHeader) {
@@ -1254,6 +1299,16 @@ function normalizeMediaTypes(value) {
   const values = Array.isArray(value) ? value : [value];
   const mediaTypes = values.map(normalizeMediaTypeName).filter((item) => allowed.has(item));
   return mediaTypes.length > 0 ? [...new Set(mediaTypes)] : ['Digital Media'];
+}
+
+function normalizeMediaTypeFilter(value) {
+  if (!value) return [];
+  const allowed = new Set(['CD', 'Digital Media', 'Vinyl', 'Cassette Tape']);
+  const mediaTypes = String(value)
+    .split(',')
+    .map(normalizeMediaTypeName)
+    .filter((mediaType) => allowed.has(mediaType));
+  return [...new Set(mediaTypes)];
 }
 
 function normalizeMediaTypeName(value) {

@@ -1,4 +1,6 @@
-# Monochrome-Streamer
+# monochrome-streamer
+
+Current release: `v0.1.0`
 
 A small self-hosted music streamer inspired by the look and feel of [Monochrome](https://github.com/monochrome-music/monochrome), but built for your own files on your own server.
 
@@ -124,6 +126,7 @@ Then edit `.env`:
 MUSIC_DIR=/path/to/your/music
 APP_DATA_DIR=/monochrome-streamer/data
 APP_TITLE=Monochrome-Streamer
+IMAGE_TAG=0.1.0
 ```
 
 `APP_DATA_DIR` is the local server folder where album edits, artist edits, saved `.lrc` lyrics, the SQLite library index, and cached cover art are stored. Inside Docker it is mounted as `/data`.
@@ -154,6 +157,32 @@ docker run --rm -p 8888:8888 `
   monochrome-streamer
 ```
 
+### Upload to Docker Hub
+
+Log in first:
+
+```powershell
+docker login
+```
+
+Build and push the release tag:
+
+```powershell
+docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:0.1.0 --push .
+```
+
+Also update `latest` if this is the version you want Dockge to pull by default:
+
+```powershell
+docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:latest --push .
+```
+
+Or push both tags in one build:
+
+```powershell
+docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:0.1.0 -t judeah666/monochrome-streamer:latest --push .
+```
+
 ### Dockge
 
 Dockge should usually use an image-only Compose file, not `build: .`, unless the full project folder exists inside the Dockge stack directory.
@@ -163,7 +192,7 @@ Use [docker-compose.dockge.yml](docker-compose.dockge.yml) as the starting point
 ```yaml
 services:
   monochrome-streamer:
-    image: judeah666/monochrome-streamer:latest
+    image: judeah666/monochrome-streamer:0.1.0
     container_name: monochrome-streamer
     restart: unless-stopped
     ports:

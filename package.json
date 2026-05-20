@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Monochrome-Streamer: a self-hosted music streamer for your own server files.",
+  "description": "monochrome-streamer: a self-hosted music streamer for your own server files.",
   "scripts": {
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",

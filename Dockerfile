@@ -1,5 +1,11 @@
 FROM node:24-alpine
 
+ARG APP_VERSION=0.1.0
+LABEL org.opencontainers.image.title="monochrome-streamer" \
+  org.opencontainers.image.description="A self-hosted music streamer for local server files." \
+  org.opencontainers.image.version="${APP_VERSION}" \
+  org.opencontainers.image.source="https://github.com/judeah666/monochrome-streamer"
+
 WORKDIR /app
 
 COPY package.json ./
