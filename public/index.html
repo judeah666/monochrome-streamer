@@ -22,40 +22,47 @@
       <aside class="sidebar">
         <div class="sidebar-brand">
           <div>
-            <p class="eyebrow">Self-Hosted</p>
+            <div class="sidebar-eyebrow-row">
+              <p class="eyebrow">Self-Hosted</p>
+              <button id="sidebar-toggle-button" class="sidebar-toggle-button" type="button" aria-label="Collapse sidebar" aria-expanded="true">
+                <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+              </button>
+            </div>
             <h1 id="app-title">Monochrome-Streamer</h1>
           </div>
         </div>
 
         <nav class="sidebar-nav">
-          <button id="nav-home" class="nav-link is-active" type="button">
-            <i class="fa-solid fa-house" aria-hidden="true"></i>
+          <button id="nav-home" class="nav-link is-active" type="button" title="Home">
+            <i class="sidebar-symbol" style="--sidebar-icon: url('/sidebar-icons/house.svg')" aria-hidden="true"></i>
             <span>Home</span>
           </button>
-          <button id="nav-library" class="nav-link" type="button">
-            <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+          <button id="nav-library" class="nav-link" type="button" title="Library">
+            <i class="sidebar-symbol" style="--sidebar-icon: url('/sidebar-icons/album-collection.svg')" aria-hidden="true"></i>
             <span>Library</span>
           </button>
-          <button id="nav-favorites" class="nav-link" type="button">
-            <i class="fa-solid fa-heart" aria-hidden="true"></i>
+          <button id="nav-favorites" class="nav-link" type="button" title="Favorites">
+            <i class="sidebar-symbol" style="--sidebar-icon: url('/sidebar-icons/heart-pulse.svg')" aria-hidden="true"></i>
             <span>Favorites</span>
           </button>
-          <button id="nav-settings" class="nav-link" type="button">
-            <i class="fa-solid fa-gear" aria-hidden="true"></i>
+          <button id="nav-wanted" class="nav-link" type="button" title="Wanted">
+            <i class="sidebar-symbol" style="--sidebar-icon: url('/sidebar-icons/bookmark.svg')" aria-hidden="true"></i>
+            <span>Wanted</span>
+          </button>
+          <button id="nav-settings" class="nav-link" type="button" title="Settings">
+            <i class="sidebar-symbol" style="--sidebar-icon: url('/sidebar-icons/gear.svg')" aria-hidden="true"></i>
             <span>Settings</span>
           </button>
         </nav>
 
         <div class="sidebar-bottom">
           <div class="sidebar-stats">
-            <div class="stat-card stat-card-albums">
-              <span class="stat-icon"><i class="fa-solid fa-compact-disc" aria-hidden="true"></i></span>
-              <span class="label">Albums</span>
+            <div class="stat-card stat-card-albums" title="Albums">
+              <span class="stat-icon"><i class="sidebar-symbol" style="--sidebar-icon: url('/sidebar-icons/album.svg')" aria-hidden="true"></i></span>
               <strong id="album-count">0</strong>
             </div>
-            <div class="stat-card stat-card-tracks">
-              <span class="stat-icon"><i class="fa-solid fa-wave-square" aria-hidden="true"></i></span>
-              <span class="label">Tracks</span>
+            <div class="stat-card stat-card-tracks" title="Tracks">
+              <span class="stat-icon"><i class="sidebar-symbol" style="--sidebar-icon: url('/sidebar-icons/list-music.svg')" aria-hidden="true"></i></span>
               <strong id="track-count">0</strong>
             </div>
           </div>
@@ -141,6 +148,18 @@
                 </div>
               </div>
               <div id="favorite-track-list" class="track-list"></div>
+            </section>
+          </section>
+
+          <section id="wanted-view" class="view" hidden>
+            <section class="content-section">
+              <div class="section-heading">
+                <div>
+                  <h3>Wanted Albums</h3>
+                  <p id="wanted-album-caption">Albums marked as Wanted in your local album tags.</p>
+                </div>
+              </div>
+              <div id="wanted-album-grid" class="album-grid"></div>
             </section>
           </section>
 
@@ -487,18 +506,23 @@
               <div class="media-type-options" id="tag-album-media-types">
                 <label>
                   <input type="checkbox" value="CD" />
-                  <i class="fa-solid fa-compact-disc" aria-hidden="true"></i>
+                  <i class="media-type-symbol" style="--media-type-icon: url('/media-type-icons/compact-disc.svg')" aria-hidden="true"></i>
                   <span>CD</span>
                 </label>
                 <label>
                   <input type="checkbox" value="Digital Media" />
-                  <i class="fa-solid fa-file-audio" aria-hidden="true"></i>
+                  <i class="media-type-symbol" style="--media-type-icon: url('/media-type-icons/file-waveform.svg')" aria-hidden="true"></i>
                   <span>Digital</span>
                 </label>
                 <label>
                   <input type="checkbox" value="Vinyl" />
-                  <i class="fa-solid fa-record-vinyl" aria-hidden="true"></i>
+                  <i class="media-type-symbol" style="--media-type-icon: url('/media-type-icons/record-vinyl.svg')" aria-hidden="true"></i>
                   <span>Vinyl</span>
+                </label>
+                <label>
+                  <input type="checkbox" value="Cassette Tape" />
+                  <i class="media-type-symbol" style="--media-type-icon: url('/media-type-icons/cassette-tape.svg')" aria-hidden="true"></i>
+                  <span>Cassette</span>
                 </label>
               </div>
             </fieldset>

@@ -130,6 +130,18 @@ const server = http.createServer(async (request, response) => {
       return respondJson(response, 200, await createLibraryPayload(await getCurrentLibrary()));
     }
 
+    if (url.pathname === '/api/wanted-albums') {
+      const wantedAlbumIds = await getWantedAlbumIds();
+      const library = await readLibraryAlbumPage(libraryDatabasePath, {
+        limit: url.searchParams.get('limit'),
+        offset: url.searchParams.get('offset'),
+        search: url.searchParams.get('search'),
+        albumIds: wantedAlbumIds,
+      });
+      primeTrackMap(library.tracks);
+      return respondJson(response, 200, await createLibraryPayload(library));
+    }
+
     if (url.pathname === '/api/tracks') {
       const trackIds = url.searchParams.get('ids')
         ? url.searchParams.get('ids').split(',').map((id) => id.trim()).filter(Boolean)
@@ -753,6 +765,13 @@ async function createLibraryPayload(library) {
   };
 }
 
+async function getWantedAlbumIds() {
+  const overrides = await getAlbumOverrides();
+  return Object.entries(overrides.albums || {})
+    .filter(([, override]) => normalizeAlbumStatus(override?.status) === 'Wanted')
+    .map(([albumId]) => albumId);
+}
+
 async function streamTrack(response, trackId, rangeHeader) {
   const track = await getTrackById(trackId);
   if (!track) {
@@ -1231,10 +1250,16 @@ function normalizeYear(value) {
 }
 
 function normalizeMediaTypes(value) {
-  const allowed = new Set(['CD', 'Digital Media', 'Vinyl']);
+  const allowed = new Set(['CD', 'Digital Media', 'Vinyl', 'Cassette Tape']);
   const values = Array.isArray(value) ? value : [value];
-  const mediaTypes = values.map(cleanText).filter((item) => allowed.has(item));
+  const mediaTypes = values.map(normalizeMediaTypeName).filter((item) => allowed.has(item));
   return mediaTypes.length > 0 ? [...new Set(mediaTypes)] : ['Digital Media'];
+}
+
+function normalizeMediaTypeName(value) {
+  const mediaType = cleanText(value);
+  if (/^cassette[-\s]?tape$/iu.test(mediaType)) return 'Cassette Tape';
+  return mediaType;
 }
 
 function normalizeAlbumStatus(value) {

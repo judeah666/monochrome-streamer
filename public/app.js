@@ -8,7 +8,9 @@ const backButton = document.querySelector('#back-button');
 const navHome = document.querySelector('#nav-home');
 const navLibrary = document.querySelector('#nav-library');
 const navFavorites = document.querySelector('#nav-favorites');
+const navWanted = document.querySelector('#nav-wanted');
 const navSettings = document.querySelector('#nav-settings');
+const sidebarToggleButton = document.querySelector('#sidebar-toggle-button');
 const homeView = document.querySelector('#home-view');
 const homeHero = document.querySelector('#home-hero');
 const homeHeroEyebrow = document.querySelector('#home-hero-eyebrow');
@@ -25,6 +27,7 @@ const libraryPanelAlbums = document.querySelector('#library-panel-albums');
 const libraryPanelArtists = document.querySelector('#library-panel-artists');
 const libraryPanelPlaylists = document.querySelector('#library-panel-playlists');
 const favoritesView = document.querySelector('#favorites-view');
+const wantedView = document.querySelector('#wanted-view');
 const settingsView = document.querySelector('#settings-view');
 const artistView = document.querySelector('#artist-view');
 const artistHero = document.querySelector('#artist-hero');
@@ -45,6 +48,8 @@ const favoriteAlbumCaption = document.querySelector('#favorite-album-caption');
 const favoriteTrackCaption = document.querySelector('#favorite-track-caption');
 const favoriteAlbumGrid = document.querySelector('#favorite-album-grid');
 const favoriteTrackList = document.querySelector('#favorite-track-list');
+const wantedAlbumCaption = document.querySelector('#wanted-album-caption');
+const wantedAlbumGrid = document.querySelector('#wanted-album-grid');
 const settingsTabs = document.querySelector('#settings-tabs');
 const settingsPanels = document.querySelector('#settings-panels');
 const settingsStatus = document.querySelector('#settings-status');
@@ -223,29 +228,26 @@ const DEFAULT_SETTINGS = {
   customAccent: '#eb9200',
   customThemeBase: 'dark',
   libraryTitle: 'Monochrome-Streamer',
+  showLibraryTitle: true,
+  showHomeBanner: true,
   homeBannerEyebrow: 'Local Audio',
   homeBannerTitle: 'Your server, your collection, your rules.',
   homeBannerSubtitle: 'Browse your albums, open them like a proper detail page, and control playback from a full bottom player.',
   albumCoverBackground: true,
   dynamicColors: false,
-  compactAlbums: false,
+  albumCardSize: 150,
   compactArtists: false,
   showHome: true,
   showLibrary: true,
   showFavorites: true,
+  sidebarCollapsed: false,
   closePanelsOnNavigation: true,
   nowPlayingClickAction: 'fullscreen',
   nowPlayingClickActionUserSet: false,
   appIconUrl: '',
-  playbackQuality: 'auto',
   playerLayout: 'floating',
   showQualityInfo: true,
   gaplessPlayback: true,
-  replayGainMode: 'off',
-  monoAudio: false,
-  exponentialVolume: false,
-  playbackSpeed: 1,
-  preservePitch: true,
   downloadQuality: 'original',
   filenameTemplate: '{artist} - {title}',
   folderTemplate: '{albumArtist}/{year} - {albumTitle}',
@@ -267,6 +269,12 @@ const LEGACY_SETTING_KEYS = [
   'listenBrainzToken',
   'malojaUrl',
   'malojaApiKey',
+  'playbackQuality',
+  'replayGainMode',
+  'monoAudio',
+  'exponentialVolume',
+  'playbackSpeed',
+  'preservePitch',
 ];
 
 const SETTINGS_TABS = [
@@ -411,9 +419,10 @@ const THEME_PRESETS = {
 };
 
 const MEDIA_TYPE_ICONS = {
-  CD: 'compactDisc',
-  'Digital Media': 'fileAudio',
-  Vinyl: 'recordVinyl',
+  CD: '/media-type-icons/compact-disc.svg',
+  'Digital Media': '/media-type-icons/file-waveform.svg',
+  Vinyl: '/media-type-icons/record-vinyl.svg',
+  'Cassette Tape': '/media-type-icons/cassette-tape.svg',
 };
 
 const AUDIO_QUALITY_ICONS = {
@@ -441,11 +450,14 @@ const state = {
   artistGroupMap: new Map(),
   libraryFolders: { available: [], selected: [], scan: null },
   libraryPage: { limit: 50, offset: 0, total: 0, hasNext: false, hasPrevious: false },
+  wantedPage: { limit: 50, offset: 0, total: 0, hasNext: false, hasPrevious: false },
   artistPage: { limit: 50, offset: 0, total: 0, hasNext: false, hasPrevious: false },
   libraryTotals: { albums: 0, tracks: 0 },
   folderCache: new Map(),
   folderLoading: new Set(),
   homeAlbumIds: [],
+  wantedAlbums: [],
+  wantedAlbumsLoaded: false,
   searchTerm: '',
   alphabetFilter: 'all',
   browseView: 'home',
@@ -485,6 +497,7 @@ const state = {
   lyricsFrameId: 0,
   lastPlaybackPersistedAt: 0,
   audioContext: null,
+  audioSource: null,
   analyser: null,
   analyserData: null,
   visualizerFrameId: 0,
@@ -515,7 +528,7 @@ async function init() {
   sanitizeStoredFavorites();
   state.volume = clamp(readStoredNumber(STORAGE_KEYS.volume, 0.7), 0, 1);
   state.lastVolume = state.volume || 0.7;
-  audioPlayer.volume = getEffectiveVolume(state.volume);
+  audioPlayer.volume = state.volume;
   restorePlaybackState();
   applySettings();
 
@@ -545,7 +558,11 @@ function bindEvents() {
   navHome.addEventListener('click', () => navigateToView('home'));
   navLibrary.addEventListener('click', () => navigateToView('library'));
   navFavorites.addEventListener('click', () => navigateToView('favorites'));
+  navWanted.addEventListener('click', () => navigateToView('wanted'));
   navSettings.addEventListener('click', () => navigateToView('settings'));
+  sidebarToggleButton.addEventListener('click', () => {
+    updateSetting('sidebarCollapsed', !state.settings.sidebarCollapsed, true);
+  });
   libraryTabFolders.addEventListener('click', () => setLibraryTab('folders'));
   libraryTabAlbums.addEventListener('click', () => setLibraryTab('albums'));
   libraryTabArtists.addEventListener('click', () => setLibraryTab('artists'));
@@ -569,6 +586,14 @@ function bindEvents() {
 
     const button = event.target.closest('[data-library-page-action]');
     if (!button) return;
+    if (state.route.view === 'wanted') {
+      const wantedLimit = state.wantedPage.limit || state.settings.libraryPageSize || 50;
+      const wantedOffset = button.dataset.libraryPageAction === 'next'
+        ? state.wantedPage.offset + wantedLimit
+        : Math.max(0, state.wantedPage.offset - wantedLimit);
+      loadWantedAlbumsPage(wantedOffset).catch((error) => console.error(error));
+      return;
+    }
     const limit = state.libraryPage.limit || state.settings.libraryPageSize || 50;
     const offset = button.dataset.libraryPageAction === 'next'
       ? state.libraryPage.offset + limit
@@ -588,7 +613,11 @@ function bindEvents() {
     const select = event.target.closest('[data-library-page-size]');
     if (!select) return;
     updateSetting('libraryPageSize', Number(select.value), true);
-    loadLibraryPage(0).catch((error) => console.error(error));
+    if (state.route.view === 'wanted') {
+      loadWantedAlbumsPage(0).catch((error) => console.error(error));
+    } else {
+      loadLibraryPage(0).catch((error) => console.error(error));
+    }
   });
   settingsPanels.addEventListener('click', (event) => {
     const button = event.target.closest('[data-settings-action], [data-setting-value]');
@@ -917,6 +946,10 @@ function queueLibraryPageFetch(offset = 0) {
 }
 
 function queueVisiblePageFetch(offset = 0) {
+  if (state.route.view === 'wanted') {
+    loadWantedAlbumsPage(offset).catch((error) => console.error(error));
+    return;
+  }
   if (state.route.view === 'library' && state.libraryTab === 'folders') {
     state.folderCache.clear();
     loadFolderListing('').catch((error) => console.error(error));
@@ -936,6 +969,28 @@ async function loadLibraryPage(offset = 0) {
   sanitizeStoredFavorites();
   render();
   updatePlayerUi();
+}
+
+async function loadWantedAlbumsPage(offset = 0) {
+  const params = new URLSearchParams({
+    limit: String(state.settings.libraryPageSize || 50),
+    offset: String(Math.max(0, offset)),
+  });
+  if (state.searchTerm) {
+    params.set('search', state.searchTerm);
+  }
+  const library = await fetchJson(`/api/wanted-albums?${params.toString()}`);
+  mergeLibraryData(library);
+  state.wantedAlbums = library.albums || [];
+  state.wantedPage = library.page || {
+    limit: state.settings.libraryPageSize || 50,
+    offset: 0,
+    total: state.wantedAlbums.length,
+    hasNext: false,
+    hasPrevious: false,
+  };
+  state.wantedAlbumsLoaded = true;
+  render();
 }
 
 async function fetchArtistPagePayload(offset = 0) {
@@ -1049,7 +1104,7 @@ function restorePlaybackState() {
     ? String(storedPlayback.currentTrackId)
     : null;
 
-  if (['home', 'library', 'favorites', 'settings'].includes(storedPlayback.browseView)) {
+  if (['home', 'library', 'favorites', 'wanted', 'settings'].includes(storedPlayback.browseView)) {
     state.browseView = storedPlayback.browseView;
   }
   state.fullscreenReturnHash = typeof storedPlayback.fullscreenReturnHash === 'string'
@@ -1071,7 +1126,7 @@ function restorePlaybackState() {
   }
   const track = state.trackMap.get(currentTrackId);
   audioPlayer.src = track.streamUrl;
-  audioPlayer.playbackRate = Number(state.settings.playbackSpeed) || 1;
+  audioPlayer.playbackRate = 1;
   loadTrackLyrics(track.id).catch((error) => console.warn('Unable to load lyrics', error));
 
   const restoredTime = Number(storedPlayback.currentTime);
@@ -1213,6 +1268,7 @@ function render() {
   const isAlbumView = state.route.view === 'album' && !!currentAlbum;
   const isArtistView = state.route.view === 'artist';
   const isFavoritesView = state.route.view === 'favorites';
+  const isWantedView = state.route.view === 'wanted';
   const isSettingsView = state.route.view === 'settings';
   const isFullscreenView = state.route.view === 'fullscreen';
   const isLibraryView = state.route.view === 'library' && !isAlbumView && !isArtistView;
@@ -1224,18 +1280,20 @@ function render() {
   homeView.hidden = !isHomeView;
   libraryView.hidden = !isLibraryView;
   favoritesView.hidden = !isFavoritesView;
+  wantedView.hidden = !isWantedView;
   settingsView.hidden = !isSettingsView;
   artistView.hidden = !isArtistView;
   albumView.hidden = !isAlbumView;
   fullscreenOverlay.hidden = !isFullscreenView;
   backButton.hidden = !isAlbumView && !isArtistView;
   clearSearchButton.hidden = !state.searchTerm;
-  homeHero.hidden = !isHomeView;
+  homeHero.hidden = !isHomeView || !state.settings.showHomeBanner;
   document.body.dataset.view = state.route.view;
 
   navHome.classList.toggle('is-active', state.route.view === 'home');
   navLibrary.classList.toggle('is-active', state.route.view === 'library');
   navFavorites.classList.toggle('is-active', state.route.view === 'favorites');
+  navWanted.classList.toggle('is-active', state.route.view === 'wanted');
   navSettings.classList.toggle('is-active', state.route.view === 'settings');
 
   homeAlbumCaption.textContent = state.searchTerm
@@ -1252,6 +1310,8 @@ function render() {
     renderLibraryView(filteredTracks, filteredAlbums);
   } else if (isFavoritesView) {
     renderFavoritesView(filteredTracks);
+  } else if (isWantedView) {
+    renderWantedView();
   } else if (isSettingsView) {
     renderSettingsView();
   } else if (isFullscreenView) {
@@ -1276,6 +1336,27 @@ function renderFavoritesView(filteredTracks) {
 
   renderAlbumCollection(favoriteAlbumGrid, favoriteAlbums, 'No favorite albums yet.');
   renderTrackCollection(favoriteTrackList, favoriteTracks, favoriteTracks, 'No favorite tracks yet.');
+}
+
+function renderWantedView() {
+  wantedAlbumCaption.textContent = state.searchTerm
+    ? `Wanted albums matching "${state.searchTerm}"`
+    : 'Albums marked as Wanted in your local album tags.';
+  wantedAlbumGrid.innerHTML = '';
+
+  if (!state.wantedAlbumsLoaded) {
+    wantedAlbumGrid.append(createEmptyState('Loading wanted albums...'));
+    loadWantedAlbumsPage(0).catch((error) => {
+      console.error(error);
+      wantedAlbumGrid.innerHTML = '';
+      wantedAlbumGrid.append(createEmptyState('Unable to load wanted albums.'));
+    });
+    return;
+  }
+
+  renderAlbumCollection(wantedAlbumGrid, state.wantedAlbums, 'No wanted albums yet.', {
+    pager: createWantedPager(),
+  });
 }
 
 function renderSettingsView() {
@@ -1308,19 +1389,24 @@ function renderAppearanceSettings() {
           </button>
         `).join('')}
       </div>
-      <label class="settings-field compact">
-        <span>Custom Accent</span>
-        <input type="color" data-setting="customAccent" value="${escapeHtml(state.settings.customAccent)}" />
-      </label>
-      <label class="settings-field">
-        <span>Custom Theme Base</span>
-        <select data-setting="customThemeBase">
-          ${selectOptions([
-            ['dark', 'Dark'],
-            ['light', 'Light'],
-          ], state.settings.customThemeBase)}
-        </select>
-      </label>
+      <div class="settings-field theme-custom-field">
+        <span>Custom Theme</span>
+        <div class="theme-custom-controls">
+          <label>
+            <span>Accent</span>
+            <input type="color" data-setting="customAccent" value="${escapeHtml(state.settings.customAccent)}" />
+          </label>
+          <label>
+            <span>Base</span>
+            <select data-setting="customThemeBase">
+              ${selectOptions([
+                ['dark', 'Dark'],
+                ['light', 'Light'],
+              ], state.settings.customThemeBase)}
+            </select>
+          </label>
+        </div>
+      </div>
     `)}
     ${settingsGroup('Font', 'Choose from presets. Custom Google Font URLs can still be added in code later if we want full upstream parity.', `
       <label class="settings-field">
@@ -1341,33 +1427,68 @@ function renderAppearanceSettings() {
       </label>
     `)}
     ${settingsGroup('Text', 'Rename the app and the home banner without editing config files.', `
-      <label class="settings-field">
+      <div class="settings-field library-title-field">
         <span>Library Title</span>
-        <input type="text" data-setting="libraryTitle" value="${escapeHtml(state.settings.libraryTitle)}" placeholder="${escapeHtml(state.title)}" />
-      </label>
+        <div class="settings-inline-controls">
+          <input type="text" data-setting="libraryTitle" value="${escapeHtml(state.settings.libraryTitle)}" placeholder="${escapeHtml(state.title)}" />
+          <label class="settings-inline-toggle">
+            <span>Show</span>
+            <input type="checkbox" data-setting="showLibraryTitle" ${state.settings.showLibraryTitle ? 'checked' : ''} />
+          </label>
+        </div>
+      </div>
       <label class="settings-field">
         <span>App / Browser Tab Icon URL</span>
         <input type="url" data-setting="appIconUrl" value="${escapeHtml(state.settings.appIconUrl)}" placeholder="/icon.png or https://example.com/icon.png" />
       </label>
-      <label class="settings-field">
-        <span>Home Eyebrow</span>
-        <input type="text" data-setting="homeBannerEyebrow" value="${escapeHtml(state.settings.homeBannerEyebrow)}" />
-      </label>
-      <label class="settings-field">
-        <span>Home Banner Title</span>
-        <input type="text" data-setting="homeBannerTitle" value="${escapeHtml(state.settings.homeBannerTitle)}" />
-      </label>
-      <label class="settings-field">
-        <span>Home Banner Subtitle</span>
-        <input type="text" data-setting="homeBannerSubtitle" value="${escapeHtml(state.settings.homeBannerSubtitle)}" />
-      </label>
+      <div class="settings-field home-banner-field">
+        <div class="home-banner-heading">
+          <span>Home Banner</span>
+          <label class="settings-inline-toggle">
+            <span>Show</span>
+            <input type="checkbox" data-setting="showHomeBanner" ${state.settings.showHomeBanner ? 'checked' : ''} />
+          </label>
+        </div>
+        <div class="home-banner-controls">
+          <label>
+            <span>Eyebrow</span>
+            <input type="text" data-setting="homeBannerEyebrow" value="${escapeHtml(state.settings.homeBannerEyebrow)}" />
+          </label>
+          <label>
+            <span>Title</span>
+            <input type="text" data-setting="homeBannerTitle" value="${escapeHtml(state.settings.homeBannerTitle)}" />
+          </label>
+          <label>
+            <span>Subtitle</span>
+            <input type="text" data-setting="homeBannerSubtitle" value="${escapeHtml(state.settings.homeBannerSubtitle)}" />
+          </label>
+        </div>
+      </div>
     `)}
-    ${settingsGroup('Visuals', 'Local equivalents of Monochrome appearance toggles.', `
-      ${settingToggle('albumCoverBackground', 'Album Cover Background', 'Use cover art as the blurred album-page backdrop.')}
-      ${settingToggle('dynamicColors', 'Dynamic Colors', 'Reserved for future cover-palette accents. Your custom accent is used today.')}
-      ${settingToggle('compactAlbums', 'Compact Albums', 'Use denser album cards across browse grids.')}
-      ${settingToggle('compactArtists', 'Compact Artists', 'Use smaller artist cards in the artist browser.')}
-    `)}
+    ${renderVisualSettings()}
+  `;
+}
+
+function renderVisualSettings() {
+  return `
+    <section class="settings-group visuals-settings-group">
+      <div class="settings-group-heading">
+        <h4>Visuals</h4>
+        <p>Local equivalents of Monochrome appearance toggles.</p>
+        ${renderAlbumCardSizePreview()}
+      </div>
+      <div class="settings-group-body">
+        ${settingToggle('albumCoverBackground', 'Album Cover Background', 'Use cover art as the blurred album-page backdrop.')}
+        ${settingToggle('dynamicColors', 'Dynamic Colors', 'Reserved for future cover-palette accents. Your custom accent is used today.')}
+        <div class="settings-field album-card-size-field">
+          <span>Album Card Size <strong>${state.settings.albumCardSize}px</strong></span>
+          <div class="album-card-size-controls">
+            <input type="range" min="145" max="230" step="5" data-setting="albumCardSize" value="${state.settings.albumCardSize}" />
+          </div>
+        </div>
+        ${settingToggle('compactArtists', 'Compact Artists', 'Use smaller artist cards in the artist browser.')}
+      </div>
+    </section>
   `;
 }
 
@@ -1377,6 +1498,7 @@ function renderInterfaceSettings() {
       ${settingToggle('showHome', 'Show Home in Sidebar', 'Display the Home link in sidebar navigation.')}
       ${settingToggle('showLibrary', 'Show Library in Sidebar', 'Display the Library link in sidebar navigation.')}
       ${settingToggle('showFavorites', 'Show Favorites in Sidebar', 'Display the Favorites link in sidebar navigation.')}
+      ${settingToggle('sidebarCollapsed', 'Collapse Sidebar', 'Use icon-only navigation and compact sidebar status.')}
       <div class="setting-row is-disabled">
         <div><strong>Show Settings in Sidebar</strong><span>Always visible so you cannot lock yourself out.</span></div>
         <span class="settings-pill">Always on</span>
@@ -1417,32 +1539,8 @@ function renderAudioSettings() {
           ], state.settings.playerLayout)}
         </select>
       </label>
-      <label class="settings-field">
-        <span>Streaming Quality</span>
-        <select data-setting="playbackQuality">
-          ${selectOptions([
-            ['auto', 'Auto (Original File)'],
-            ['hires', 'Prefer Hi-Res Labels'],
-            ['lossless', 'Prefer Lossless Labels'],
-            ['mp3', 'Prefer MP3 Compatible'],
-          ], state.settings.playbackQuality)}
-        </select>
-      </label>
       ${settingToggle('showQualityInfo', 'Show Quality Badges', 'Show the audio quality block in the player.')}
-      ${settingToggle('gaplessPlayback', 'Gapless Playback', 'Keep queue transitions automatic. True gapless depends on browser decoding.')}
-      <label class="settings-field">
-        <span>ReplayGain Mode</span>
-        <select data-setting="replayGainMode">
-          ${selectOptions([['off', 'Off'], ['track', 'Track'], ['album', 'Album']], state.settings.replayGainMode)}
-        </select>
-      </label>
-      ${settingToggle('monoAudio', 'Mono Audio', 'Saved for future Web Audio processing.')}
-      ${settingToggle('exponentialVolume', 'Exponential Volume', 'Use a softer low-volume curve.')}
-      <label class="settings-field">
-        <span>Playback Speed <strong>${state.settings.playbackSpeed}x</strong></span>
-        <input type="range" min="0.25" max="3" step="0.05" data-setting="playbackSpeed" value="${state.settings.playbackSpeed}" />
-      </label>
-      ${settingToggle('preservePitch', 'Preserve Pitch', 'Keep original pitch when changing playback speed.')}
+      ${settingToggle('gaplessPlayback', 'Autoplay Queue', 'Automatically continue to the next queued track when one ends.')}
     `)}
   `;
 }
@@ -1585,6 +1683,8 @@ function handleSettingsInput(event) {
   const value = readSettingInputValue(input);
   if (key === 'fontSize') {
     input.previousElementSibling?.querySelector('strong')?.replaceChildren(`${value}%`);
+  } else if (key === 'albumCardSize') {
+    input.closest('.album-card-size-field')?.querySelector('strong')?.replaceChildren(`${value}px`);
   }
   updateSetting(key, value, event.type === 'input');
   if (key === 'libraryPageSize') {
@@ -1771,13 +1871,14 @@ function applySettings() {
   applyThemeSettings();
   document.documentElement.style.setProperty('--font-body', FONT_PRESETS[state.settings.fontPreset] || FONT_PRESETS.jakarta);
   document.documentElement.style.setProperty('--app-font-size', `${15 * (state.settings.fontSize / 100)}px`);
+  document.documentElement.style.setProperty('--album-card-size', `${clampAlbumCardSize(state.settings.albumCardSize)}px`);
   document.body.classList.toggle('no-album-cover-background', !state.settings.albumCoverBackground);
-  document.body.classList.toggle('compact-albums', state.settings.compactAlbums);
   document.body.classList.toggle('compact-artists', state.settings.compactArtists);
   document.body.classList.toggle('player-layout-qobuz', state.settings.playerLayout === 'qobuz');
 
   const displayTitle = getDisplayTitle();
   appTitle.textContent = displayTitle;
+  appTitle.hidden = !state.settings.showLibraryTitle;
   document.title = `${displayTitle} | Local Streamer`;
   homeHeroEyebrow.textContent = state.settings.homeBannerEyebrow || DEFAULT_SETTINGS.homeBannerEyebrow;
   homeHeroTitle.textContent = state.settings.homeBannerTitle || DEFAULT_SETTINGS.homeBannerTitle;
@@ -1786,12 +1887,17 @@ function applySettings() {
   navHome.hidden = !state.settings.showHome;
   navLibrary.hidden = !state.settings.showLibrary;
   navFavorites.hidden = !state.settings.showFavorites;
+  navWanted.hidden = !state.settings.showFavorites;
+  document.body.classList.toggle('sidebar-collapsed', Boolean(state.settings.sidebarCollapsed));
+  sidebarToggleButton.setAttribute('aria-expanded', String(!state.settings.sidebarCollapsed));
+  sidebarToggleButton.setAttribute('aria-label', state.settings.sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+  const sidebarToggleIcon = sidebarToggleButton.querySelector('.fa-solid');
+  if (sidebarToggleIcon) {
+    sidebarToggleIcon.className = `fa-solid ${state.settings.sidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`;
+  }
 
-  audioPlayer.playbackRate = Number(state.settings.playbackSpeed) || 1;
-  audioPlayer.preservesPitch = Boolean(state.settings.preservePitch);
-  audioPlayer.mozPreservesPitch = Boolean(state.settings.preservePitch);
-  audioPlayer.webkitPreservesPitch = Boolean(state.settings.preservePitch);
-  audioPlayer.volume = getEffectiveVolume(state.volume);
+  audioPlayer.playbackRate = 1;
+  audioPlayer.volume = state.volume;
   audioQualityInfo.hidden = !state.settings.showQualityInfo || !state.currentTrackId;
   applyAppIcon();
   const currentTrack = state.trackMap.get(state.currentTrackId);
@@ -1899,10 +2005,47 @@ function settingToggle(key, title, description) {
   `;
 }
 
+function renderAlbumCardSizePreview() {
+  const previewAlbum = {
+    title: 'Sampler Album',
+    artist: getDisplayTitle(),
+    year: '2026',
+    mediaTypes: ['CD', 'Digital Media', 'Vinyl', 'Cassette Tape'],
+    status: 'Collection',
+  };
+  return `
+    <div class="album-card-size-preview" aria-label="Album card size preview">
+      <article class="album-card compact album-card-sample" aria-hidden="true">
+        <div class="album-card-media">
+          ${createCoverPlaceholder('Album')}
+          <button type="button" class="album-card-play" tabindex="-1" aria-label="Preview play button">
+            ${materialIcon('play')}
+          </button>
+        </div>
+        <div class="meta">
+          <h4>${escapeHtml(previewAlbum.title)}</h4>
+          <p>${escapeHtml(previewAlbum.artist)}</p>
+          <p class="album-card-year">${escapeHtml(previewAlbum.year)}</p>
+          <div class="album-card-footer">
+            <p class="album-card-format">${renderMediaTypeIcons(previewAlbum)}</p>
+          </div>
+        </div>
+      </article>
+      <p class="settings-help">Preview uses the same card style as Home, Library, Favorites, and artist album grids.</p>
+    </div>
+  `;
+}
+
 function selectOptions(options, selectedValue) {
   return options.map(([value, label]) => (
     `<option value="${escapeHtml(value)}" ${String(selectedValue) === String(value) ? 'selected' : ''}>${escapeHtml(label)}</option>`
   )).join('');
+}
+
+function clampAlbumCardSize(value) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return DEFAULT_SETTINGS.albumCardSize;
+  return Math.min(230, Math.max(145, parsed));
 }
 
 function getThemeAccent(themeName) {
@@ -1925,11 +2068,20 @@ function updateSidebarScanStatus(indexedAt = state.generatedAt) {
   const percent = Number.isFinite(scan.percent) && rawStatus !== 'idle'
     ? scan.percent
     : (status === 'ready' ? 100 : 0);
+  const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
+  const circumference = 2 * Math.PI * 42;
+  const progressOffset = circumference * (1 - safePercent / 100);
   const indexedText = indexedAt ? `Indexed ${formatTimestamp(indexedAt)}` : 'Not indexed yet';
   libraryStatus.innerHTML = `
-    <strong>${escapeHtml(toTitleCase(status))} · ${percent}%</strong>
-    <span>${escapeHtml(indexedText)}</span>
-    <span class="sidebar-scan-bar"><i style="width: ${Math.max(0, Math.min(100, percent))}%"></i></span>
+    <strong class="sidebar-status-state">${escapeHtml(toTitleCase(status))}</strong>
+    <div class="sidebar-progress-ring" style="--scan-progress-offset: ${progressOffset}; --scan-progress-circumference: ${circumference};" role="img" aria-label="${escapeHtml(`Scan progress ${safePercent}%`)}">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="sidebar-progress-track" cx="50" cy="50" r="42"></circle>
+        <circle class="sidebar-progress-value" cx="50" cy="50" r="42"></circle>
+      </svg>
+      <strong>${safePercent}%</strong>
+    </div>
+    <span class="sidebar-status-indexed">${escapeHtml(indexedText)}</span>
   `;
 }
 
@@ -2264,7 +2416,7 @@ async function resetArtistEditor() {
   }
 }
 
-function renderAlbumCollection(container, albums, emptyMessage, { pageable = false } = {}) {
+function renderAlbumCollection(container, albums, emptyMessage, { pageable = false, pager = null } = {}) {
   container.innerHTML = '';
   if (pageable) {
     container.append(createAlphabetIndex());
@@ -2273,6 +2425,7 @@ function renderAlbumCollection(container, albums, emptyMessage, { pageable = fal
   if (albums.length === 0) {
     container.append(createEmptyState(emptyMessage));
     if (pageable) container.append(createLibraryPager());
+    if (pager) container.append(pager);
     return;
   }
 
@@ -2280,6 +2433,7 @@ function renderAlbumCollection(container, albums, emptyMessage, { pageable = fal
     container.append(createAlbumCard(album, { compact: false }));
   }
   if (pageable) container.append(createLibraryPager());
+  if (pager) container.append(pager);
 }
 
 function createAlphabetIndex() {
@@ -2318,6 +2472,32 @@ function createLibraryPager() {
     <div>
       <strong>${start}-${end}</strong>
       <span>of ${total} album${total === 1 ? '' : 's'}</span>
+    </div>
+    <label>
+      <span>Per page</span>
+      <select data-library-page-size>
+        ${selectOptions([[25, '25'], [50, '50'], [100, '100']], limit)}
+      </select>
+    </label>
+    <button type="button" class="secondary-button" data-library-page-action="previous" ${page.hasPrevious ? '' : 'disabled'}>Previous</button>
+    <button type="button" class="secondary-button" data-library-page-action="next" ${page.hasNext ? '' : 'disabled'}>Next</button>
+  `;
+  return pager;
+}
+
+function createWantedPager() {
+  const page = state.wantedPage || {};
+  const total = page.total || state.wantedAlbums.length;
+  const limit = page.limit || state.settings.libraryPageSize || 50;
+  const offset = page.offset || 0;
+  const start = total === 0 ? 0 : offset + 1;
+  const end = Math.min(total, offset + limit);
+  const pager = document.createElement('div');
+  pager.className = 'library-pager';
+  pager.innerHTML = `
+    <div>
+      <strong>${start}-${end}</strong>
+      <span>of ${total} wanted album${total === 1 ? '' : 's'}</span>
     </div>
     <label>
       <span>Per page</span>
@@ -2811,6 +2991,7 @@ async function saveTagEditor() {
       body: JSON.stringify(payload),
     });
     hydrateLibrary({ title: state.title }, result.library);
+    state.wantedAlbumsLoaded = false;
     sanitizeStoredFavorites();
     closeTagEditor();
     render();
@@ -2834,6 +3015,7 @@ async function resetTagEditor() {
       body: JSON.stringify({ reset: true }),
     });
     hydrateLibrary({ title: state.title }, result.library);
+    state.wantedAlbumsLoaded = false;
     sanitizeStoredFavorites();
     closeTagEditor();
     render();
@@ -3099,7 +3281,7 @@ function playTrack(track, queueTracks = null) {
   state.lyricsRefreshRequestedIds.delete(track.id);
   loadTrackLyrics(track.id).catch((error) => console.warn('Unable to load lyrics', error));
   audioPlayer.src = track.streamUrl;
-  audioPlayer.playbackRate = Number(state.settings.playbackSpeed) || 1;
+  audioPlayer.playbackRate = 1;
   persistPlaybackState();
   audioPlayer.play().catch((error) => console.error(error));
   updatePlayerUi();
@@ -3180,6 +3362,14 @@ function handleTrackEnded() {
   if (state.repeatMode === 'one') {
     audioPlayer.currentTime = 0;
     audioPlayer.play().catch((error) => console.error(error));
+    return;
+  }
+  if (!state.settings.gaplessPlayback) {
+    audioPlayer.pause();
+    audioPlayer.currentTime = 0;
+    persistPlaybackState();
+    updatePlayerUi();
+    render();
     return;
   }
   playNextTrack();
@@ -3659,7 +3849,7 @@ function setVolume(volume) {
   if (state.volume > 0) {
     state.lastVolume = state.volume;
   }
-  audioPlayer.volume = getEffectiveVolume(state.volume);
+  audioPlayer.volume = state.volume;
   localStorage.setItem(STORAGE_KEYS.volume, String(state.volume));
   syncVolumeUi();
 }
@@ -3693,11 +3883,6 @@ function bindVolumeControl(bar) {
   }, { passive: false });
 }
 
-function getEffectiveVolume(volume) {
-  const normalized = clamp(volume, 0, 1);
-  return state.settings.exponentialVolume ? normalized ** 2 : normalized;
-}
-
 function syncVolumeUi() {
   volumeFill.style.width = `${state.volume * 100}%`;
   fullscreenVolumeFill.style.width = `${state.volume * 100}%`;
@@ -3714,19 +3899,24 @@ function syncVolumeUi() {
 }
 
 function ensureAudioVisualizer() {
-  if (state.audioContext && state.analyser) {
+  if (ensureAudioGraph()) return;
+}
+
+function ensureAudioGraph() {
+  if (state.audioContext && state.audioSource && state.analyser) {
     state.audioContext.resume?.().catch(() => {});
-    return;
+    return true;
   }
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) return;
+  if (!AudioContextClass) return false;
   state.audioContext = new AudioContextClass();
-  const source = state.audioContext.createMediaElementSource(audioPlayer);
+  state.audioSource = state.audioContext.createMediaElementSource(audioPlayer);
   state.analyser = state.audioContext.createAnalyser();
   state.analyser.fftSize = 128;
   state.analyserData = new Uint8Array(state.analyser.frequencyBinCount);
-  source.connect(state.analyser);
+  state.audioSource.connect(state.analyser);
   state.analyser.connect(state.audioContext.destination);
+  return true;
 }
 
 function updateVisualizerState() {
@@ -4295,16 +4485,23 @@ function isWantedAlbum(album) {
 
 function getAlbumMediaTypes(album) {
   const mediaTypes = Array.isArray(album.mediaTypes) ? album.mediaTypes : [album.mediaType];
-  const normalized = mediaTypes.filter(Boolean);
+  const normalized = mediaTypes.map(normalizeMediaTypeName).filter(Boolean);
   return normalized.length > 0 ? normalized : ['Digital Media'];
 }
 
 function renderMediaTypeIcons(album, { includeLabels = false } = {}) {
   return getAlbumMediaTypes(album).map((mediaType) => {
-    const iconName = MEDIA_TYPE_ICONS[mediaType] || MEDIA_TYPE_ICONS['Digital Media'];
+    const iconUrl = MEDIA_TYPE_ICONS[mediaType] || MEDIA_TYPE_ICONS['Digital Media'];
     const label = includeLabels ? `<span>${escapeHtml(mediaType)}</span>` : '';
-    return `<span class="media-type-icon" title="${escapeHtml(mediaType)}">${materialIcon(iconName)}${label}</span>`;
+    return `<span class="media-type-icon" title="${escapeHtml(mediaType)}"><i class="media-type-symbol" style="--media-type-icon: url('${escapeHtml(iconUrl)}')" aria-hidden="true"></i>${label}</span>`;
   }).join('');
+}
+
+function normalizeMediaTypeName(mediaType) {
+  const normalized = String(mediaType || '').trim();
+  if (!normalized) return '';
+  if (/^cassette[-\s]?tape$/iu.test(normalized)) return 'Cassette Tape';
+  return normalized;
 }
 
 function renderAudioQualityBadge(quality, { includeLabel = false } = {}) {
@@ -4318,7 +4515,7 @@ function renderAudioQualityBadge(quality, { includeLabel = false } = {}) {
 }
 
 function setSelectedMediaTypes(mediaTypes) {
-  const selected = new Set(Array.isArray(mediaTypes) ? mediaTypes : [mediaTypes]);
+  const selected = new Set((Array.isArray(mediaTypes) ? mediaTypes : [mediaTypes]).map(normalizeMediaTypeName));
   for (const input of tagAlbumMediaTypesInput.querySelectorAll('input[type="checkbox"]')) {
     input.checked = selected.has(input.value);
   }
@@ -4440,6 +4637,9 @@ function readStoredSettings() {
   if (typeof parsed.libraryTitle === 'string' && parsed.libraryTitle.trim() === '') {
     delete parsed.libraryTitle;
   }
+  if (parsed.albumCardSize != null) {
+    parsed.albumCardSize = clampAlbumCardSize(parsed.albumCardSize);
+  }
   return {
     ...DEFAULT_SETTINGS,
     ...parsed,
@@ -4466,6 +4666,9 @@ function importSettings() {
         }
         if (parsed.nowPlayingClickAction && !NOW_PLAYING_CLICK_ACTIONS.has(parsed.nowPlayingClickAction)) {
           delete parsed.nowPlayingClickAction;
+        }
+        if (parsed.albumCardSize != null) {
+          parsed.albumCardSize = clampAlbumCardSize(parsed.albumCardSize);
         }
         state.settings = {
           ...DEFAULT_SETTINGS,
