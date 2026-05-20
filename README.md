@@ -126,7 +126,7 @@ Then edit `.env`:
 MUSIC_DIR=/path/to/your/music
 APP_DATA_DIR=/monochrome-streamer/data
 APP_TITLE=Monochrome-Streamer
-IMAGE_TAG=0.1.0
+IMAGE_TAG=0.1.1
 ```
 
 `APP_DATA_DIR` is the local server folder where album edits, artist edits, saved `.lrc` lyrics, the SQLite library index, and cached cover art are stored. Inside Docker it is mounted as `/data`.
@@ -152,7 +152,7 @@ docker build -t monochrome-streamer .
 ```powershell
 docker run --rm -p 8888:8888 `
   -e APP_TITLE="Monochrome-Streamer" `
-  --mount type=bind,source="/path/to/your/Music",target=/music,readonly `
+  --mount type=bind,source="/path/to/your/Music",target=/music `
   --mount type=bind,source="/opt/monochrome-streamer/data",target=/data `
   monochrome-streamer
 ```
@@ -203,7 +203,7 @@ services:
       SCAN_METADATA: tags
       SCAN_DURATIONS: "false"
     volumes:
-      - /path/to/your/music:/music:ro
+      - /path/to/your/music:/music
       - /opt/monochrome-streamer/data:/data
 ```
 
@@ -224,7 +224,7 @@ environment:
 
 On first Docker/Dockge launch, the app does not scan every folder automatically. Open Settings > System > Library Folders, select one or more top-level folders from `/music`, then click `Save & Scan`. Start with one folder, confirm the app stays stable, then add more folders and scan again.
 
-Scans are incremental after the first run. The app writes `/data/library-cache.json` and reuses unchanged files by size and modified time, so future scans only parse new or changed files.
+Scans are incremental after the first run. The app stores the library index in `/data/library.sqlite` and reuses unchanged files by size and modified time, so future scans only parse new or changed files.
 
 After deploy, Dockge should show the container as healthy. If it is running but the site does not open, test the API directly from the server:
 
@@ -242,8 +242,10 @@ curl http://127.0.0.1:8888/api/config
   "libraryPath": "/path/to/your/music",
   "dataDir": "",
   "artistInfoPath": "artist-info.json",
-  "artistOverridesPath": "artist-overrides.json",
-  "albumOverridesPath": "album-overrides.json",
+  "lyricsSidecarPath": "lyrics",
+  "libraryFoldersPath": "library-folders.json",
+  "libraryDatabasePath": "library.sqlite",
+  "coverCachePath": "covers",
   "host": "0.0.0.0",
   "port": 8888
 }
@@ -261,8 +263,6 @@ You can also override values with environment variables:
 - `SCAN_DURATIONS` as `true` or `false`
 - `AUTO_SCAN_ON_START` as `true` or `false`
 - `ARTIST_INFO_PATH`
-- `ARTIST_OVERRIDES_PATH`
-- `ALBUM_OVERRIDES_PATH`
 - `HOST`
 - `PORT`
 
@@ -285,15 +285,19 @@ Artist pages try `artist-info.json` first. Copy `artist-info.example.json` to `a
 
 If an artist is not in that file, the server tries to fetch a Wikipedia image and summary. If the server has no internet access or nothing is found, the UI falls back to initials.
 
-Artist edits made inside the app are saved separately in `artist-overrides.json`, or in Docker at `/data/artist-overrides.json` by default. With Docker Compose, that file appears on the host inside `APP_DATA_DIR`. Edited artist info takes priority over `artist-info.json`.
+Artist edits made inside the app are saved in `library.sqlite`. Edited artist info takes priority over `artist-info.json`. Existing legacy `artist-overrides.json` files are imported into SQLite automatically if the database does not already contain artist overrides.
 
 ### Album tag editor
 
 Use the edit icon on the full album page to open the tag editor. You can edit album title, album artist, year, genre, multiple media types, collection status, cover URL, track titles, track artists, and track numbers.
 
-The editor saves local overrides in `album-overrides.json`, or in Docker at `/data/album-overrides.json` by default. With Docker Compose, that file appears on the host inside `APP_DATA_DIR`. It does not rewrite your original audio files.
+The editor saves local overrides in `library.sqlite`. Existing legacy `album-overrides.json` files are imported into SQLite automatically if the database does not already contain album overrides. It does not rewrite your original audio files.
 
 The online search uses MusicBrainz for release metadata and Cover Art Archive for cover art.
+
+### Lyrics storage
+
+Lyrics saved in the app are stored in `library.sqlite` and also written as `.lrc` files beside the matching music files when possible. Existing legacy `lyrics-overrides.json` files are imported into SQLite automatically if the database does not already contain lyrics overrides.
 
 ## API
 

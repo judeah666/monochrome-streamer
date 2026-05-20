@@ -1,6 +1,6 @@
 services:
   monochrome-streamer:
-    image: judeah666/monochrome-streamer:0.1.0
+    image: judeah666/monochrome-streamer:0.1.1
     container_name: monochrome-streamer
     restart: unless-stopped
     ports:
@@ -14,5 +14,5 @@ services:
       SCAN_DURATIONS: "false"
       AUTO_SCAN_ON_START: "false"
     volumes:
-      - /path/to/your/music:/music:ro
+      - /path/to/your/music:/music
       - /opt/monochrome-streamer/data:/data

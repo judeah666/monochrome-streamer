@@ -10,16 +10,22 @@ import {
   scanMusicLibrary,
 } from './lib/library.mjs';
 import {
+  readAlbumOverridesDatabase,
+  readArtistOverridesDatabase,
   readLibraryAlbumPage,
   readLibraryDatabase,
   readLibraryDatabaseSummary,
+  readLyricsOverridesDatabase,
   readArtistLibrary,
   readArtistPage,
   readFolderLibrary,
   readFolderListing,
   readTrackPage,
   readTrackFromDatabase,
+  writeAlbumOverridesDatabase,
+  writeArtistOverridesDatabase,
   writeLibraryDatabase,
+  writeLyricsOverridesDatabase,
 } from './lib/library-db.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -37,7 +43,6 @@ const defaultConfig = {
   lyricsOverridesPath: 'lyrics-overrides.json',
   lyricsSidecarPath: 'lyrics',
   libraryFoldersPath: 'library-folders.json',
-  libraryCachePath: 'library-cache.json',
   libraryDatabasePath: 'library.sqlite',
   coverCachePath: 'covers',
   scanMetadata: 'tags',
@@ -55,8 +60,8 @@ const albumOverridesPath = config.albumOverridesPath ? path.resolve(__dirname, c
 const lyricsOverridesPath = config.lyricsOverridesPath ? path.resolve(__dirname, config.lyricsOverridesPath) : '';
 const lyricsSidecarPath = config.lyricsSidecarPath ? path.resolve(__dirname, config.lyricsSidecarPath) : '';
 const libraryFoldersPath = config.libraryFoldersPath ? path.resolve(__dirname, config.libraryFoldersPath) : '';
-const libraryCachePath = config.libraryCachePath ? path.resolve(__dirname, config.libraryCachePath) : '';
 const libraryDatabasePath = config.libraryDatabasePath ? path.resolve(__dirname, config.libraryDatabasePath) : '';
+const legacyLibraryCachePath = config.libraryCachePath ? path.resolve(__dirname, config.libraryCachePath) : '';
 const coverCachePath = config.coverCachePath ? path.resolve(__dirname, config.coverCachePath) : '';
 
 if (!libraryRoot || !existsSync(libraryRoot)) {
@@ -339,7 +344,7 @@ async function loadConfig() {
     lyricsOverridesPath: process.env.LYRICS_OVERRIDES_PATH || fileConfig.lyricsOverridesPath || dataPath(defaultConfig.lyricsOverridesPath),
     lyricsSidecarPath: process.env.LYRICS_SIDECAR_PATH || fileConfig.lyricsSidecarPath || dataPath(defaultConfig.lyricsSidecarPath),
     libraryFoldersPath: process.env.LIBRARY_FOLDERS_PATH || fileConfig.libraryFoldersPath || dataPath(defaultConfig.libraryFoldersPath),
-    libraryCachePath: process.env.LIBRARY_CACHE_PATH || fileConfig.libraryCachePath || dataPath(defaultConfig.libraryCachePath),
+    libraryCachePath: process.env.LIBRARY_CACHE_PATH || fileConfig.libraryCachePath || dataPath('library-cache.json'),
     libraryDatabasePath: process.env.LIBRARY_DATABASE_PATH || fileConfig.libraryDatabasePath || dataPath(defaultConfig.libraryDatabasePath),
     coverCachePath: process.env.COVER_CACHE_PATH || fileConfig.coverCachePath || dataPath(defaultConfig.coverCachePath),
     scanMetadata: normalizeScanMetadata(process.env.SCAN_METADATA || fileConfig.scanMetadata || defaultConfig.scanMetadata),
@@ -352,7 +357,7 @@ async function loadConfig() {
 
 async function getCurrentLibrary() {
   if (libraryCache) return libraryCache;
-  const cachedLibrary = await readLibraryCache();
+  const cachedLibrary = await readLibraryStore();
   if (cachedLibrary.tracks.length > 0 || cachedLibrary.albums.length > 0) {
     libraryCache = cachedLibrary;
     trackMap = new Map(cachedLibrary.tracks.map((track) => [track.id, track]));
@@ -448,7 +453,7 @@ async function ensureLibrary() {
 
 async function refreshLibrary(selectedFoldersInput = null) {
   const selectedFolders = selectedFoldersInput || (await getSelectedLibraryFolders());
-  const cachedLibrary = await readLibraryCache();
+  const cachedLibrary = await readLibraryStore();
   scanState = {
     status: 'scanning',
     startedAt: new Date().toISOString(),
@@ -475,7 +480,7 @@ async function refreshLibrary(selectedFoldersInput = null) {
   }).then((library) => {
     libraryCache = library;
     trackMap = new Map(library.tracks.map((track) => [track.id, track]));
-    return writeLibraryCache(library).then(() => library);
+    return writeLibraryStore(library).then(() => library);
   }).then((library) => {
     scanState = {
       ...scanState,
@@ -606,30 +611,35 @@ function getImageExtension(contentType = '') {
   return '.jpg';
 }
 
-async function readLibraryCache() {
+async function readLibraryStore() {
   const databaseLibrary = await readLibraryDatabase(libraryDatabasePath);
   if (databaseLibrary.tracks.length > 0 || databaseLibrary.albums.length > 0) {
     return databaseLibrary;
   }
 
-  if (!libraryCachePath || !existsSync(libraryCachePath)) return createEmptyLibrary();
+  if (!legacyLibraryCachePath || !existsSync(legacyLibraryCachePath)) return createEmptyLibrary();
 
   try {
-    const raw = JSON.parse(await fs.readFile(libraryCachePath, 'utf8'));
+    const raw = JSON.parse(await fs.readFile(legacyLibraryCachePath, 'utf8'));
     const tracks = Array.isArray(raw.tracks) ? raw.tracks : [];
-    return {
+    const legacyLibrary = {
       generatedAt: raw.generatedAt || null,
       trackCount: tracks.length,
       albumCount: Array.isArray(raw.albums) ? raw.albums.length : 0,
       tracks,
       albums: Array.isArray(raw.albums) ? raw.albums : [],
     };
+    if (legacyLibrary.tracks.length > 0 || legacyLibrary.albums.length > 0) {
+      await writeLibraryDatabase(libraryDatabasePath, legacyLibrary);
+      console.log(`Migrated legacy library-cache.json into ${libraryDatabasePath}`);
+    }
+    return legacyLibrary;
   } catch {
     return createEmptyLibrary();
   }
 }
 
-async function writeLibraryCache(library) {
+async function writeLibraryStore(library) {
   await writeLibraryDatabase(libraryDatabasePath, library);
 }
 
@@ -1324,35 +1334,28 @@ function normalizeAlbumStatus(value) {
 }
 
 async function getAlbumOverrides() {
-  if (!albumOverridesPath) {
-    return { albums: {} };
-  }
-
   if (albumOverridesCache) {
     return albumOverridesCache;
   }
 
-  if (!existsSync(albumOverridesPath)) {
-    albumOverridesCache = { albums: {} };
-    return albumOverridesCache;
+  albumOverridesCache = await readAlbumOverridesDatabase(libraryDatabasePath);
+  if (Object.keys(albumOverridesCache.albums || {}).length === 0) {
+    const legacyOverrides = await readLegacyJsonOverrides(albumOverridesPath, 'albums');
+    if (Object.keys(legacyOverrides.albums || {}).length > 0) {
+      await writeAlbumOverridesDatabase(libraryDatabasePath, legacyOverrides);
+      albumOverridesCache = legacyOverrides;
+      console.log(`Migrated legacy album overrides into ${libraryDatabasePath}`);
+    }
   }
-
-  const rawOverrides = JSON.parse(await fs.readFile(albumOverridesPath, 'utf8'));
-  albumOverridesCache = {
-    albums: rawOverrides.albums && typeof rawOverrides.albums === 'object'
-      ? rawOverrides.albums
-      : {},
-  };
   return albumOverridesCache;
 }
 
 async function writeAlbumOverrides(overrides) {
-  if (!albumOverridesPath) {
+  if (!libraryDatabasePath) {
     throw new HttpError(400, 'Album cover editing is not configured.');
   }
 
-  await fs.mkdir(path.dirname(albumOverridesPath), { recursive: true });
-  await fs.writeFile(albumOverridesPath, `${JSON.stringify(overrides, null, 2)}\n`, 'utf8');
+  await writeAlbumOverridesDatabase(libraryDatabasePath, overrides);
   albumOverridesCache = overrides;
 }
 
@@ -1537,35 +1540,28 @@ function normalizeLyricsLookupValue(value) {
 }
 
 async function getLyricsOverrides() {
-  if (!lyricsOverridesPath) {
-    return { tracks: {} };
-  }
-
   if (lyricsOverridesCache) {
     return lyricsOverridesCache;
   }
 
-  if (!existsSync(lyricsOverridesPath)) {
-    lyricsOverridesCache = { tracks: {} };
-    return lyricsOverridesCache;
+  lyricsOverridesCache = await readLyricsOverridesDatabase(libraryDatabasePath);
+  if (Object.keys(lyricsOverridesCache.tracks || {}).length === 0) {
+    const legacyOverrides = await readLegacyJsonOverrides(lyricsOverridesPath, 'tracks');
+    if (Object.keys(legacyOverrides.tracks || {}).length > 0) {
+      await writeLyricsOverridesDatabase(libraryDatabasePath, legacyOverrides);
+      lyricsOverridesCache = legacyOverrides;
+      console.log(`Migrated legacy lyrics overrides into ${libraryDatabasePath}`);
+    }
   }
-
-  const rawOverrides = JSON.parse(await fs.readFile(lyricsOverridesPath, 'utf8'));
-  lyricsOverridesCache = {
-    tracks: rawOverrides.tracks && typeof rawOverrides.tracks === 'object'
-      ? rawOverrides.tracks
-      : {},
-  };
   return lyricsOverridesCache;
 }
 
 async function writeLyricsOverrides(overrides) {
-  if (!lyricsOverridesPath) {
+  if (!libraryDatabasePath) {
     throw new HttpError(400, 'Lyrics editing is not configured.');
   }
 
-  await fs.mkdir(path.dirname(lyricsOverridesPath), { recursive: true });
-  await fs.writeFile(lyricsOverridesPath, `${JSON.stringify(overrides, null, 2)}\n`, 'utf8');
+  await writeLyricsOverridesDatabase(libraryDatabasePath, overrides);
   lyricsOverridesCache = overrides;
 }
 
@@ -1582,6 +1578,24 @@ async function readRequestJson(request, maxBytes) {
     return body ? JSON.parse(body) : {};
   } catch {
     throw new HttpError(400, 'Request body must be valid JSON.');
+  }
+}
+
+async function readLegacyJsonOverrides(filePath, storeKey) {
+  if (!filePath || !existsSync(filePath)) {
+    return { [storeKey]: {} };
+  }
+
+  try {
+    const rawOverrides = JSON.parse(await fs.readFile(filePath, 'utf8'));
+    return {
+      [storeKey]: rawOverrides[storeKey] && typeof rawOverrides[storeKey] === 'object'
+        ? rawOverrides[storeKey]
+        : {},
+    };
+  } catch (error) {
+    console.warn(`Unable to migrate legacy ${path.basename(filePath)}:`, error instanceof Error ? error.message : error);
+    return { [storeKey]: {} };
   }
 }
 
@@ -1706,35 +1720,28 @@ async function getEditedArtistInfo(normalizedName) {
 }
 
 async function getArtistOverrides() {
-  if (!artistOverridesPath) {
-    return { artists: {} };
-  }
-
   if (artistOverridesCache) {
     return artistOverridesCache;
   }
 
-  if (!existsSync(artistOverridesPath)) {
-    artistOverridesCache = { artists: {} };
-    return artistOverridesCache;
+  artistOverridesCache = await readArtistOverridesDatabase(libraryDatabasePath);
+  if (Object.keys(artistOverridesCache.artists || {}).length === 0) {
+    const legacyOverrides = await readLegacyJsonOverrides(artistOverridesPath, 'artists');
+    if (Object.keys(legacyOverrides.artists || {}).length > 0) {
+      await writeArtistOverridesDatabase(libraryDatabasePath, legacyOverrides);
+      artistOverridesCache = legacyOverrides;
+      console.log(`Migrated legacy artist overrides into ${libraryDatabasePath}`);
+    }
   }
-
-  const rawOverrides = JSON.parse(await fs.readFile(artistOverridesPath, 'utf8'));
-  artistOverridesCache = {
-    artists: rawOverrides.artists && typeof rawOverrides.artists === 'object'
-      ? rawOverrides.artists
-      : {},
-  };
   return artistOverridesCache;
 }
 
 async function writeArtistOverrides(overrides) {
-  if (!artistOverridesPath) {
+  if (!libraryDatabasePath) {
     throw new HttpError(400, 'Artist editing is not configured.');
   }
 
-  await fs.mkdir(path.dirname(artistOverridesPath), { recursive: true });
-  await fs.writeFile(artistOverridesPath, `${JSON.stringify(overrides, null, 2)}\n`, 'utf8');
+  await writeArtistOverridesDatabase(libraryDatabasePath, overrides);
   artistOverridesCache = overrides;
 }
 

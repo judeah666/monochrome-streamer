@@ -1,7 +1,7 @@
 services:
   monochrome-streamer:
     build: .
-    image: judeah666/monochrome-streamer:${IMAGE_TAG:-0.1.0}
+    image: judeah666/monochrome-streamer:${IMAGE_TAG:-0.1.1}
     container_name: monochrome-streamer
     restart: unless-stopped
     ports:
@@ -12,5 +12,5 @@ services:
       LIBRARY_DATABASE_PATH: /data/library.sqlite
       COVER_CACHE_PATH: /data/covers
     volumes:
-      - ${MUSIC_DIR:-./sample-library}:/music:ro
+      - ${MUSIC_DIR:-./sample-library}:/music
       - ${APP_DATA_DIR:-./data}:/data
