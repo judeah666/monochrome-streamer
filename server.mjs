@@ -16,6 +16,7 @@ import {
   readLibraryDatabase,
   readLibraryDatabaseSummary,
   readLyricsOverridesDatabase,
+  readRandomAlbumPage,
   readArtistLibrary,
   readArtistPage,
   readFolderLibrary,
@@ -154,6 +155,14 @@ const server = http.createServer(async (request, response) => {
       return respondJson(response, 200, await createLibraryPayload(library));
     }
 
+    if (url.pathname === '/api/home-albums') {
+      const library = await readRandomAlbumPage(libraryDatabasePath, {
+        limit: url.searchParams.get('limit') || 50,
+      });
+      primeTrackMap(library.tracks);
+      return respondJson(response, 200, await createLibraryPayload(library));
+    }
+
     if (url.pathname === '/api/tracks') {
       const trackIds = url.searchParams.get('ids')
         ? url.searchParams.get('ids').split(',').map((id) => id.trim()).filter(Boolean)
@@ -164,6 +173,16 @@ const server = http.createServer(async (request, response) => {
         search: url.searchParams.get('search'),
         letter: url.searchParams.get('letter'),
         trackIds,
+      });
+      primeTrackMap(library.tracks);
+      return respondJson(response, 200, await createLibraryPayload(library));
+    }
+
+    const albumTracksMatch = /^\/api\/albums\/([^/]+)\/tracks$/u.exec(url.pathname);
+    if (albumTracksMatch && request.method === 'GET') {
+      const albumId = decodeURIComponent(albumTracksMatch[1]);
+      const library = await readLibraryAlbumPage(libraryDatabasePath, {
+        albumIds: [albumId],
       });
       primeTrackMap(library.tracks);
       return respondJson(response, 200, await createLibraryPayload(library));

@@ -7,9 +7,17 @@
   "scripts": {
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
+    "build": "vite build",
+    "dev:frontend": "vite --host 0.0.0.0",
     "test": "node --test"
   },
   "dependencies": {
-    "music-metadata": "^11.12.3"
+    "music-metadata": "^11.12.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "vite": "^7.1.0"
   }
 }

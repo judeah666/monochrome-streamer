@@ -985,6 +985,12 @@ body.sidebar-collapsed .sidebar-progress-ring > strong {
   object-fit: cover;
 }
 
+.artist-placeholder-host {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .artist-card strong {
   font-family: var(--font-display);
   letter-spacing: -0.035em;
@@ -1028,6 +1034,22 @@ body.sidebar-collapsed .sidebar-progress-ring > strong {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--album-card-size), 1fr));
   gap: 16px;
+}
+
+.album-grid-react {
+  display: contents;
+}
+
+.track-list-react {
+  display: contents;
+}
+
+.artist-grid-react {
+  display: contents;
+}
+
+.settings-react-panel {
+  display: contents;
 }
 
 .album-card {
@@ -1108,6 +1130,11 @@ body.sidebar-collapsed .sidebar-progress-ring > strong {
   aspect-ratio: 1;
   object-fit: cover;
   display: block;
+}
+
+.album-card-placeholder-host {
+  display: block;
+  width: 100%;
 }
 
 .favorite-toggle-button,
@@ -1358,10 +1385,10 @@ body.sidebar-collapsed .sidebar-progress-ring > strong {
 
 .track-row {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) auto;
-  gap: 14px;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  gap: 16px;
   align-items: center;
-  padding: 12px;
+  padding: 14px;
   border-radius: 20px;
   border: 1px solid var(--line);
   background: var(--surface);
@@ -1384,10 +1411,16 @@ body.sidebar-collapsed .sidebar-progress-ring > strong {
 
 .track-row img,
 .track-thumb-placeholder {
-  width: 58px;
-  height: 58px;
+  width: 76px;
+  height: 76px;
   border-radius: 16px;
   object-fit: cover;
+}
+
+.track-placeholder-host {
+  display: block;
+  width: 76px;
+  height: 76px;
 }
 
 .track-thumb-placeholder {
@@ -1400,16 +1433,39 @@ body.sidebar-collapsed .sidebar-progress-ring > strong {
 
 .track-copy h4,
 .track-copy p,
+.track-folder-path,
 .track-title-group strong,
-.track-title-group span {
+.track-title-group span,
+.track-title-group .artist-inline-link {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.track-row button,
+.track-folder-path {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  opacity: 0.78;
+}
+
 .queue-track-button,
 .row-play-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  padding: 0;
+}
+
+.track-row .favorite-toggle-button,
+.track-row .queue-track-button,
+.track-row .row-play-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1776,6 +1832,7 @@ body.light-ui .album-hero-scrim {
 
 .track-title-group strong,
 .track-title-group span,
+.track-title-group .artist-inline-link,
 .track-album-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2172,6 +2229,22 @@ body.light-ui .album-hero-scrim {
   gap: 12px;
   align-items: center;
   min-width: 0;
+}
+
+.library-title-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.library-title-label > span {
+  margin: 0;
+}
+
+.library-title-label .settings-inline-toggle {
+  flex: 0 0 auto;
+  justify-content: flex-start;
 }
 
 .settings-inline-toggle {
@@ -2578,6 +2651,47 @@ body.compact-artists .artist-card-image {
   font-size: 0.9rem;
 }
 
+.track-info .player-album-link,
+.track-info .player-artist-link {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.track-info .player-album-link:hover,
+.track-info .player-artist-link:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.artist-inline-link,
+.album-inline-link {
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.artist-inline-link:hover,
+.album-inline-link:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .player-controls {
   display: flex;
   flex-direction: column;
@@ -2731,6 +2845,10 @@ body.player-layout-qobuz .repeat-one-badge {
   justify-self: end;
 }
 
+.player-utility-controls {
+  display: contents;
+}
+
 .volume-controls .icon-button,
 .volume-controls .icon-link {
   width: 38px;
@@ -2819,6 +2937,7 @@ body:not(.player-layout-qobuz) .queue-status {
 }
 
 .audio-quality-info {
+  order: 20;
   flex: 0 1 150px;
   min-width: 128px;
   max-width: 170px;
@@ -2896,13 +3015,7 @@ body.player-layout-qobuz .now-playing-bar {
 }
 
 body.player-layout-qobuz .now-playing-bar::before {
-  content: "";
-  position: absolute;
-  top: -1px;
-  left: 0;
-  width: 42%;
-  height: 2px;
-  background: var(--accent);
+  content: none;
 }
 
 body.player-layout-qobuz .track-info,
@@ -2953,17 +3066,31 @@ body.player-layout-qobuz .player-controls .buttons {
 
 body.player-layout-qobuz .progress-container {
   order: initial;
-  grid-column: 1;
-  grid-row: 1;
-  justify-self: end;
-  width: auto;
-  min-width: 112px;
+  position: absolute;
+  inset: -1px 0 auto 0;
+  width: 100%;
+  min-width: 0;
+  height: 3px;
+  gap: 0;
   color: var(--muted);
-  font-size: 0.88rem;
+  font-size: 0;
+  z-index: 2;
+}
+
+body.player-layout-qobuz .progress-container span {
+  display: none;
 }
 
 body.player-layout-qobuz .progress-bar {
-  display: none;
+  display: block;
+  width: 100%;
+  height: 3px;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--accent) 18%, var(--glass-strong));
+}
+
+body.player-layout-qobuz .progress-fill {
+  background: var(--accent);
 }
 
 body.player-layout-qobuz .player-controls .buttons button {
@@ -3727,7 +3854,10 @@ body[data-view='fullscreen'] .queue-overlay {
   z-index: 60;
   display: flex;
   flex-direction: column;
+  width: min(1180px, calc(100vw - 56px));
+  height: min(920px, calc(100vh - 56px));
   max-width: 1180px;
+  max-height: calc(100vh - 56px);
   margin: auto;
   border-radius: 28px;
   border: 1px solid var(--line);
@@ -3739,8 +3869,18 @@ body[data-view='fullscreen'] .queue-overlay {
   overflow: hidden;
 }
 
+#tag-editor-body-root,
+#artist-editor-body-root {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .tag-editor-header,
 .tag-editor-footer {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3772,11 +3912,16 @@ body[data-view='fullscreen'] .queue-overlay {
 }
 
 .tag-editor-body {
-  flex: 1;
-  overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   padding: 24px;
   display: grid;
   gap: 22px;
+  align-content: start;
 }
 
 .tag-editor-form {
@@ -3950,13 +4095,17 @@ body[data-view='fullscreen'] .queue-overlay {
   grid-column: 1 / -1;
 }
 
-.tag-scraper-panel,
-.tag-track-editor {
+.tag-scraper-panel {
   border-radius: 24px;
   border: 1px solid var(--line);
   background: var(--surface);
   backdrop-filter: blur(14px);
   padding: 18px;
+}
+
+.tag-track-editor {
+  display: grid;
+  gap: 14px;
 }
 
 .tag-scraper-search {
@@ -4469,6 +4618,9 @@ body[data-view='fullscreen'] .queue-overlay {
 
   body.player-layout-qobuz .progress-container {
     grid-area: progress;
+    position: static;
+    inset: auto;
+    height: auto;
     justify-self: stretch;
     width: 100%;
     min-width: 0;
@@ -4476,9 +4628,14 @@ body[data-view='fullscreen'] .queue-overlay {
     font-size: 0.82rem;
   }
 
+  body.player-layout-qobuz .progress-container span {
+    display: inline-block;
+  }
+
   body.player-layout-qobuz .progress-bar {
     display: block;
     height: 5px;
+    border-radius: 999px;
   }
 
   body.player-layout-qobuz .volume-controls {
@@ -4491,8 +4648,10 @@ body[data-view='fullscreen'] .queue-overlay {
   body.player-layout-qobuz .volume-controls .icon-link {
     width: 36px;
     height: 36px;
-    border: 1px solid var(--line);
-    background: var(--glass);
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
   }
 
   body.player-layout-qobuz .queue-status,
@@ -4661,6 +4820,32 @@ body[data-view='fullscreen'] .queue-overlay {
 
   .tag-editor-modal {
     inset: 12px;
+    width: calc(100vw - 24px);
+    height: calc(100vh - 24px);
+    max-height: calc(100vh - 24px);
+    border-radius: 22px;
+  }
+
+  .tag-editor-header,
+  .tag-editor-footer {
+    padding: 16px;
+  }
+
+  .tag-editor-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tag-editor-footer > div {
+    width: 100%;
+  }
+
+  .tag-editor-footer button {
+    flex: 1 1 auto;
+  }
+
+  .tag-editor-body {
+    padding: 16px;
   }
 
   .tag-editor-form,
@@ -4811,13 +4996,14 @@ body[data-view='fullscreen'] .queue-overlay {
   }
 
   .track-row {
-    grid-template-columns: 48px minmax(0, 1fr) auto;
+    grid-template-columns: 56px minmax(0, 1fr) auto;
   }
 
   .track-row img,
-  .track-thumb-placeholder {
-    width: 48px;
-    height: 48px;
+  .track-thumb-placeholder,
+  .track-placeholder-host {
+    width: 56px;
+    height: 56px;
   }
 
   .home-hero,

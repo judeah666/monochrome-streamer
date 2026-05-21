@@ -1,4 +1,5 @@
 const appTitle = document.querySelector('#app-title');
+const appSidebar = document.querySelector('#app-sidebar');
 const albumCount = document.querySelector('#album-count');
 const trackCount = document.querySelector('#track-count');
 const libraryStatus = document.querySelector('#library-status');
@@ -23,10 +24,12 @@ const libraryBrowserCaption = document.querySelector('#library-browser-caption')
 const libraryTabFolders = document.querySelector('#library-tab-folders');
 const libraryTabAlbums = document.querySelector('#library-tab-albums');
 const libraryTabArtists = document.querySelector('#library-tab-artists');
+const libraryTabTracks = document.querySelector('#library-tab-tracks');
 const libraryTabPlaylists = document.querySelector('#library-tab-playlists');
 const libraryPanelFolders = document.querySelector('#library-panel-folders');
 const libraryPanelAlbums = document.querySelector('#library-panel-albums');
 const libraryPanelArtists = document.querySelector('#library-panel-artists');
+const libraryPanelTracks = document.querySelector('#library-panel-tracks');
 const libraryPanelPlaylists = document.querySelector('#library-panel-playlists');
 const favoritesView = document.querySelector('#favorites-view');
 const wantedView = document.querySelector('#wanted-view');
@@ -77,28 +80,15 @@ const epsSection = document.querySelector('#eps-section');
 const epsTitle = document.querySelector('#eps-title');
 const epsGrid = document.querySelector('#eps-grid');
 const audioPlayer = document.querySelector('#audio-player');
-const playerCover = document.querySelector('#player-cover');
-const playerCoverFallback = document.querySelector('#player-cover-fallback');
-const playerTrackInfo = document.querySelector('.track-info');
-const playerTitle = document.querySelector('#player-title');
-const playerAlbum = document.querySelector('#player-album');
-const playerArtist = document.querySelector('#player-artist');
-const playPauseButton = document.querySelector('#play-pause-btn');
-const prevButton = document.querySelector('#prev-btn');
-const nextButton = document.querySelector('#next-btn');
-const shuffleButton = document.querySelector('#shuffle-btn');
-const repeatButton = document.querySelector('#repeat-btn');
+const playerTrackInfoRoot = document.querySelector('#player-track-info-root');
+const playerTransportControls = document.querySelector('#player-transport-controls');
 const currentTimeElement = document.querySelector('#current-time');
 const totalDurationElement = document.querySelector('#total-duration');
 const progressBar = document.querySelector('#progress-bar');
 const progressFill = document.querySelector('#progress-fill');
-const volumeButton = document.querySelector('#volume-btn');
 const volumeBar = document.querySelector('#volume-bar');
 const volumeFill = document.querySelector('#volume-fill');
-const audioQualityInfo = document.querySelector('#audio-quality-info');
-const audioQualityIcon = document.querySelector('#audio-quality-icon');
-const audioQualityFallbackIcon = document.querySelector('#audio-quality-fallback-icon');
-const audioQualityLabel = document.querySelector('#audio-quality-label');
+const playerUtilityControls = document.querySelector('#player-utility-controls');
 const fullscreenOverlay = document.querySelector('#fullscreen-cover-overlay');
 const fullscreenBackdrop = document.querySelector('.fullscreen-backdrop');
 const fullscreenVisualizer = document.querySelector('#fullscreen-visualizer');
@@ -131,7 +121,6 @@ const fullscreenVolumeButton = document.querySelector('#fs-volume-btn');
 const fullscreenVolumeBar = document.querySelector('#fs-volume-bar');
 const fullscreenVolumeFill = document.querySelector('#fs-volume-fill');
 const queueStatus = document.querySelector('#queue-status');
-const queueToggleButton = document.querySelector('#queue-toggle-button');
 const queuePanel = document.querySelector('#queue-panel');
 const queueCloseButton = document.querySelector('#queue-close-button');
 const queueDownloadButton = document.querySelector('#queue-download-button');
@@ -139,8 +128,6 @@ const queueFavoriteButton = document.querySelector('#queue-favorite-button');
 const queueClearButton = document.querySelector('#queue-clear-button');
 const queueOverlay = document.querySelector('#queue-overlay');
 const queueList = document.querySelector('#queue-list');
-const favoriteTrackButton = document.querySelector('#favorite-track-button');
-const downloadTrackLink = document.querySelector('#download-track-link');
 const tagEditorOverlay = document.querySelector('#tag-editor-overlay');
 const tagEditorModal = document.querySelector('#tag-editor-modal');
 const tagEditorTitle = document.querySelector('#tag-editor-title');
@@ -149,20 +136,21 @@ const tagEditorCloseButton = document.querySelector('#tag-editor-close-button');
 const tagEditorCancelButton = document.querySelector('#tag-editor-cancel-button');
 const tagEditorSaveButton = document.querySelector('#tag-editor-save-button');
 const tagEditorResetButton = document.querySelector('#tag-editor-reset-button');
-const tagAlbumTitleInput = document.querySelector('#tag-album-title');
-const tagAlbumArtistInput = document.querySelector('#tag-album-artist');
-const tagAlbumDateInput = document.querySelector('#tag-album-date');
-const tagAlbumGenreInput = document.querySelector('#tag-album-genre');
-const tagAlbumMediaTypesInput = document.querySelector('#tag-album-media-types');
-const tagAlbumStatusInput = document.querySelector('#tag-album-status');
-const tagAlbumCoverUrlInput = document.querySelector('#tag-album-cover-url');
-const tagEditorCoverPreview = document.querySelector('#tag-editor-cover-preview');
-const tagEditorCoverFallback = document.querySelector('#tag-editor-cover-fallback');
-const tagScraperQueryInput = document.querySelector('#tag-scraper-query');
-const tagScraperSearchButton = document.querySelector('#tag-scraper-search-button');
-const tagScraperStatus = document.querySelector('#tag-scraper-status');
-const tagScraperResults = document.querySelector('#tag-scraper-results');
-const tagTrackList = document.querySelector('#tag-track-list');
+const tagEditorBodyRoot = document.querySelector('#tag-editor-body-root');
+let tagAlbumTitleInput = null;
+let tagAlbumArtistInput = null;
+let tagAlbumDateInput = null;
+let tagAlbumGenreInput = null;
+let tagAlbumMediaTypesInput = null;
+let tagAlbumStatusInput = null;
+let tagAlbumCoverUrlInput = null;
+let tagEditorCoverPreview = null;
+let tagEditorCoverFallback = null;
+let tagScraperQueryInput = null;
+let tagScraperSearchButton = null;
+let tagScraperStatus = null;
+let tagScraperResults = null;
+let tagTrackList = null;
 const artistEditorOverlay = document.querySelector('#artist-editor-overlay');
 const artistEditorModal = document.querySelector('#artist-editor-modal');
 const artistEditorTitle = document.querySelector('#artist-editor-title');
@@ -170,9 +158,10 @@ const artistEditorCloseButton = document.querySelector('#artist-editor-close-but
 const artistEditorCancelButton = document.querySelector('#artist-editor-cancel-button');
 const artistEditorSaveButton = document.querySelector('#artist-editor-save-button');
 const artistEditorResetButton = document.querySelector('#artist-editor-reset-button');
-const artistImageUrlInput = document.querySelector('#artist-image-url');
-const artistBioInput = document.querySelector('#artist-bio');
-const artistSourceUrlInput = document.querySelector('#artist-source-url');
+const artistEditorBodyRoot = document.querySelector('#artist-editor-body-root');
+let artistImageUrlInput = null;
+let artistBioInput = null;
+let artistSourceUrlInput = null;
 const lyricsEditorOverlay = document.querySelector('#lyrics-editor-overlay');
 const lyricsEditorModal = document.querySelector('#lyrics-editor-modal');
 const lyricsEditorTitle = document.querySelector('#lyrics-editor-title');
@@ -181,12 +170,13 @@ const lyricsEditorCloseButton = document.querySelector('#lyrics-editor-close-but
 const lyricsEditorCancelButton = document.querySelector('#lyrics-editor-cancel-button');
 const lyricsEditorSaveButton = document.querySelector('#lyrics-editor-save-button');
 const lyricsEditorResetButton = document.querySelector('#lyrics-editor-reset-button');
-const lyricsSyncedInput = document.querySelector('#lyrics-synced-input');
-const lyricsPlainInput = document.querySelector('#lyrics-plain-input');
-const lyricsScraperQueryInput = document.querySelector('#lyrics-scraper-query');
-const lyricsScraperSearchButton = document.querySelector('#lyrics-scraper-search-button');
-const lyricsScraperStatus = document.querySelector('#lyrics-scraper-status');
-const lyricsScraperResults = document.querySelector('#lyrics-scraper-results');
+const lyricsEditorBodyRoot = document.querySelector('#lyrics-editor-body-root');
+let lyricsSyncedInput = null;
+let lyricsPlainInput = null;
+let lyricsScraperQueryInput = null;
+let lyricsScraperSearchButton = null;
+let lyricsScraperStatus = null;
+let lyricsScraperResults = null;
 
 const ICONS = {
   play: 'fa-play',
@@ -472,6 +462,8 @@ const state = {
   libraryPage: { limit: 50, offset: 0, total: 0, hasNext: false, hasPrevious: false },
   wantedPage: { limit: 50, offset: 0, total: 0, hasNext: false, hasPrevious: false },
   artistPage: { limit: 50, offset: 0, total: 0, hasNext: false, hasPrevious: false },
+  trackPage: { limit: 50, offset: 0, total: 0, hasNext: false, hasPrevious: false },
+  libraryTrackResults: [],
   libraryTotals: { albums: 0, tracks: 0 },
   folderCache: new Map(),
   folderLoading: new Set(),
@@ -496,7 +488,6 @@ const state = {
   fullscreenUiHidden: false,
   favoriteTrackIds: new Set(),
   favoriteAlbumIds: new Set(),
-  draggingQueueTrackId: null,
   libraryTab: 'folders',
   settingsTab: 'appearance',
   settings: { ...DEFAULT_SETTINGS },
@@ -527,6 +518,9 @@ const state = {
   searchFetchId: 0,
   artistFetchId: 0,
 };
+
+let settingsReactPanelContainer = null;
+let settingsReactPanelTab = '';
 
 init().catch((error) => {
   console.error(error);
@@ -560,7 +554,10 @@ async function init() {
   render();
   syncVolumeUi();
   updatePlayerUi();
-  startScanStatusPolling(1200);
+  if (state.libraryFolders?.scan?.status === 'scanning') {
+    startScanStatusPolling(1200);
+  }
+  loadHomeAlbums().catch((error) => console.error(error));
 }
 
 function isMobileSidebarLayout() {
@@ -633,6 +630,7 @@ function bindEvents() {
       setMobileSidebarOpen(false);
     }
     updateSidebarToggleButton();
+    renderSidebar();
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && document.body.classList.contains('mobile-sidebar-open')) {
@@ -642,6 +640,7 @@ function bindEvents() {
   libraryTabFolders.addEventListener('click', () => setLibraryTab('folders'));
   libraryTabAlbums.addEventListener('click', () => setLibraryTab('albums'));
   libraryTabArtists.addEventListener('click', () => setLibraryTab('artists'));
+  libraryTabTracks.addEventListener('click', () => setLibraryTab('tracks'));
   libraryTabPlaylists.addEventListener('click', () => setLibraryTab('playlists'));
   settingsTabs.addEventListener('click', (event) => {
     const button = event.target.closest('[data-settings-tab]');
@@ -678,6 +677,14 @@ function bindEvents() {
       loadWantedAlbumsPage(wantedOffset).catch((error) => console.error(error));
       return;
     }
+    if (state.route.view === 'library' && state.libraryTab === 'tracks') {
+      const trackLimit = state.trackPage.limit || state.settings.libraryPageSize || 50;
+      const trackOffset = button.dataset.libraryPageAction === 'next'
+        ? state.trackPage.offset + trackLimit
+        : Math.max(0, state.trackPage.offset - trackLimit);
+      loadTrackPage(trackOffset).catch((error) => console.error(error));
+      return;
+    }
     const limit = state.libraryPage.limit || state.settings.libraryPageSize || 50;
     const offset = button.dataset.libraryPageAction === 'next'
       ? state.libraryPage.offset + limit
@@ -700,7 +707,11 @@ function bindEvents() {
     if (state.route.view === 'wanted') {
       loadWantedAlbumsPage(0).catch((error) => console.error(error));
     } else {
-      loadLibraryPage(0).catch((error) => console.error(error));
+      if (state.route.view === 'library' && state.libraryTab === 'tracks') {
+        loadTrackPage(0).catch((error) => console.error(error));
+      } else {
+        loadLibraryPage(0).catch((error) => console.error(error));
+      }
     }
   });
   settingsPanels.addEventListener('click', (event) => {
@@ -709,40 +720,38 @@ function bindEvents() {
     handleSettingsAction(button);
   });
 
-  queueToggleButton.addEventListener('click', () => {
-    state.queueOpen = !state.queueOpen;
-    renderQueuePanel();
-    updatePlayerUi();
-  });
-
   queueCloseButton.addEventListener('click', closeQueuePanel);
   queueOverlay.addEventListener('click', closeQueuePanel);
-  tagEditorCloseButton.addEventListener('click', closeTagEditor);
-  tagEditorCancelButton.addEventListener('click', closeTagEditor);
   tagEditorOverlay.addEventListener('click', closeTagEditor);
-  lyricsEditorCloseButton.addEventListener('click', closeLyricsEditor);
-  lyricsEditorCancelButton.addEventListener('click', closeLyricsEditor);
   lyricsEditorOverlay.addEventListener('click', closeLyricsEditor);
-  lyricsEditorSaveButton.addEventListener('click', () => {
-    saveLyricsEditor().catch((error) => {
-      lyricsScraperStatus.textContent = error.message || 'Unable to save lyrics.';
-    });
-  });
-  lyricsEditorResetButton.addEventListener('click', () => {
-    resetLyricsEditor().catch((error) => {
-      lyricsScraperStatus.textContent = error.message || 'Unable to reset lyrics.';
-    });
-  });
-  lyricsScraperSearchButton.addEventListener('click', () => {
+  lyricsEditorModal.addEventListener('click', (event) => {
+    if (event.target.closest('#lyrics-editor-close-button') || event.target.closest('#lyrics-editor-cancel-button')) {
+      closeLyricsEditor();
+      return;
+    }
+    if (event.target.closest('#lyrics-editor-save-button')) {
+      saveLyricsEditor().catch((error) => {
+        setLyricsEditorStatus(error.message || 'Unable to save lyrics.');
+      });
+      return;
+    }
+    if (event.target.closest('#lyrics-editor-reset-button')) {
+      resetLyricsEditor().catch((error) => {
+        setLyricsEditorStatus(error.message || 'Unable to reset lyrics.');
+      });
+      return;
+    }
+    if (!event.target.closest('#lyrics-scraper-search-button')) return;
     searchLyricsSuggestions().catch((error) => {
-      lyricsScraperStatus.textContent = error.message || 'Unable to search lyrics.';
+      setLyricsEditorStatus(error.message || 'Unable to search lyrics.');
     });
   });
-  lyricsScraperQueryInput.addEventListener('keydown', (event) => {
+  lyricsEditorModal.addEventListener('keydown', (event) => {
+    if (!event.target.closest('#lyrics-scraper-query')) return;
     if (event.key !== 'Enter') return;
     event.preventDefault();
     searchLyricsSuggestions().catch((error) => {
-      lyricsScraperStatus.textContent = error.message || 'Unable to search lyrics.';
+      setLyricsEditorStatus(error.message || 'Unable to search lyrics.');
     });
   });
   editArtistButton.addEventListener('click', () => {
@@ -750,44 +759,64 @@ function bindEvents() {
     if (!artist) return;
     openArtistEditor(artist);
   });
-  artistEditorCloseButton.addEventListener('click', closeArtistEditor);
-  artistEditorCancelButton.addEventListener('click', closeArtistEditor);
   artistEditorOverlay.addEventListener('click', closeArtistEditor);
-  artistEditorSaveButton.addEventListener('click', () => {
-    saveArtistEditor().catch((error) => {
-      artistBioInput.setCustomValidity(error.message || 'Unable to save artist info.');
-      artistBioInput.reportValidity();
-      artistBioInput.setCustomValidity('');
-    });
+  artistEditorModal.addEventListener('click', (event) => {
+    if (event.target.closest('#artist-editor-close-button') || event.target.closest('#artist-editor-cancel-button')) {
+      closeArtistEditor();
+      return;
+    }
+    if (event.target.closest('#artist-editor-save-button')) {
+      saveArtistEditor().catch((error) => {
+        syncArtistEditorRefs();
+        if (!artistBioInput) return;
+        artistBioInput.setCustomValidity(error.message || 'Unable to save artist info.');
+        artistBioInput.reportValidity();
+        artistBioInput.setCustomValidity('');
+      });
+      return;
+    }
+    if (event.target.closest('#artist-editor-reset-button')) {
+      resetArtistEditor().catch((error) => {
+        syncArtistEditorRefs();
+        if (!artistBioInput) return;
+        artistBioInput.setCustomValidity(error.message || 'Unable to clear artist info.');
+        artistBioInput.reportValidity();
+        artistBioInput.setCustomValidity('');
+      });
+    }
   });
-  artistEditorResetButton.addEventListener('click', () => {
-    resetArtistEditor().catch((error) => {
-      artistBioInput.setCustomValidity(error.message || 'Unable to clear artist info.');
-      artistBioInput.reportValidity();
-      artistBioInput.setCustomValidity('');
-    });
+  tagEditorModal.addEventListener('input', (event) => {
+    if (!event.target.closest('#tag-album-cover-url')) return;
+    syncTagEditorCoverPreview();
   });
-  tagEditorSaveButton.addEventListener('click', () => {
-    saveTagEditor().catch((error) => {
-      tagScraperStatus.textContent = error.message || 'Unable to save album tags.';
-    });
-  });
-  tagEditorResetButton.addEventListener('click', () => {
-    resetTagEditor().catch((error) => {
-      tagScraperStatus.textContent = error.message || 'Unable to reset album tags.';
-    });
-  });
-  tagAlbumCoverUrlInput.addEventListener('input', syncTagEditorCoverPreview);
-  tagScraperSearchButton.addEventListener('click', () => {
+  tagEditorModal.addEventListener('click', (event) => {
+    if (event.target.closest('#tag-editor-close-button') || event.target.closest('#tag-editor-cancel-button')) {
+      closeTagEditor();
+      return;
+    }
+    if (event.target.closest('#tag-editor-save-button')) {
+      saveTagEditor().catch((error) => {
+        setTagEditorStatus(error.message || 'Unable to save album tags.');
+      });
+      return;
+    }
+    if (event.target.closest('#tag-editor-reset-button')) {
+      resetTagEditor().catch((error) => {
+        setTagEditorStatus(error.message || 'Unable to reset album tags.');
+      });
+      return;
+    }
+    if (!event.target.closest('#tag-scraper-search-button')) return;
     searchTagSuggestions().catch((error) => {
-      tagScraperStatus.textContent = error.message || 'Unable to search MusicBrainz.';
+      setTagEditorStatus(error.message || 'Unable to search MusicBrainz.');
     });
   });
-  tagScraperQueryInput.addEventListener('keydown', (event) => {
+  tagEditorModal.addEventListener('keydown', (event) => {
+    if (!event.target.closest('#tag-scraper-query')) return;
     if (event.key !== 'Enter') return;
     event.preventDefault();
     searchTagSuggestions().catch((error) => {
-      tagScraperStatus.textContent = error.message || 'Unable to search MusicBrainz.';
+      setTagEditorStatus(error.message || 'Unable to search MusicBrainz.');
     });
   });
   queueDownloadButton.addEventListener('click', () => {
@@ -854,7 +883,7 @@ function bindEvents() {
   editAlbumCoverButton.addEventListener('click', () => {
     const album = getCurrentAlbum();
     if (!album) return;
-    openTagEditor(album);
+    openTagEditor(album).catch((error) => console.error(error));
   });
 
   favoriteAlbumButton.addEventListener('click', () => {
@@ -863,22 +892,6 @@ function bindEvents() {
     toggleFavoriteAlbum(album.id);
   });
 
-  playPauseButton.addEventListener('click', () => togglePlayback());
-  prevButton.addEventListener('click', () => playPreviousTrack());
-  nextButton.addEventListener('click', () => playNextTrack());
-  shuffleButton.addEventListener('click', toggleShuffle);
-  repeatButton.addEventListener('click', cycleRepeatMode);
-  favoriteTrackButton.addEventListener('click', () => {
-    if (state.currentTrackId) toggleFavoriteTrack(state.currentTrackId);
-  });
-  playerCover.addEventListener('click', (event) => {
-    event.stopPropagation();
-    handleNowPlayingClick();
-  });
-  playerCoverFallback.addEventListener('click', (event) => {
-    event.stopPropagation();
-    handleNowPlayingClick();
-  });
   closeFullscreenButton.addEventListener('click', closeFullscreenPlayer);
   toggleFullscreenLyricsButton.addEventListener('click', () => {
     state.fullscreenLyricsHidden = !state.fullscreenLyricsHidden;
@@ -965,10 +978,7 @@ function bindEvents() {
   });
   bindVolumeControl(fullscreenVolumeBar);
 
-  volumeButton.addEventListener('click', toggleMute);
   fullscreenVolumeButton.addEventListener('click', toggleMute);
-  playerTrackInfo.addEventListener('click', handleNowPlayingClick);
-
   window.addEventListener('hashchange', () => {
     updateRouteFromLocation();
     persistPlaybackState({ includeTime: false });
@@ -1060,6 +1070,10 @@ function queueVisiblePageFetch(offset = 0) {
     queueArtistPageFetch(offset);
     return;
   }
+  if (state.route.view === 'library' && state.libraryTab === 'tracks') {
+    queueTrackPageFetch(offset);
+    return;
+  }
   queueLibraryPageFetch(offset);
 }
 
@@ -1069,6 +1083,16 @@ async function loadLibraryPage(offset = 0) {
   sanitizeStoredFavorites();
   render();
   updatePlayerUi();
+}
+
+async function loadHomeAlbums() {
+  if (state.searchTerm) return;
+  const library = await fetchJson('/api/home-albums?limit=50');
+  mergeLibraryData(library);
+  state.homeAlbumIds = getRandomAlbumIds(library.albums || [], 50);
+  if (state.route.view === 'home') {
+    render();
+  }
 }
 
 async function loadWantedAlbumsPage(offset = 0) {
@@ -1126,7 +1150,56 @@ async function loadArtistPage(offset = 0) {
     hasNext: false,
     hasPrevious: false,
   };
-  render();
+  preservePageScroll(() => render());
+}
+
+async function fetchTrackPagePayload(offset = 0) {
+  if (!state.searchTerm) {
+    return {
+      generatedAt: state.generatedAt,
+      tracks: [],
+      albums: [],
+      page: {
+        limit: state.settings.libraryPageSize || 50,
+        offset: 0,
+        total: 0,
+        hasNext: false,
+        hasPrevious: false,
+      },
+    };
+  }
+
+  const params = new URLSearchParams({
+    limit: String(state.settings.libraryPageSize || 50),
+    offset: String(Math.max(0, offset)),
+    search: state.searchTerm,
+  });
+  if (state.alphabetFilter !== 'all') {
+    params.set('letter', state.alphabetFilter);
+  }
+  return fetchJson(`/api/tracks?${params.toString()}`);
+}
+
+function queueTrackPageFetch(offset = 0) {
+  const fetchId = ++state.searchFetchId;
+  window.setTimeout(() => {
+    if (fetchId !== state.searchFetchId) return;
+    loadTrackPage(offset).catch((error) => console.error(error));
+  }, 220);
+}
+
+async function loadTrackPage(offset = 0) {
+  const library = await fetchTrackPagePayload(offset);
+  mergeLibraryData(library);
+  state.libraryTrackResults = library.tracks || [];
+  state.trackPage = library.page || {
+    limit: state.settings.libraryPageSize || 50,
+    offset: 0,
+    total: state.libraryTrackResults.length,
+    hasNext: false,
+    hasPrevious: false,
+  };
+  preservePageScroll(() => render());
 }
 
 async function loadArtistLibrary(artistName) {
@@ -1316,6 +1389,9 @@ function navigateToView(view) {
   state.route = { view, albumId: null, artistName: null };
   persistPlaybackState({ includeTime: false });
   render();
+  if (view === 'home') {
+    loadHomeAlbums().catch((error) => console.error(error));
+  }
 }
 
 function openAlbum(albumId) {
@@ -1325,6 +1401,13 @@ function openAlbum(albumId) {
 
 function scrollPageToTop() {
   window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'smooth' }));
+}
+
+function preservePageScroll(callback) {
+  const left = window.scrollX;
+  const top = window.scrollY;
+  callback();
+  window.requestAnimationFrame(() => window.scrollTo(left, top));
 }
 
 function openArtist(artistName) {
@@ -1379,8 +1462,10 @@ function render() {
   const isLibraryView = state.route.view === 'library' && !isAlbumView && !isArtistView;
   const isHomeView = state.route.view === 'home' && !isAlbumView && !isArtistView;
 
-  albumCount.textContent = String(state.libraryTotals.albums || filteredAlbums.length);
-  trackCount.textContent = String(state.libraryTotals.tracks || filteredTracks.length);
+  renderSidebar({
+    albumTotal: state.libraryTotals.albums || filteredAlbums.length,
+    trackTotal: state.libraryTotals.tracks || filteredTracks.length,
+  });
 
   homeView.hidden = !isHomeView;
   libraryView.hidden = !isLibraryView;
@@ -1460,27 +1545,203 @@ function renderWantedView() {
   }
 
   renderAlbumCollection(wantedAlbumGrid, state.wantedAlbums, 'No wanted albums yet.', {
-    pager: createWantedPager(),
+    pagerType: 'wanted',
   });
 }
 
 function renderSettingsView() {
+  preservePageScroll(() => {
+    renderSettingsTabs();
+
+    if (state.settingsTab === 'appearance' && renderAppearanceSettingsReact()) {
+      settingsStatus.textContent = '';
+      return;
+    }
+    if (state.settingsTab === 'interface' && renderInterfaceSettingsReact()) {
+      settingsStatus.textContent = '';
+      return;
+    }
+    if (renderRemainingSettingsReact(state.settingsTab)) {
+      settingsStatus.textContent = '';
+      return;
+    }
+
+    unmountSettingsReactPanel();
+    const renderer = {
+      appearance: renderAppearanceSettings,
+      interface: renderInterfaceSettings,
+      audio: renderAudioSettings,
+      downloads: renderDownloadSettings,
+      instances: renderInstanceSettings,
+      system: renderSystemSettings,
+    }[state.settingsTab] || renderAppearanceSettings;
+
+    settingsPanels.innerHTML = renderer();
+    settingsStatus.textContent = '';
+  });
+}
+
+function unmountSettingsReactPanel() {
+  if (!settingsReactPanelContainer) return;
+  window.MonochromeReact?.unmount?.(settingsReactPanelContainer);
+  settingsReactPanelContainer = null;
+  settingsReactPanelTab = '';
+}
+
+function ensureSettingsReactPanel(tab) {
+  if (settingsReactPanelContainer && settingsReactPanelTab === tab) {
+    return settingsReactPanelContainer;
+  }
+  unmountSettingsReactPanel();
+  settingsPanels.innerHTML = `<div class="settings-react-panel" data-settings-react-panel="${escapeHtml(tab)}"></div>`;
+  settingsReactPanelContainer = settingsPanels.querySelector(`[data-settings-react-panel="${tab}"]`);
+  settingsReactPanelTab = tab;
+  return settingsReactPanelContainer;
+}
+
+function renderAppearanceSettingsReact() {
+  if (!window.MonochromeReact?.renderAppearanceSettings) return false;
+  settingsReactPanelContainer = ensureSettingsReactPanel('appearance');
+  window.MonochromeReact.renderAppearanceSettings(settingsReactPanelContainer, {
+    settings: { ...state.settings },
+    title: state.title,
+    themeOptions: ['system', 'black', 'white', 'dark', 'ocean', 'purple', 'forest', 'mocha', 'macchiato', 'frappe', 'latte', 'custom'].map((theme) => ({
+      value: theme,
+      label: toTitleCase(theme),
+      accent: getThemeAccent(theme),
+    })),
+    fontOptions: [
+      ['jakarta', 'Plus Jakarta Sans'],
+      ['inter', 'Inter'],
+      ['system', 'System UI'],
+      ['mono', 'Monospace'],
+      ['serif', 'Serif'],
+    ],
+    customThemeBaseOptions: [
+      ['dark', 'Dark'],
+      ['light', 'Light'],
+    ],
+    preview: getAlbumCardSizePreviewData(),
+  });
+  return true;
+}
+
+function renderInterfaceSettingsReact() {
+  if (!window.MonochromeReact?.renderInterfaceSettings) return false;
+  settingsReactPanelContainer = ensureSettingsReactPanel('interface');
+  window.MonochromeReact.renderInterfaceSettings(settingsReactPanelContainer, {
+    settings: { ...state.settings },
+    libraryPageSizeOptions: [[25, '25'], [50, '50'], [100, '100']],
+    nowPlayingClickOptions: [
+      ['album', 'Go To Album'],
+      ['fullscreen', 'Go To Now Playing'],
+      ['artist', 'Go To Artist'],
+      ['none', 'Do Nothing'],
+    ],
+  });
+  return true;
+}
+
+function renderRemainingSettingsReact(tab) {
+  const rendererName = {
+    audio: 'renderAudioSettings',
+    downloads: 'renderDownloadSettings',
+    instances: 'renderInstanceSettings',
+    system: 'renderSystemSettings',
+  }[tab];
+  if (!rendererName || !window.MonochromeReact?.[rendererName]) return false;
+
+  settingsReactPanelContainer = ensureSettingsReactPanel(tab);
+  window.MonochromeReact[rendererName](settingsReactPanelContainer, getReactSettingsPanelProps(tab));
+  return true;
+}
+
+function getReactSettingsPanelProps(tab) {
+  const base = {
+    settings: { ...state.settings },
+  };
+
+  if (tab === 'audio') {
+    return {
+      ...base,
+      playerLayoutOptions: [
+        ['floating', 'Floating Player'],
+        ['qobuz', 'Edge-to-Edge'],
+      ],
+    };
+  }
+
+  if (tab === 'downloads') {
+    return {
+      ...base,
+      downloadQualityOptions: [
+        ['original', 'Original Local File'],
+        ['hires', 'Hi-Res Lossless (label only)'],
+        ['lossless', 'Lossless (label only)'],
+        ['mp3', 'MP3 Compatible (label only)'],
+      ],
+      bulkDownloadOptions: [['browser', 'Browser Downloads'], ['queue', 'Queue One-by-One']],
+    };
+  }
+
+  if (tab === 'instances') {
+    return {
+      ...base,
+      instanceUrl: state.settings.instanceUrl || window.location.origin,
+      instancePlaceholder: window.location.origin,
+      currentApiText: `${window.location.origin} · ${state.tracks.length} tracks · ${state.albums.length} albums`,
+      debugText: JSON.stringify({
+        route: state.route.view,
+        libraryGeneratedAt: state.generatedAt,
+        queueLength: state.queueIds.length,
+      }, null, 2),
+    };
+  }
+
+  if (tab === 'system') {
+    const folders = state.libraryFolders || { available: [], selected: [], scan: null };
+    const effectiveSelectedFolders = state.pendingLibraryFolders || folders.selected || [];
+    const scan = folders.scan || {};
+    const percent = Number.isFinite(scan.percent) ? scan.percent : 0;
+    return {
+      ...base,
+      folders: {
+        available: folders.available || [],
+        selected: effectiveSelectedFolders,
+      },
+      selectedLabel: effectiveSelectedFolders.length ? effectiveSelectedFolders.join(', ') : 'No folders selected yet',
+      scan: {
+        statusLabel: toTitleCase(scan.status || 'idle'),
+        percent,
+        currentFolder: scan.currentFolder || '',
+        processed: Number.isFinite(scan.processedFiles) ? scan.processedFiles : 0,
+        total: Number.isFinite(scan.totalFiles) ? scan.totalFiles : 0,
+        reused: Number.isFinite(scan.reusedFiles) ? scan.reusedFiles : 0,
+        parsed: Number.isFinite(scan.parsedFiles) ? scan.parsedFiles : 0,
+      },
+      stats: {
+        tracks: state.libraryTotals.tracks || state.tracks.length,
+        albums: state.libraryTotals.albums || state.albums.length,
+      },
+    };
+  }
+
+  return base;
+}
+
+function renderSettingsTabs() {
+  if (window.MonochromeReact?.renderSettingsTabs) {
+    window.MonochromeReact.renderSettingsTabs(settingsTabs, {
+      tabs: SETTINGS_TABS,
+      activeTab: state.settingsTab,
+    });
+    return;
+  }
+
   settingsTabs.innerHTML = SETTINGS_TABS.map(([id, label]) => {
     const active = state.settingsTab === id;
     return `<button class="settings-tab${active ? ' is-active' : ''}" type="button" role="tab" aria-selected="${active}" data-settings-tab="${id}">${label}</button>`;
   }).join('');
-
-  const renderer = {
-    appearance: renderAppearanceSettings,
-    interface: renderInterfaceSettings,
-    audio: renderAudioSettings,
-    downloads: renderDownloadSettings,
-    instances: renderInstanceSettings,
-    system: renderSystemSettings,
-  }[state.settingsTab] || renderAppearanceSettings;
-
-  settingsPanels.innerHTML = renderer();
-  settingsStatus.textContent = '';
 }
 
 function renderAppearanceSettings() {
@@ -1533,14 +1794,14 @@ function renderAppearanceSettings() {
     `)}
     ${settingsGroup('Text', 'Rename the app and the home banner without editing config files.', `
       <div class="settings-field library-title-field">
-        <span>Library Title</span>
-        <div class="settings-inline-controls">
-          <input type="text" data-setting="libraryTitle" value="${escapeHtml(state.settings.libraryTitle)}" placeholder="${escapeHtml(state.title)}" />
+        <div class="library-title-label">
           <label class="settings-inline-toggle">
-            <span>Show</span>
             <input type="checkbox" data-setting="showLibraryTitle" ${state.settings.showLibraryTitle ? 'checked' : ''} />
+            <span>Show</span>
           </label>
+          <span>Library Title</span>
         </div>
+        <input type="text" data-setting="libraryTitle" value="${escapeHtml(state.settings.libraryTitle)}" placeholder="${escapeHtml(state.title)}" />
       </div>
       <label class="settings-field">
         <span>App / Browser Tab Icon URL</span>
@@ -1583,14 +1844,14 @@ function renderVisualSettings() {
         ${renderAlbumCardSizePreview()}
       </div>
       <div class="settings-group-body">
-        ${settingToggle('albumCoverBackground', 'Album Cover Background', 'Use cover art as the blurred album-page backdrop.')}
-        ${settingToggle('dynamicColors', 'Dynamic Colors', 'Reserved for future cover-palette accents. Your custom accent is used today.')}
         <div class="settings-field album-card-size-field">
           <span>Album Card Size <strong>${state.settings.albumCardSize}px</strong></span>
           <div class="album-card-size-controls">
             <input type="range" min="145" max="230" step="5" data-setting="albumCardSize" value="${state.settings.albumCardSize}" />
           </div>
         </div>
+        ${settingToggle('albumCoverBackground', 'Album Cover Background', 'Use cover art as the blurred album-page backdrop.')}
+        ${settingToggle('dynamicColors', 'Dynamic Colors', 'Reserved for future cover-palette accents. Your custom accent is used today.')}
         ${settingToggle('compactArtists', 'Compact Artists', 'Use smaller artist cards in the artist browser.')}
       </div>
     </section>
@@ -1895,7 +2156,9 @@ async function pollLibraryScan() {
   }
 
   await refreshScanStatus();
-  startScanStatusPolling(getScanPollDelay());
+  if (state.libraryFolders?.scan?.status === 'scanning') {
+    startScanStatusPolling(getScanPollDelay());
+  }
 }
 
 function startScanStatusPolling(delay = 5000) {
@@ -1998,11 +2261,12 @@ function applySettings() {
 
   audioPlayer.playbackRate = 1;
   audioPlayer.volume = state.volume;
-  audioQualityInfo.hidden = !state.settings.showQualityInfo || !state.currentTrackId;
+  renderPlayerUtilityControls();
   applyAppIcon();
+  renderSidebar();
   const currentTrack = state.trackMap.get(state.currentTrackId);
   if (currentTrack) {
-    downloadTrackLink.download = formatDownloadName(currentTrack);
+    syncPlayerUtilityElementRefs();
   }
 }
 
@@ -2106,20 +2370,14 @@ function settingToggle(key, title, description) {
 }
 
 function renderAlbumCardSizePreview() {
-  const previewAlbum = {
-    title: 'Sampler Album',
-    artist: getDisplayTitle(),
-    year: '2026',
-    mediaTypes: ['CD', 'Digital Media', 'Vinyl', 'Cassette Tape'],
-    status: 'Collection',
-  };
+  const previewAlbum = getAlbumCardSizePreviewData();
   return `
     <div class="album-card-size-preview" aria-label="Album card size preview">
       <article class="album-card compact album-card-sample" aria-hidden="true">
         <div class="album-card-media">
-          ${createCoverPlaceholder('Album')}
+          ${previewAlbum.coverPlaceholderHtml}
           <button type="button" class="album-card-play" tabindex="-1" aria-label="Preview play button">
-            ${materialIcon('play')}
+            ${previewAlbum.playIconHtml}
           </button>
         </div>
         <div class="meta">
@@ -2127,13 +2385,29 @@ function renderAlbumCardSizePreview() {
           <p>${escapeHtml(previewAlbum.artist)}</p>
           <p class="album-card-year">${escapeHtml(previewAlbum.year)}</p>
           <div class="album-card-footer">
-            <p class="album-card-format">${renderMediaTypeIcons(previewAlbum)}</p>
+            <p class="album-card-format">${previewAlbum.mediaIconsHtml}</p>
           </div>
         </div>
       </article>
       <p class="settings-help">Preview uses the same card style as Home, Library, Favorites, and artist album grids.</p>
     </div>
   `;
+}
+
+function getAlbumCardSizePreviewData() {
+  const previewAlbum = {
+    title: 'Sampler Album',
+    artist: getDisplayTitle(),
+    year: '2026',
+    mediaTypes: ['CD', 'Digital Media', 'Vinyl', 'Cassette Tape'],
+    status: 'Collection',
+  };
+  return {
+    ...previewAlbum,
+    coverPlaceholderHtml: createCoverPlaceholder('Album'),
+    playIconHtml: materialIcon('play'),
+    mediaIconsHtml: renderMediaTypeIcons(previewAlbum),
+  };
 }
 
 function selectOptions(options, selectedValue) {
@@ -2161,7 +2435,7 @@ function showSettingsStatus(message) {
   settingsStatus.textContent = message;
 }
 
-function updateSidebarScanStatus(indexedAt = state.generatedAt) {
+function getSidebarScanInfo(indexedAt = state.generatedAt) {
   const scan = state.libraryFolders?.scan || {};
   const rawStatus = scan.status || 'idle';
   const status = rawStatus === 'idle' && indexedAt ? 'ready' : rawStatus;
@@ -2172,17 +2446,42 @@ function updateSidebarScanStatus(indexedAt = state.generatedAt) {
   const circumference = 2 * Math.PI * 42;
   const progressOffset = circumference * (1 - safePercent / 100);
   const indexedText = indexedAt ? `Indexed ${formatTimestamp(indexedAt)}` : 'Not indexed yet';
-  libraryStatus.innerHTML = `
-    <strong class="sidebar-status-state">${escapeHtml(toTitleCase(status))}</strong>
-    <div class="sidebar-progress-ring" style="--scan-progress-offset: ${progressOffset}; --scan-progress-circumference: ${circumference};" role="img" aria-label="${escapeHtml(`Scan progress ${safePercent}%`)}">
-      <svg viewBox="0 0 100 100" aria-hidden="true">
-        <circle class="sidebar-progress-track" cx="50" cy="50" r="42"></circle>
-        <circle class="sidebar-progress-value" cx="50" cy="50" r="42"></circle>
-      </svg>
-      <strong>${safePercent}%</strong>
-    </div>
-    <span class="sidebar-status-indexed">${escapeHtml(indexedText)}</span>
-  `;
+  return {
+    statusLabel: toTitleCase(status),
+    percent: safePercent,
+    circumference,
+    progressOffset,
+    indexedText,
+  };
+}
+
+function renderSidebar({
+  albumTotal = state.libraryTotals.albums || state.albums.length,
+  trackTotal = state.libraryTotals.tracks || state.tracks.length,
+  indexedAt = state.generatedAt,
+} = {}) {
+  window.MonochromeReact?.renderSidebar(appSidebar, {
+    title: getDisplayTitle(),
+    showTitle: state.settings.showLibraryTitle,
+    activeView: state.route.view,
+    settings: { ...state.settings },
+    albumCount: albumTotal,
+    trackCount: trackTotal,
+    scan: getSidebarScanInfo(indexedAt),
+    mobile: isMobileSidebarLayout(),
+    onNavigate: navigateFromSidebar,
+    onToggle: () => {
+      if (isMobileSidebarLayout()) {
+        setMobileSidebarOpen(false);
+        return;
+      }
+      updateSetting('sidebarCollapsed', !state.settings.sidebarCollapsed, true);
+    },
+  });
+}
+
+function updateSidebarScanStatus(indexedAt = state.generatedAt) {
+  renderSidebar({ indexedAt });
 }
 
 function setLibraryTab(tab) {
@@ -2193,6 +2492,9 @@ function setLibraryTab(tab) {
   if (tab === 'artists') {
     loadArtistPage(0).catch((error) => console.error(error));
   }
+  if (tab === 'tracks' && state.searchTerm) {
+    loadTrackPage(0).catch((error) => console.error(error));
+  }
   render();
   scrollPageToTop();
 }
@@ -2202,6 +2504,7 @@ function renderLibraryView(filteredTracks, filteredAlbums) {
     ['folders', libraryTabFolders, libraryPanelFolders],
     ['albums', libraryTabAlbums, libraryPanelAlbums],
     ['artists', libraryTabArtists, libraryPanelArtists],
+    ['tracks', libraryTabTracks, libraryPanelTracks],
     ['playlists', libraryTabPlaylists, libraryPanelPlaylists],
   ];
 
@@ -2221,6 +2524,9 @@ function renderLibraryView(filteredTracks, filteredAlbums) {
   } else if (state.libraryTab === 'artists') {
     libraryBrowserCaption.textContent = 'Browse the library grouped by album artist.';
     renderArtistsBrowser(filteredTracks);
+  } else if (state.libraryTab === 'tracks') {
+    libraryBrowserCaption.textContent = 'Search tracks directly without loading the whole library.';
+    renderLibraryTracksPanel();
   } else {
     libraryBrowserCaption.textContent = 'Smart playlists built from your local library state.';
     renderPlaylistsBrowser(filteredTracks);
@@ -2228,54 +2534,102 @@ function renderLibraryView(filteredTracks, filteredAlbums) {
 }
 
 function renderLibraryAlbumsPanel(albums) {
-  libraryPanelAlbums.innerHTML = '';
-  libraryPanelAlbums.append(createLibraryFilterBar());
   const visibleAlbums = filterAlbumsByMediaType(albums);
-
-  if (visibleAlbums.length === 0) {
-    libraryPanelAlbums.append(createEmptyState('No albums matched this filter.'));
-    libraryPanelAlbums.append(createLibraryPager());
-    return;
-  }
-
-  const grid = document.createElement('div');
-  grid.className = 'library-album-grid';
-  for (const album of visibleAlbums.slice(0, RENDER_LIMITS.albums)) {
-    grid.append(createAlbumCard(album, { compact: true }));
-  }
-  libraryPanelAlbums.append(grid);
-  libraryPanelAlbums.append(createLibraryPager());
+  window.MonochromeReact?.renderAlbumCollection(libraryPanelAlbums, {
+    albums: visibleAlbums.slice(0, RENDER_LIMITS.albums).map(prepareAlbumCardForReact),
+    emptyMessage: 'No albums matched this filter.',
+    compact: true,
+    wrapGrid: true,
+    showFilter: true,
+    showPager: true,
+    pager: {
+      ...state.libraryPage,
+      total: state.libraryPage.total ?? state.libraryTotals.albums ?? visibleAlbums.length,
+    },
+    itemLabel: 'album',
+    showPageSize: true,
+    alphabetFilters: ALPHABET_FILTERS,
+    activeLetter: state.alphabetFilter,
+    mediaTypes: getMediaTypeFilterOptions(),
+    activeMediaTypes: [...state.mediaTypeFilters],
+    onLetter: (letter) => {
+      state.alphabetFilter = letter || 'all';
+      queueVisiblePageFetch(0);
+    },
+    onMediaType: toggleMediaTypeFilter,
+    onOpen: openAlbum,
+    onPlay: (albumId) => {
+      const album = state.albumMap.get(albumId);
+      if (album) playAlbumFromCard(album);
+    },
+    onPage: (direction) => handleAlbumCollectionPage('library', direction),
+    onPageSize: (size) => {
+      updateSetting('libraryPageSize', Number(size), true);
+      loadLibraryPage(0).catch((error) => console.error(error));
+    },
+  });
 }
 
 function renderFolderBrowser(filteredTracks) {
-  libraryPanelFolders.innerHTML = '';
   const listing = state.folderCache.get('') || null;
 
+  window.MonochromeReact?.renderFolderBrowser(libraryPanelFolders, {
+    rootListing: listing,
+    folderCacheEntries: [...state.folderCache.entries()],
+    expandedPaths: [...state.expandedFolderPaths],
+    loadingPaths: [...state.folderLoading],
+    currentTrackId: state.currentTrackId,
+    playing: !audioPlayer.paused,
+    isFavoriteTrack,
+    onToggleFolder: handleFolderToggle,
+    onPlayFolder: playFolderFromBrowser,
+    onPlayTrack: playFolderTrackFromBrowser,
+    onToggleFavorite: toggleFavoriteTrack,
+  });
   if (!listing) {
-    libraryPanelFolders.append(createEmptyState('Loading folders from database...'));
-    loadFolderListing('').catch((error) => {
-      console.error(error);
-      libraryPanelFolders.innerHTML = '';
-      libraryPanelFolders.append(createEmptyState('Unable to load folders.'));
-    });
+    loadFolderListing('').catch((error) => console.error(error));
     return;
   }
 
-  const fragment = document.createDocumentFragment();
-  for (const folder of listing.folders || []) {
-    fragment.append(createFolderNode(folder));
+  for (const folderPath of state.expandedFolderPaths) {
+    if (state.folderCache.has(folderPath) || state.folderLoading.has(folderPath)) continue;
+    loadFolderListing(folderPath).catch((error) => console.error(error));
   }
+}
 
-  for (const track of listing.tracks || []) {
-    fragment.append(createFolderTrackRow(track, listing.tracks));
+function handleFolderToggle(folderPath, expanded) {
+  const normalizedPath = normalizeFolderPath(folderPath);
+  if (expanded) {
+    state.expandedFolderPaths.add(normalizedPath);
+    if (!state.folderCache.has(normalizedPath)) {
+      loadFolderListing(normalizedPath).catch((error) => console.error(error));
+    }
+  } else {
+    state.expandedFolderPaths.delete(normalizedPath);
   }
+  render();
+}
 
-  if (!fragment.childNodes.length) {
-    libraryPanelFolders.append(createEmptyState('No folders matched this filter.'));
+async function playFolderFromBrowser(folderPath) {
+  try {
+    const folderTracks = await loadFolderPlayQueue(folderPath);
+    if (!Array.isArray(folderTracks) || folderTracks.length === 0) return;
+    state.shuffleActive = false;
+    rebuildShuffledQueue();
+    playTrack(folderTracks[0], folderTracks);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function playFolderTrackFromBrowser(track, queueTracks, { toggleIfCurrent = false } = {}) {
+  if (!track?.id) return;
+  if (toggleIfCurrent && track.id === state.currentTrackId) {
+    togglePlayback();
     return;
   }
-
-  libraryPanelFolders.append(fragment);
+  const safeQueue = Array.isArray(queueTracks) && queueTracks.length > 0 ? queueTracks : [track];
+  playTrack(track, safeQueue);
 }
 
 function renderArtistsBrowser(filteredTracks) {
@@ -2291,96 +2645,103 @@ function renderArtistsBrowser(filteredTracks) {
 
   const grid = document.createElement('div');
   grid.className = 'artist-card-grid';
-  for (const [index, artist] of artists.slice(0, RENDER_LIMITS.artists).entries()) {
-    grid.append(createArtistCard(artist, { preloadInfo: index < 24 }));
-  }
+  renderArtistCards(grid, artists.slice(0, RENDER_LIMITS.artists));
   libraryPanelArtists.append(grid);
   libraryPanelArtists.append(createArtistPager());
 }
 
-function renderPlaylistsBrowser(filteredTracks) {
-  libraryPanelPlaylists.innerHTML = '';
+function renderLibraryTracksPanel() {
+  libraryPanelTracks.innerHTML = '';
+  libraryPanelTracks.append(createLibraryFilterBar({ mediaType: false }));
 
+  const tracks = state.libraryTrackResults || [];
+  if (!state.searchTerm) {
+    libraryPanelTracks.append(createEmptyState('Search for a track title, artist, album, or file path to show tracks here.'));
+    return;
+  }
+
+  if (tracks.length === 0) {
+    libraryPanelTracks.append(createEmptyState('No tracks matched this search.'));
+    libraryPanelTracks.append(createTrackPager());
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'track-list library-track-search-list';
+  renderTrackRows(list, tracks.slice(0, RENDER_LIMITS.tracks), tracks, { variant: 'standard', showAlbum: true });
+  libraryPanelTracks.append(list);
+  libraryPanelTracks.append(createTrackPager());
+}
+
+function renderPlaylistsBrowser(filteredTracks) {
   const playlists = getSmartPlaylists(filteredTracks);
   if (!playlists.some((playlist) => playlist.id === state.selectedPlaylistId)) {
     state.selectedPlaylistId = playlists[0]?.id ?? 'favorites-tracks';
   }
 
-  const shell = document.createElement('div');
-  shell.className = 'playlist-browser';
-
-  const list = document.createElement('div');
-  list.className = 'playlist-list';
-  const detail = document.createElement('div');
-  detail.className = 'playlist-detail';
-
-  for (const playlist of playlists) {
-    const card = document.createElement('button');
-    card.type = 'button';
-    card.className = `playlist-card${playlist.id === state.selectedPlaylistId ? ' is-active' : ''}`;
-    card.innerHTML = `
-      <strong>${escapeHtml(playlist.title)}</strong>
-      <span>${playlist.tracks.length} track${playlist.tracks.length === 1 ? '' : 's'}</span>
-      <p>${escapeHtml(playlist.description)}</p>
-    `;
-    card.addEventListener('click', () => {
-      state.selectedPlaylistId = playlist.id;
+  window.MonochromeReact?.renderPlaylistBrowser(libraryPanelPlaylists, {
+    playlists: playlists.map(preparePlaylistForReact),
+    selectedPlaylistId: state.selectedPlaylistId,
+    limit: RENDER_LIMITS.tracks,
+    onSelectPlaylist: (playlistId) => {
+      state.selectedPlaylistId = playlistId;
       render();
-    });
-    list.append(card);
-  }
-
-  const activePlaylist = playlists.find((playlist) => playlist.id === state.selectedPlaylistId) ?? playlists[0];
-  detail.innerHTML = `
-    <div class="playlist-detail-header">
-      <div>
-        <h4>${escapeHtml(activePlaylist.title)}</h4>
-        <p>${escapeHtml(activePlaylist.description)}</p>
-      </div>
-    </div>
-    <div class="track-list"></div>
-  `;
-
-  const trackList = detail.querySelector('.track-list');
-  if (activePlaylist.tracks.length === 0) {
-    trackList.innerHTML = '<p class="empty-state">This playlist is empty right now.</p>';
-  } else {
-    for (const track of activePlaylist.tracks.slice(0, RENDER_LIMITS.tracks)) {
-      trackList.append(createTrackRow(track, activePlaylist.tracks));
-    }
-    appendLimitNotice(trackList, activePlaylist.tracks.length, RENDER_LIMITS.tracks, 'tracks');
-  }
-
-  shell.append(list, detail);
-  libraryPanelPlaylists.append(shell);
+    },
+    onPlayTrack: (trackId, options = {}) => {
+      const activePlaylist = playlists.find((playlist) => playlist.id === state.selectedPlaylistId) ?? playlists[0];
+      const track = state.trackMap.get(trackId);
+      if (!track) return;
+      if (options.toggle && track.id === state.currentTrackId) {
+        togglePlayback();
+        return;
+      }
+      playTrack(track, activePlaylist?.tracks || [track]);
+    },
+    onFavoriteTrack: toggleFavoriteTrack,
+    onAddTrackToQueue: (trackId) => {
+      const track = state.trackMap.get(trackId);
+      if (track) addTracksToQueue([track]);
+    },
+    onArtistClick: (artistName) => {
+      if (artistName) openArtist(artistName);
+    },
+    onAlbumClick: (trackId) => {
+      const track = state.trackMap.get(trackId);
+      const album = track ? findAlbumByTrack(track) : null;
+      if (album) openAlbum(album.id);
+    },
+  });
 }
 
-function createArtistCard(artist, { preloadInfo = false } = {}) {
-  const info = state.artistInfoMap.get(artist.name) || null;
-  const card = document.createElement('article');
-  card.className = 'artist-card';
-  card.tabIndex = 0;
-  card.setAttribute('role', 'button');
-  card.setAttribute('aria-label', `Open ${artist.name}`);
-  card.innerHTML = `
-    <div class="artist-card-image">
-      ${info?.imageUrl
-        ? `<img src="${info.imageUrl}" alt="${escapeHtml(artist.name)} artist image" loading="lazy">`
-        : createArtistPlaceholder(artist.name)}
-    </div>
-    <strong>${escapeHtml(artist.name)}</strong>
-  `;
-  card.addEventListener('click', () => openArtist(artist.name));
-  card.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      openArtist(artist.name);
-    }
-  });
-  if (preloadInfo) {
+function preparePlaylistForReact(playlist) {
+  return {
+    ...playlist,
+    tracks: playlist.tracks.map(prepareTrackRowForReact),
+  };
+}
+
+function renderArtistCards(container, artists) {
+  const root = document.createElement('div');
+  root.className = 'artist-grid-react';
+  container.append(root);
+
+  for (const artist of artists.slice(0, 24)) {
     loadArtistInfo(artist.name);
   }
-  return card;
+
+  window.MonochromeReact?.renderArtistGrid(root, {
+    artists: artists.map(prepareArtistCardForReact),
+    onOpen: openArtist,
+  });
+}
+
+function prepareArtistCardForReact(artist) {
+  const info = state.artistInfoMap.get(artist.name) || null;
+  return {
+    name: artist.name,
+    imageUrl: info?.imageUrl || '',
+    placeholderHtml: createArtistPlaceholder(artist.name),
+  };
 }
 
 function renderArtistDetail(artist) {
@@ -2436,9 +2797,7 @@ function renderArtistDetail(artist) {
   editArtistButton.setAttribute('aria-label', editArtistButton.title);
 
   artistAlbumGrid.innerHTML = '';
-  for (const album of artist.albums) {
-    artistAlbumGrid.append(createAlbumCard(album, { compact: true }));
-  }
+  renderAlbumCards(artistAlbumGrid, artist.albums, { compact: true });
 
   loadArtistInfo(artist.name);
 }
@@ -2446,45 +2805,83 @@ function renderArtistDetail(artist) {
 function openArtistEditor(artist) {
   const info = state.artistInfoMap.get(artist.name) || null;
   state.artistEditorName = artist.name;
-  artistEditorTitle.textContent = `Edit ${artist.name}`;
-  artistImageUrlInput.value = info?.imageUrl || '';
-  artistBioInput.value = info?.bio || '';
-  artistSourceUrlInput.value = info?.sourceUrl || '';
+  renderEditorModalShell(artistEditorModal, {
+    eyebrow: 'Artist Editor',
+    title: `Edit ${artist.name}`,
+    titleId: 'artist-editor-title',
+    caption: 'Add an artist image and local profile info.',
+    closeButtonId: 'artist-editor-close-button',
+    closeLabel: 'Close artist editor',
+    bodyRootId: 'artist-editor-body-root',
+    resetButtonId: 'artist-editor-reset-button',
+    resetLabel: 'Clear edited info',
+    cancelButtonId: 'artist-editor-cancel-button',
+    saveButtonId: 'artist-editor-save-button',
+    saveLabel: 'Save artist',
+  });
+  renderArtistEditorBody({
+    imageUrl: info?.imageUrl || '',
+    bio: info?.bio || '',
+    sourceUrl: info?.sourceUrl || '',
+  });
+  syncArtistEditorRefs();
   artistEditorModal.hidden = false;
   artistEditorOverlay.hidden = false;
-  artistImageUrlInput.focus();
+  artistImageUrlInput?.focus();
 }
 
 function closeArtistEditor() {
   state.artistEditorName = '';
   artistEditorModal.hidden = true;
   artistEditorOverlay.hidden = true;
+  window.MonochromeReact?.unmount?.(document.querySelector('#artist-editor-body-root'));
+  window.MonochromeReact?.unmount?.(artistEditorModal);
+  syncArtistEditorRefs();
+}
+
+function renderArtistEditorBody(props = {}) {
+  const bodyRoot = document.querySelector('#artist-editor-body-root');
+  if (!bodyRoot) return;
+  window.MonochromeReact?.renderArtistEditorBody(bodyRoot, {
+    renderKey: `${state.artistEditorName || 'artist'}-${Date.now()}`,
+    ...props,
+  });
+}
+
+function syncArtistEditorRefs() {
+  artistImageUrlInput = document.querySelector('#artist-image-url');
+  artistBioInput = document.querySelector('#artist-bio');
+  artistSourceUrlInput = document.querySelector('#artist-source-url');
 }
 
 async function saveArtistEditor() {
   if (!state.artistEditorName) return;
-  artistEditorSaveButton.disabled = true;
+  syncArtistEditorRefs();
+  const saveButton = document.querySelector('#artist-editor-save-button');
+  if (saveButton) saveButton.disabled = true;
   try {
     const info = await fetchJson(`/api/artists/${encodeURIComponent(state.artistEditorName)}/info`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        imageUrl: artistImageUrlInput.value.trim(),
-        bio: artistBioInput.value.trim(),
-        sourceUrl: artistSourceUrlInput.value.trim(),
+        imageUrl: artistImageUrlInput?.value.trim() || '',
+        bio: artistBioInput?.value.trim() || '',
+        sourceUrl: artistSourceUrlInput?.value.trim() || '',
       }),
     });
     state.artistInfoMap.set(state.artistEditorName, info);
     closeArtistEditor();
     render();
   } finally {
-    artistEditorSaveButton.disabled = false;
+    if (saveButton) saveButton.disabled = false;
   }
 }
 
 async function resetArtistEditor() {
   if (!state.artistEditorName || !window.confirm('Clear edited artist image and info?')) return;
-  artistEditorResetButton.disabled = true;
+  syncArtistEditorRefs();
+  const resetButton = document.querySelector('#artist-editor-reset-button');
+  if (resetButton) resetButton.disabled = true;
   try {
     const info = await fetchJson(`/api/artists/${encodeURIComponent(state.artistEditorName)}/info`, {
       method: 'POST',
@@ -2495,29 +2892,84 @@ async function resetArtistEditor() {
     closeArtistEditor();
     render();
   } finally {
-    artistEditorResetButton.disabled = false;
+    if (resetButton) resetButton.disabled = false;
   }
 }
 
-function renderAlbumCollection(container, albums, emptyMessage, { pageable = false, pager = null } = {}) {
-  container.innerHTML = '';
-  if (pageable) {
-    container.append(createLibraryFilterBar());
-  }
+function renderAlbumCollection(container, albums, emptyMessage, { pageable = false, pagerType = '' } = {}) {
   const visibleAlbums = filterAlbumsByMediaType(albums);
+  const page = pagerType === 'wanted' ? state.wantedPage : state.libraryPage;
+  const itemLabel = pagerType === 'wanted' ? 'wanted album' : 'album';
+  const showPager = pageable || Boolean(pagerType);
 
-  if (visibleAlbums.length === 0) {
-    container.append(createEmptyState(emptyMessage));
-    if (pageable) container.append(createLibraryPager());
-    if (pager) container.append(pager);
-    return;
-  }
+  window.MonochromeReact?.renderAlbumCollection(container, {
+    albums: visibleAlbums.map(prepareAlbumCardForReact),
+    emptyMessage,
+    compact: false,
+    showFilter: pageable,
+    showPager,
+    pager: {
+      ...page,
+      total: page?.total ?? visibleAlbums.length,
+    },
+    itemLabel,
+    showPageSize: pageable || pagerType === 'wanted',
+    alphabetFilters: ALPHABET_FILTERS,
+    activeLetter: state.alphabetFilter,
+    mediaTypes: getMediaTypeFilterOptions(),
+    activeMediaTypes: [...state.mediaTypeFilters],
+    onLetter: (letter) => {
+      state.alphabetFilter = letter || 'all';
+      queueVisiblePageFetch(0);
+    },
+    onMediaType: toggleMediaTypeFilter,
+    onOpen: openAlbum,
+    onPlay: (albumId) => {
+      const album = state.albumMap.get(albumId);
+      if (album) playAlbumFromCard(album);
+    },
+    onPage: (direction) => handleAlbumCollectionPage(pagerType || 'library', direction),
+    onPageSize: (size) => {
+      updateSetting('libraryPageSize', Number(size), true);
+      if (pagerType === 'wanted') {
+        loadWantedAlbumsPage(0).catch((error) => console.error(error));
+      } else {
+        loadLibraryPage(0).catch((error) => console.error(error));
+      }
+    },
+  });
+}
 
-  for (const album of visibleAlbums) {
-    container.append(createAlbumCard(album, { compact: false }));
-  }
-  if (pageable) container.append(createLibraryPager());
-  if (pager) container.append(pager);
+function renderAlbumCards(container, albums, { compact = false } = {}) {
+  const root = document.createElement('div');
+  root.className = 'album-grid-react';
+  container.append(root);
+
+  window.MonochromeReact?.renderAlbumGrid(root, {
+    albums: albums.map(prepareAlbumCardForReact),
+    compact,
+    onOpen: openAlbum,
+    onPlay: (albumId) => {
+      const album = state.albumMap.get(albumId);
+      if (album) playAlbumFromCard(album);
+    },
+  });
+}
+
+function prepareAlbumCardForReact(album) {
+  return {
+    id: album.id,
+    title: album.title || 'Untitled album',
+    artist: album.artist || 'Unknown artist',
+    year: album.year || 'Unknown year',
+    status: album.status || 'Collection',
+    coverUrl: album.coverUrl || '',
+    wanted: isWantedAlbum(album),
+    coverPlaceholderHtml: createCoverPlaceholder('Album'),
+    audioBadgeHtml: renderAudioQualityBadge(album.audioQuality),
+    mediaIconsHtml: renderMediaTypeIcons(album),
+    playIconHtml: materialIcon('play'),
+  };
 }
 
 function createAlphabetIndex() {
@@ -2544,6 +2996,23 @@ function createLibraryFilterBar({ mediaType = true } = {}) {
     bar.append(createMediaTypeFilter());
   }
   return bar;
+}
+
+function getMediaTypeFilterOptions() {
+  return Object.entries(MEDIA_TYPE_ICONS).map(([value, icon]) => ({ value, icon }));
+}
+
+function handleAlbumCollectionPage(type, direction) {
+  const page = type === 'wanted' ? state.wantedPage : state.libraryPage;
+  const limit = page.limit || state.settings.libraryPageSize || 50;
+  const offset = direction === 'next'
+    ? page.offset + limit
+    : Math.max(0, page.offset - limit);
+  if (type === 'wanted') {
+    loadWantedAlbumsPage(offset).catch((error) => console.error(error));
+    return;
+  }
+  loadLibraryPage(offset).catch((error) => console.error(error));
 }
 
 function createMediaTypeFilter() {
@@ -2659,6 +3128,26 @@ function createArtistPager() {
   return pager;
 }
 
+function createTrackPager() {
+  const page = state.trackPage || {};
+  const total = page.total ?? state.libraryTrackResults.length;
+  const limit = page.limit || state.settings.libraryPageSize || 50;
+  const offset = page.offset || 0;
+  const start = total === 0 ? 0 : offset + 1;
+  const end = Math.min(total, offset + limit);
+  const pager = document.createElement('div');
+  pager.className = 'library-pager';
+  pager.innerHTML = `
+    <div>
+      <strong>${start}-${end}</strong>
+      <span>of ${total} track${total === 1 ? '' : 's'}</span>
+    </div>
+    <button type="button" class="secondary-button" data-library-page-action="previous" ${page.hasPrevious ? '' : 'disabled'}>Previous</button>
+    <button type="button" class="secondary-button" data-library-page-action="next" ${page.hasNext ? '' : 'disabled'}>Next</button>
+  `;
+  return pager;
+}
+
 function renderTrackCollection(container, tracks, queueTracks, emptyMessage) {
   container.innerHTML = '';
 
@@ -2667,10 +3156,64 @@ function renderTrackCollection(container, tracks, queueTracks, emptyMessage) {
     return;
   }
 
-  for (const track of tracks.slice(0, RENDER_LIMITS.tracks)) {
-    container.append(createTrackRow(track, queueTracks));
-  }
+  renderTrackRows(container, tracks.slice(0, RENDER_LIMITS.tracks), queueTracks, { variant: 'standard' });
   appendLimitNotice(container, tracks.length, RENDER_LIMITS.tracks, 'tracks');
+}
+
+function renderTrackRows(container, tracks, queueTracks, { variant = 'standard', showAlbum = true } = {}) {
+  const root = document.createElement('div');
+  root.className = 'track-list-react';
+  container.append(root);
+
+  window.MonochromeReact?.renderTrackList(root, {
+    tracks: tracks.map(prepareTrackRowForReact),
+    variant,
+    showAlbum,
+    onPlay: (trackId, options = {}) => {
+      const track = state.trackMap.get(trackId);
+      if (!track) return;
+      if (options.toggle && track.id === state.currentTrackId) {
+        togglePlayback();
+        return;
+      }
+      const nextQueue = getQueueTracksForRenderedRow(track, queueTracks, variant);
+      playTrack(track, nextQueue);
+    },
+    onFavorite: toggleFavoriteTrack,
+    onAddQueue: (trackId) => {
+      const track = state.trackMap.get(trackId);
+      if (track) addTracksToQueue([track]);
+    },
+    onArtistClick: (artistName) => {
+      if (artistName) openArtist(artistName);
+    },
+  });
+}
+
+function prepareTrackRowForReact(track) {
+  const favorite = isFavoriteTrack(track.id);
+  const playing = track.id === state.currentTrackId && !audioPlayer.paused;
+  return {
+    id: track.id,
+    title: track.title || 'Untitled track',
+    artist: track.artist || 'Unknown artist',
+    album: track.album || 'Unknown album',
+    trackNumber: track.trackNumber,
+    folderPath: getTrackFolderPath(track.relativePath || ''),
+    coverUrl: track.coverUrl || '',
+    favorite,
+    playing,
+    active: track.id === state.currentTrackId,
+    coverPlaceholderHtml: createCoverPlaceholder('Track', 'track-thumb-placeholder'),
+    favoriteIconHtml: materialIcon('favorite', { filled: favorite }),
+    addQueueIconHtml: materialIcon('addQueue'),
+    playIconHtml: materialIcon(playing ? 'pause' : 'play'),
+  };
+}
+
+function getQueueTracksForRenderedRow(track, queueTracks, variant) {
+  if (variant === 'album') return [track];
+  return Array.isArray(queueTracks) && queueTracks.length > 0 ? queueTracks : [track];
 }
 
 function createLimitNotice(total, shown, label) {
@@ -2704,67 +3247,87 @@ function renderAlbumDetail(album) {
   const wantedClass = isWantedAlbum(album) ? ' is-wanted' : '';
   const albumFolder = getAlbumFolderPath(allAlbumTracks);
 
-  albumDetailFormat.innerHTML = `
-    <span class="album-detail-format-card${wantedClass}">
-      ${renderMediaTypeIcons(album, { includeLabels: true })}
-    </span>
-    ${renderAudioQualityBadge(album.audioQuality, { includeLabel: true })}
-  `;
-  albumDetailTitle.textContent = album.title;
-  albumDetailArtist.textContent = `By ${album.artist}`;
-  albumDetailFolder.textContent = albumFolder ? `Folder: ${albumFolder}` : '';
-  albumDetailFolder.hidden = !albumFolder;
-  albumDetailMeta.textContent = [
-    ...albumFacts,
-    `${allAlbumTracks.length} track${allAlbumTracks.length === 1 ? '' : 's'}`,
-    state.searchTerm ? `filtered by "${state.searchTerm}"` : '',
-  ].filter(Boolean).join(' • ');
-  favoriteAlbumButton.classList.toggle('active', favorite);
-  favoriteAlbumButton.setAttribute('aria-pressed', String(favorite));
-  favoriteAlbumButton.setAttribute('aria-label', favorite ? 'Unfavorite album' : 'Favorite album');
-  favoriteAlbumButton.title = favorite ? 'Unfavorite album' : 'Favorite album';
-  favoriteAlbumButton.innerHTML = materialIcon('favorite', { filled: favorite });
-  queueAlbumButton.disabled = allAlbumTracks.length === 0;
-  editAlbumCoverButton.title = 'Edit album tags';
-  editAlbumCoverButton.setAttribute('aria-label', 'Edit album tags');
-  editAlbumCoverButton.innerHTML = materialIcon('edit');
-
-  setImageOrFallback({
-    imageElement: albumDetailCover,
-    fallbackElement: albumDetailCoverFallback,
-    src: album.coverUrl || heroTrack?.coverUrl || '',
-    alt: `${album.title} cover art`,
-  });
-
-  if (album.coverUrl || heroTrack?.coverUrl) {
-    albumHero.style.setProperty('--album-cover', `url("${album.coverUrl || heroTrack.coverUrl}")`);
-  } else {
-    albumHero.style.removeProperty('--album-cover');
-  }
-
-  albumTrackList.innerHTML = '';
-  if (albumTracks.length === 0) {
-    albumTrackList.innerHTML = '<p class="empty-state">No tracks matched this album search.</p>';
-  } else {
-    for (const track of albumTracks) {
-      albumTrackList.append(createAlbumTrackRow(track));
-    }
-  }
-
-  renderRelatedAlbums({
-    section: moreAlbumsSection,
-    titleElement: moreAlbumsTitle,
-    grid: moreAlbumsGrid,
-    albums: fullAlbums,
-    title: `More albums from ${album.artist}`,
-  });
-
-  renderRelatedAlbums({
-    section: epsSection,
-    titleElement: epsTitle,
-    grid: epsGrid,
-    albums: epAlbums,
-    title: `EPs and Singles from ${album.artist}`,
+  window.MonochromeReact?.renderAlbumDetail(albumView, {
+    album: {
+      id: album.id,
+      title: album.title,
+      artist: album.artist,
+      coverUrl: album.coverUrl || heroTrack?.coverUrl || '',
+      coverBackdrop: album.coverUrl || heroTrack?.coverUrl || '',
+      folder: albumFolder,
+      meta: [
+        ...albumFacts,
+        `${allAlbumTracks.length} track${allAlbumTracks.length === 1 ? '' : 's'}`,
+        state.searchTerm ? `filtered by "${state.searchTerm}"` : '',
+      ].filter(Boolean).join(' • '),
+    },
+    tracks: albumTracks.map(prepareTrackRowForReact),
+    relatedAlbums: fullAlbums.slice(0, RENDER_LIMITS.albums).map(prepareAlbumCardForReact),
+    epAlbums: epAlbums.slice(0, RENDER_LIMITS.albums).map(prepareAlbumCardForReact),
+    favorite,
+    canQueue: allAlbumTracks.length > 0,
+    formatHtml: `
+      <span class="album-detail-format-card${wantedClass}">
+        ${renderMediaTypeIcons(album, { includeLabels: true })}
+      </span>
+      ${renderAudioQualityBadge(album.audioQuality, { includeLabel: true })}
+    `,
+    coverPlaceholderHtml: createCoverPlaceholder('Album'),
+    favoriteIconHtml: materialIcon('favorite', { filled: favorite }),
+    editIconHtml: materialIcon('edit'),
+    onPlayAlbum: (albumId) => {
+      const selectedAlbum = state.albumMap.get(albumId);
+      if (!selectedAlbum) return;
+      const tracks = getAlbumTracks(selectedAlbum.id);
+      if (tracks.length === 0) return;
+      state.shuffleActive = false;
+      rebuildShuffledQueue();
+      playTrack(tracks[0], tracks);
+    },
+    onQueueAlbum: (albumId) => {
+      const selectedAlbum = state.albumMap.get(albumId);
+      if (selectedAlbum) addTracksToQueue(getAlbumTracks(selectedAlbum.id));
+    },
+    onShuffleAlbum: (albumId) => {
+      const selectedAlbum = state.albumMap.get(albumId);
+      if (!selectedAlbum) return;
+      const tracks = getAlbumTracks(selectedAlbum.id);
+      if (tracks.length === 0) return;
+      state.shuffleActive = true;
+      playTrack(tracks[0], tracks);
+    },
+    onEditAlbum: (albumId) => {
+      const selectedAlbum = state.albumMap.get(albumId);
+      if (selectedAlbum) openTagEditor(selectedAlbum).catch((error) => console.error(error));
+    },
+    onFavoriteAlbum: toggleFavoriteAlbum,
+    onPlayTrack: (trackId, options = {}) => {
+      const track = state.trackMap.get(trackId);
+      if (!track) return;
+      if (options.toggle && track.id === state.currentTrackId) {
+        togglePlayback();
+        return;
+      }
+      playTrack(track, [track]);
+    },
+    onFavoriteTrack: toggleFavoriteTrack,
+    onAddTrackQueue: (trackId) => {
+      const track = state.trackMap.get(trackId);
+      if (track) addTracksToQueue([track]);
+    },
+    onArtistClick: (artistName) => {
+      if (artistName) openArtist(artistName);
+    },
+    onAlbumClick: (trackId) => {
+      const track = state.trackMap.get(trackId);
+      const selectedAlbum = track ? findAlbumByTrack(track) : null;
+      if (selectedAlbum) openAlbum(selectedAlbum.id);
+    },
+    onOpenAlbum: openAlbum,
+    onPlayRelatedAlbum: (albumId) => {
+      const selectedAlbum = state.albumMap.get(albumId);
+      if (selectedAlbum) playAlbumFromCard(selectedAlbum);
+    },
   });
 }
 
@@ -2778,157 +3341,50 @@ function renderRelatedAlbums({ section, titleElement, grid, albums, title }) {
 
   section.hidden = false;
   titleElement.textContent = title;
-  for (const album of albums.slice(0, RENDER_LIMITS.albums)) {
-    grid.append(createAlbumCard(album, { compact: true }));
-  }
+  renderAlbumCards(grid, albums.slice(0, RENDER_LIMITS.albums), { compact: true });
   appendLimitNotice(grid, albums.length, RENDER_LIMITS.albums, 'albums');
 }
 
 function renderQueuePanel() {
   queuePanel.hidden = !state.queueOpen;
   queueOverlay.hidden = !state.queueOpen;
-  queueList.innerHTML = '';
 
   if (!state.queueOpen) {
+    window.MonochromeReact?.unmount?.(queuePanel);
     return;
   }
 
   const queueIds = getPlaybackQueue();
   const queue = queueIds.map((id) => state.trackMap.get(id)).filter(Boolean);
 
-  queueDownloadButton.disabled = queue.length === 0;
-  queueFavoriteButton.disabled = queue.length === 0;
-  queueClearButton.disabled = queue.length === 0 || (queue.length === 1 && queue[0].id === state.currentTrackId);
-
-  if (queue.length === 0) {
-    queueList.innerHTML = '<p class="empty-state">Your queue is empty.</p>';
-    return;
-  }
-
-  for (const [index, track] of queue.slice(0, RENDER_LIMITS.queue).entries()) {
-    const favorite = isFavoriteTrack(track.id);
-    const isCurrent = track.id === state.currentTrackId;
-    const item = document.createElement('article');
-    item.className = `queue-item${isCurrent ? ' is-active' : ''}`;
-    item.draggable = true;
-    item.dataset.trackId = track.id;
-    item.innerHTML = `
-      <button type="button" class="queue-drag-handle" aria-label="Drag ${escapeHtml(track.title)}">
-        ${materialIcon('drag')}
-      </button>
-      ${track.coverUrl
-        ? `<img src="${track.coverUrl}" alt="${escapeHtml(track.album)} cover art" loading="lazy">`
-        : createCoverPlaceholder('Track', 'queue-thumb-fallback')}
-      <button type="button" class="queue-item-main" aria-label="Play ${escapeHtml(track.title)}">
-        <div class="queue-item-copy">
-          <strong>${escapeHtml(track.title)}</strong>
-          <span>${escapeHtml(track.artist)}</span>
-        </div>
-      </button>
-      <div class="queue-item-trailing">
-        <span class="queue-item-index">${index + 1}</span>
-        <div class="queue-item-actions">
-          <button type="button" class="queue-item-favorite${favorite ? ' active' : ''}" aria-label="${favorite ? 'Unfavorite' : 'Favorite'} ${escapeHtml(track.title)}">
-            ${materialIcon('favorite', { filled: favorite })}
-          </button>
-          <button type="button" class="queue-item-remove" aria-label="Remove ${escapeHtml(track.title)} from queue"${isCurrent ? ' disabled' : ''}>
-            ${playerIcon('remove')}
-          </button>
-        </div>
-      </div>
-    `;
-
-    const mainButton = item.querySelector('.queue-item-main');
-    const favoriteButton = item.querySelector('.queue-item-favorite');
-    const removeButton = item.querySelector('.queue-item-remove');
-
-    mainButton.addEventListener('click', () => playTrackById(track.id));
-    favoriteButton.addEventListener('click', (event) => {
-      event.stopPropagation();
-      toggleFavoriteTrack(track.id);
-    });
-    removeButton.addEventListener('click', (event) => {
-      event.stopPropagation();
-      removeTrackFromQueue(track.id);
-    });
-
-    item.addEventListener('dragstart', (event) => {
-      state.draggingQueueTrackId = track.id;
-      item.classList.add('is-dragging');
-      if (event.dataTransfer) {
-        event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData('text/plain', track.id);
-      }
-    });
-
-    item.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      if (state.draggingQueueTrackId && state.draggingQueueTrackId !== track.id) {
-        clearQueueDropTargets();
-        item.classList.add('drop-target');
-      }
-    });
-
-    item.addEventListener('dragleave', () => {
-      item.classList.remove('drop-target');
-    });
-
-    item.addEventListener('drop', (event) => {
-      event.preventDefault();
-      const dragTrackId = state.draggingQueueTrackId || event.dataTransfer?.getData('text/plain');
-      clearQueueDropTargets();
-      reorderQueue(dragTrackId, track.id);
-    });
-
-    item.addEventListener('dragend', () => {
-      state.draggingQueueTrackId = null;
-      clearQueueDropTargets();
-      item.classList.remove('is-dragging');
-    });
-
-    queueList.append(item);
-  }
-  appendLimitNotice(queueList, queue.length, RENDER_LIMITS.queue, 'queue tracks');
-}
-
-function createAlbumCard(album, { compact }) {
-  const card = document.createElement('article');
-  card.className = compact ? 'album-card compact' : 'album-card';
-  card.tabIndex = 0;
-  card.setAttribute('role', 'button');
-  card.setAttribute('aria-label', `Open ${album.title} by ${album.artist}`);
-  card.innerHTML = `
-    <div class="album-card-media">
-      ${album.coverUrl
-        ? `<img src="${album.coverUrl}" alt="${escapeHtml(album.title)} cover art" loading="lazy">`
-        : createCoverPlaceholder('Album')}
-      ${renderAudioQualityBadge(album.audioQuality)}
-      <button type="button" class="album-card-play" aria-label="Play ${escapeHtml(album.title)}">
-        ${materialIcon('play')}
-      </button>
-    </div>
-    <div class="meta">
-      <h4>${escapeHtml(album.title)}</h4>
-      <p>${escapeHtml(album.artist)}</p>
-      <p class="album-card-year">${escapeHtml(album.year || 'Unknown year')}</p>
-      <div class="album-card-footer${isWantedAlbum(album) ? ' is-wanted' : ''}">
-        <p class="album-card-format" title="${escapeHtml(album.status || 'Collection')}">${renderMediaTypeIcons(album)}</p>
-      </div>
-    </div>
-  `;
-
-  card.addEventListener('click', () => openAlbum(album.id));
-  card.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      openAlbum(album.id);
-    }
+  window.MonochromeReact?.renderQueuePanel(queuePanel, {
+    open: state.queueOpen,
+    tracks: queue.slice(0, RENDER_LIMITS.queue).map((track) => ({
+      id: track.id,
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
+      coverUrl: track.coverUrl || '',
+    })),
+    icons: {
+      download: playerIcon('download'),
+      favorite: materialIcon('favorite'),
+      clear: playerIcon('clearQueue'),
+      close: materialIcon('close'),
+    },
+    total: queue.length,
+    limit: RENDER_LIMITS.queue,
+    currentTrackId: state.currentTrackId || '',
+    favoriteTrackIds: [...state.favoriteTrackIds],
+    onClose: closeQueuePanel,
+    onDownload: () => downloadQueueTracks().catch((error) => console.error(error)),
+    onFavoriteQueue: () => favoriteTracks(getPlaybackQueue()),
+    onClear: clearQueue,
+    onPlay: (trackId) => playTrackById(trackId),
+    onFavorite: (trackId) => toggleFavoriteTrack(trackId),
+    onRemove: (trackId) => removeTrackFromQueue(trackId),
+    onReorder: (dragTrackId, targetTrackId) => reorderQueue(dragTrackId, targetTrackId),
   });
-  card.querySelector('.album-card-play').addEventListener('click', (event) => {
-    event.stopPropagation();
-    playAlbumFromCard(album);
-  });
-  return card;
 }
 
 function playAlbumFromCard(album) {
@@ -2939,31 +3395,61 @@ function playAlbumFromCard(album) {
   playTrack(tracks[0], tracks);
 }
 
-function openTagEditor(album) {
+function renderEditorModalShell(container, props) {
+  window.MonochromeReact?.renderEditorModal(container, props);
+}
+
+async function openTagEditor(album) {
   state.tagEditorAlbumId = album.id;
   state.tagEditorMusicBrainzId = album.musicBrainzId || '';
   state.tagEditorSuggestions = [];
 
-  const tracks = getAlbumTracks(album.id);
-  tagEditorTitle.textContent = `Edit ${album.title}`;
-  tagEditorCaption.textContent = 'These edits are saved as local overrides. Your original audio files are not rewritten.';
-  tagAlbumTitleInput.value = album.title || '';
-  tagAlbumArtistInput.value = album.albumArtist || album.artist || '';
-  tagAlbumDateInput.value = album.year || extractYear(album.date) || '';
-  tagAlbumGenreInput.value = album.genre || '';
-  setSelectedMediaTypes(album.mediaTypes || album.mediaType || ['Digital Media']);
-  tagAlbumStatusInput.value = album.status || 'Collection';
-  tagAlbumCoverUrlInput.value = album.customCoverUrl || album.coverUrl || '';
-  tagScraperQueryInput.value = `${album.artist || ''} ${album.title || ''}`.trim();
-  tagScraperStatus.textContent = 'Search MusicBrainz to fill this album automatically.';
-  tagScraperResults.innerHTML = '';
+  const tracks = await ensureAlbumTracks(album);
+  renderEditorModalShell(tagEditorModal, {
+    eyebrow: 'Album Tag Editor',
+    title: `Edit ${album.title}`,
+    titleId: 'tag-editor-title',
+    caption: 'These edits are saved as local overrides. Your original audio files are not rewritten.',
+    closeButtonId: 'tag-editor-close-button',
+    closeLabel: 'Close tag editor',
+    bodyRootId: 'tag-editor-body-root',
+    resetButtonId: 'tag-editor-reset-button',
+    resetLabel: 'Reset overrides',
+    cancelButtonId: 'tag-editor-cancel-button',
+    saveButtonId: 'tag-editor-save-button',
+    saveLabel: 'Save tags',
+  });
 
-  renderTagTrackEditor(tracks);
+  renderAlbumTagEditorBody({
+    title: album.title || '',
+    albumArtist: album.albumArtist || album.artist || '',
+    year: album.year || extractYear(album.date) || '',
+    genre: album.genre || '',
+    mediaTypes: album.mediaTypes || album.mediaType || ['Digital Media'],
+    status: album.status || 'Collection',
+    coverUrl: album.customCoverUrl || album.coverUrl || '',
+    searchQuery: `${album.artist || ''} ${album.title || ''}`.trim(),
+    scraperStatus: 'Search MusicBrainz to fill this album automatically.',
+    tracks,
+  });
+  syncTagEditorRefs();
   syncTagEditorCoverPreview();
 
   tagEditorModal.hidden = false;
   tagEditorOverlay.hidden = false;
-  tagAlbumTitleInput.focus();
+  tagAlbumTitleInput?.focus();
+}
+
+async function ensureAlbumTracks(album) {
+  const existingTracks = getAlbumTracks(album.id);
+  const trackIds = Array.isArray(album.trackIds) ? album.trackIds.filter(Boolean) : [];
+  if (trackIds.length === 0 || existingTracks.length >= trackIds.length) {
+    return existingTracks;
+  }
+
+  const library = await fetchJson(`/api/albums/${encodeURIComponent(album.id)}/tracks`);
+  mergeLibraryData(library);
+  return getAlbumTracks(album.id);
 }
 
 function closeTagEditor() {
@@ -2972,63 +3458,47 @@ function closeTagEditor() {
   state.tagEditorSuggestions = [];
   tagEditorModal.hidden = true;
   tagEditorOverlay.hidden = true;
+  window.MonochromeReact?.unmount?.(document.querySelector('#tag-editor-body-root'));
+  window.MonochromeReact?.unmount?.(tagEditorModal);
+  syncTagEditorRefs();
 }
 
-function renderTagTrackEditor(tracks) {
-  tagTrackList.innerHTML = '';
-  if (tracks.length === 0) {
-    tagTrackList.innerHTML = '<p class="empty-state">This album has no tracks to edit.</p>';
-    return;
-  }
+function renderAlbumTagEditorBody(props = {}) {
+  const bodyRoot = document.querySelector('#tag-editor-body-root');
+  if (!bodyRoot) return;
+  window.MonochromeReact?.renderAlbumTagEditorBody(bodyRoot, {
+    renderKey: `${state.tagEditorAlbumId || 'album'}-${Date.now()}`,
+    ...props,
+  });
+}
 
-  const tracksByDisc = new Map();
-  for (const track of tracks) {
-    const discNumber = track.discNumber || 1;
-    if (!tracksByDisc.has(discNumber)) {
-      tracksByDisc.set(discNumber, []);
-    }
-    tracksByDisc.get(discNumber).push(track);
-  }
+function syncTagEditorRefs() {
+  tagAlbumTitleInput = document.querySelector('#tag-album-title');
+  tagAlbumArtistInput = document.querySelector('#tag-album-artist');
+  tagAlbumDateInput = document.querySelector('#tag-album-date');
+  tagAlbumGenreInput = document.querySelector('#tag-album-genre');
+  tagAlbumMediaTypesInput = document.querySelector('#tag-album-media-types');
+  tagAlbumStatusInput = document.querySelector('#tag-album-status');
+  tagAlbumCoverUrlInput = document.querySelector('#tag-album-cover-url');
+  tagEditorCoverPreview = document.querySelector('#tag-editor-cover-preview');
+  tagEditorCoverFallback = document.querySelector('#tag-editor-cover-fallback');
+  tagScraperQueryInput = document.querySelector('#tag-scraper-query');
+  tagScraperSearchButton = document.querySelector('#tag-scraper-search-button');
+  tagScraperStatus = document.querySelector('#tag-scraper-status');
+  tagScraperResults = document.querySelector('#tag-scraper-results');
+  tagTrackList = document.querySelector('#tag-track-list');
+}
 
-  const sortedDiscs = [...tracksByDisc.entries()].sort(([discA], [discB]) => Number(discA) - Number(discB));
-  for (const [discNumber, discTracks] of sortedDiscs) {
-    const discCard = document.createElement('article');
-    discCard.className = 'tag-disc-card';
-    discCard.innerHTML = `
-      <header class="tag-disc-card-header">
-        <div>
-          <span class="label">Disc</span>
-          <strong>${escapeHtml(discNumber)}</strong>
-        </div>
-        <span>${discTracks.length} track${discTracks.length === 1 ? '' : 's'}</span>
-      </header>
-      <div class="tag-disc-track-header" aria-hidden="true">
-        <span>#</span>
-        <span>Title</span>
-        <span>Artist</span>
-      </div>
-      <div class="tag-disc-track-list"></div>
-    `;
-
-    const discTrackList = discCard.querySelector('.tag-disc-track-list');
-    for (const track of discTracks) {
-      const row = document.createElement('div');
-      row.className = 'tag-track-row';
-      row.dataset.trackId = track.id;
-      row.dataset.discNumber = String(track.discNumber || discNumber);
-      row.innerHTML = `
-        <input class="tag-track-number" type="number" min="1" value="${escapeHtml(track.trackNumber || '')}" aria-label="Track number" />
-        <input class="tag-track-title" type="text" value="${escapeHtml(track.title)}" aria-label="Track title" />
-        <input class="tag-track-artist" type="text" value="${escapeHtml(track.artist)}" aria-label="Track artist" />
-      `;
-      discTrackList.append(row);
-    }
-
-    tagTrackList.append(discCard);
+function setTagEditorStatus(message) {
+  syncTagEditorRefs();
+  if (tagScraperStatus) {
+    tagScraperStatus.textContent = message || '';
   }
 }
 
 function syncTagEditorCoverPreview() {
+  syncTagEditorRefs();
+  if (!tagEditorCoverPreview || !tagEditorCoverFallback || !tagAlbumCoverUrlInput) return;
   setImageOrFallback({
     imageElement: tagEditorCoverPreview,
     fallbackElement: tagEditorCoverFallback,
@@ -3040,9 +3510,11 @@ function syncTagEditorCoverPreview() {
 async function searchTagSuggestions() {
   const albumId = state.tagEditorAlbumId;
   if (!albumId) return;
+  syncTagEditorRefs();
+  if (!tagScraperSearchButton || !tagScraperQueryInput || !tagScraperResults) return;
 
   tagScraperSearchButton.disabled = true;
-  tagScraperStatus.textContent = 'Searching MusicBrainz...';
+  setTagEditorStatus('Searching MusicBrainz...');
   tagScraperResults.innerHTML = '';
 
   try {
@@ -3050,15 +3522,17 @@ async function searchTagSuggestions() {
     const result = await fetchJson(`/api/albums/${encodeURIComponent(albumId)}/tag-suggestions?q=${encodeURIComponent(query)}`);
     state.tagEditorSuggestions = result.suggestions || [];
     renderTagSuggestions();
-    tagScraperStatus.textContent = state.tagEditorSuggestions.length
+    setTagEditorStatus(state.tagEditorSuggestions.length
       ? `Found ${state.tagEditorSuggestions.length} possible release${state.tagEditorSuggestions.length === 1 ? '' : 's'}.`
-      : 'No MusicBrainz releases found. Try a simpler artist + album search.';
+      : 'No MusicBrainz releases found. Try a simpler artist + album search.');
   } finally {
     tagScraperSearchButton.disabled = false;
   }
 }
 
 function renderTagSuggestions() {
+  syncTagEditorRefs();
+  if (!tagScraperResults) return;
   tagScraperResults.innerHTML = '';
 
   for (const suggestion of state.tagEditorSuggestions) {
@@ -3078,7 +3552,7 @@ function renderTagSuggestions() {
 
     card.querySelector('button').addEventListener('click', () => {
       applyTagSuggestion(suggestion).catch((error) => {
-        tagScraperStatus.textContent = error.message || 'Unable to apply MusicBrainz result.';
+        setTagEditorStatus(error.message || 'Unable to apply MusicBrainz result.');
       });
     });
     tagScraperResults.append(card);
@@ -3086,9 +3560,11 @@ function renderTagSuggestions() {
 }
 
 async function applyTagSuggestion(suggestion) {
-  tagScraperStatus.textContent = `Loading track list for ${suggestion.title}...`;
+  syncTagEditorRefs();
+  setTagEditorStatus(`Loading track list for ${suggestion.title}...`);
   const detail = await fetchJson(`/api/musicbrainz/releases/${encodeURIComponent(suggestion.id)}`);
   state.tagEditorMusicBrainzId = detail.id || suggestion.id || '';
+  if (!tagAlbumTitleInput || !tagAlbumArtistInput || !tagAlbumDateInput || !tagAlbumGenreInput || !tagAlbumCoverUrlInput || !tagTrackList) return;
 
   tagAlbumTitleInput.value = detail.albumTitle || suggestion.title || tagAlbumTitleInput.value;
   tagAlbumArtistInput.value = detail.albumArtist || suggestion.artist || tagAlbumArtistInput.value;
@@ -3107,19 +3583,21 @@ async function applyTagSuggestion(suggestion) {
     row.dataset.discNumber = String(track.discNumber || row.dataset.discNumber || 1);
   }
 
-  tagScraperStatus.textContent = `Applied MusicBrainz release${detail.sourceUrl ? `: ${detail.sourceUrl}` : '.'}`;
+  setTagEditorStatus(`Applied MusicBrainz release${detail.sourceUrl ? `: ${detail.sourceUrl}` : '.'}`);
 }
 
 async function saveTagEditor() {
   const albumId = state.tagEditorAlbumId;
   if (!albumId) return;
+  syncTagEditorRefs();
 
-  tagEditorSaveButton.disabled = true;
-  tagScraperStatus.textContent = 'Saving local tag overrides...';
+  const saveButton = document.querySelector('#tag-editor-save-button');
+  if (saveButton) saveButton.disabled = true;
+  setTagEditorStatus('Saving local tag overrides...');
 
   try {
     const payload = collectTagEditorPayload();
-    tagScraperStatus.textContent = 'Saving local tag overrides...';
+    setTagEditorStatus('Saving local tag overrides...');
     const result = await fetchJson(`/api/albums/${encodeURIComponent(albumId)}/tags`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3132,16 +3610,18 @@ async function saveTagEditor() {
     render();
     updatePlayerUi();
   } finally {
-    tagEditorSaveButton.disabled = false;
+    if (saveButton) saveButton.disabled = false;
   }
 }
 
 async function resetTagEditor() {
   const albumId = state.tagEditorAlbumId;
   if (!albumId || !window.confirm('Clear all local tag overrides for this album?')) return;
+  syncTagEditorRefs();
 
-  tagEditorResetButton.disabled = true;
-  tagScraperStatus.textContent = 'Resetting local tag overrides...';
+  const resetButton = document.querySelector('#tag-editor-reset-button');
+  if (resetButton) resetButton.disabled = true;
+  setTagEditorStatus('Resetting local tag overrides...');
 
   try {
     const result = await fetchJson(`/api/albums/${encodeURIComponent(albumId)}/tags`, {
@@ -3156,28 +3636,29 @@ async function resetTagEditor() {
     render();
     updatePlayerUi();
   } finally {
-    tagEditorResetButton.disabled = false;
+    if (resetButton) resetButton.disabled = false;
   }
 }
 
 function collectTagEditorPayload() {
-  const tracks = [...tagTrackList.querySelectorAll('.tag-track-row')].map((row) => ({
+  syncTagEditorRefs();
+  const tracks = tagTrackList ? [...tagTrackList.querySelectorAll('.tag-track-row')].map((row) => ({
     id: row.dataset.trackId,
     title: row.querySelector('.tag-track-title').value.trim(),
     artist: row.querySelector('.tag-track-artist').value.trim(),
     trackNumber: row.querySelector('.tag-track-number').value.trim(),
     discNumber: row.dataset.discNumber || '1',
-  }));
+  })) : [];
 
   return {
-    albumTitle: tagAlbumTitleInput.value.trim(),
-    albumArtist: tagAlbumArtistInput.value.trim(),
-    date: tagAlbumDateInput.value.trim(),
-    year: tagAlbumDateInput.value.trim(),
-    genre: tagAlbumGenreInput.value.trim(),
+    albumTitle: tagAlbumTitleInput?.value.trim() || '',
+    albumArtist: tagAlbumArtistInput?.value.trim() || '',
+    date: tagAlbumDateInput?.value.trim() || '',
+    year: tagAlbumDateInput?.value.trim() || '',
+    genre: tagAlbumGenreInput?.value.trim() || '',
     mediaTypes: getSelectedMediaTypes(),
-    status: tagAlbumStatusInput.value,
-    coverUrl: tagAlbumCoverUrlInput.value.trim(),
+    status: tagAlbumStatusInput?.value || 'Collection',
+    coverUrl: tagAlbumCoverUrlInput?.value.trim() || '',
     musicBrainzId: state.tagEditorMusicBrainzId,
     tracks,
   };
@@ -3207,48 +3688,120 @@ function openLyricsEditor(track) {
   state.lyricsEditorTrackId = track.id;
   state.lyricsSuggestions = [];
   const cachedLyrics = state.lyricsMap.get(track.id);
-  lyricsEditorTitle.textContent = `Lyrics for ${track.title}`;
-  lyricsEditorCaption.textContent = `${track.artist} • ${track.album}`;
-  lyricsSyncedInput.value = cachedLyrics?.syncedLyrics || '';
-  lyricsPlainInput.value = cachedLyrics?.plainLyrics || '';
-  lyricsScraperQueryInput.value = `${track.artist} ${track.title}`;
-  lyricsScraperStatus.textContent = 'Search LRCLIB for synced or plain lyrics.';
-  lyricsScraperResults.innerHTML = '';
+  renderEditorModalShell(lyricsEditorModal, {
+    eyebrow: 'Lyrics Editor',
+    title: `Lyrics for ${track.title}`,
+    titleId: 'lyrics-editor-title',
+    caption: `${track.artist} • ${track.album}`,
+    closeButtonId: 'lyrics-editor-close-button',
+    closeLabel: 'Close lyrics editor',
+    bodyRootId: 'lyrics-editor-body-root',
+    bodyRootClassName: 'tag-editor-body lyrics-editor-body',
+    resetButtonId: 'lyrics-editor-reset-button',
+    resetLabel: 'Reset lyrics',
+    cancelButtonId: 'lyrics-editor-cancel-button',
+    saveButtonId: 'lyrics-editor-save-button',
+    saveLabel: 'Save lyrics',
+  });
+  renderLyricsEditorBody({
+    query: `${track.artist} ${track.title}`,
+    syncedLyrics: cachedLyrics?.syncedLyrics || '',
+    plainLyrics: cachedLyrics?.plainLyrics || '',
+    status: 'Search LRCLIB for synced or plain lyrics.',
+  });
   lyricsEditorOverlay.hidden = false;
   lyricsEditorModal.hidden = false;
   loadTrackLyrics(track.id, { force: true })
     .then(() => {
       const lyrics = state.lyricsMap.get(track.id);
-      lyricsSyncedInput.value = lyrics?.syncedLyrics || lyricsSyncedInput.value;
-      lyricsPlainInput.value = lyrics?.plainLyrics || lyricsPlainInput.value;
+      syncLyricsEditorRefs();
+      if (lyricsSyncedInput) lyricsSyncedInput.value = lyrics?.syncedLyrics || lyricsSyncedInput.value;
+      if (lyricsPlainInput) lyricsPlainInput.value = lyrics?.plainLyrics || lyricsPlainInput.value;
     })
     .catch((error) => {
-      lyricsScraperStatus.textContent = error.message || 'Unable to load saved lyrics.';
+      setLyricsEditorStatus(error.message || 'Unable to load saved lyrics.');
     });
 }
 
 function closeLyricsEditor() {
   state.lyricsEditorTrackId = '';
   state.lyricsSuggestions = [];
+  window.MonochromeReact?.unmount?.(document.querySelector('#lyrics-editor-body-root'));
+  window.MonochromeReact?.unmount?.(lyricsEditorModal);
   lyricsEditorOverlay.hidden = true;
   lyricsEditorModal.hidden = true;
+}
+
+function renderLyricsEditorBody(props = {}) {
+  const bodyRoot = document.querySelector('#lyrics-editor-body-root');
+  if (!bodyRoot) return;
+  if (window.MonochromeReact?.renderLyricsEditorBody) {
+    window.MonochromeReact.renderLyricsEditorBody(bodyRoot, {
+      renderKey: `lyrics-${state.lyricsEditorTrackId}-${Date.now()}`,
+      ...props,
+    });
+    syncLyricsEditorRefs();
+    window.requestAnimationFrame(syncLyricsEditorRefs);
+    return;
+  }
+
+  bodyRoot.innerHTML = `
+    <section class="tag-scraper-panel">
+      <div class="tag-scraper-search">
+        <label>
+          <span>Online search</span>
+          <input id="lyrics-scraper-query" type="search" autocomplete="off" value="${escapeHtml(props.query || '')}" />
+        </label>
+        <button id="lyrics-scraper-search-button" class="secondary-button" type="button">Search LRCLIB</button>
+      </div>
+      <p id="lyrics-scraper-status" class="tag-scraper-status">${escapeHtml(props.status || 'Search LRCLIB for synced or plain lyrics.')}</p>
+      <div id="lyrics-scraper-results" class="tag-scraper-results"></div>
+    </section>
+    <form class="lyrics-editor-form">
+      <label>
+        <span>Synced lyrics (LRC)</span>
+        <textarea id="lyrics-synced-input" rows="12" placeholder="[00:12.50] First lyric line">${escapeHtml(props.syncedLyrics || '')}</textarea>
+      </label>
+      <label>
+        <span>Plain lyrics</span>
+        <textarea id="lyrics-plain-input" rows="12" placeholder="Paste plain lyrics here...">${escapeHtml(props.plainLyrics || '')}</textarea>
+      </label>
+    </form>
+  `;
+  syncLyricsEditorRefs();
+}
+
+function syncLyricsEditorRefs() {
+  lyricsSyncedInput = document.querySelector('#lyrics-synced-input');
+  lyricsPlainInput = document.querySelector('#lyrics-plain-input');
+  lyricsScraperQueryInput = document.querySelector('#lyrics-scraper-query');
+  lyricsScraperSearchButton = document.querySelector('#lyrics-scraper-search-button');
+  lyricsScraperStatus = document.querySelector('#lyrics-scraper-status');
+  lyricsScraperResults = document.querySelector('#lyrics-scraper-results');
+}
+
+function setLyricsEditorStatus(message) {
+  syncLyricsEditorRefs();
+  if (lyricsScraperStatus) lyricsScraperStatus.textContent = message;
 }
 
 async function searchLyricsSuggestions() {
   const trackId = state.lyricsEditorTrackId;
   if (!trackId) return;
-  lyricsScraperSearchButton.disabled = true;
-  lyricsScraperStatus.textContent = 'Searching LRCLIB...';
-  lyricsScraperResults.innerHTML = '';
+  syncLyricsEditorRefs();
+  if (lyricsScraperSearchButton) lyricsScraperSearchButton.disabled = true;
+  setLyricsEditorStatus('Searching LRCLIB...');
+  if (lyricsScraperResults) lyricsScraperResults.innerHTML = '';
   try {
-    const query = lyricsScraperQueryInput.value.trim();
+    const query = lyricsScraperQueryInput?.value.trim() || '';
     const suggestions = await fetchJson(`/api/tracks/${encodeURIComponent(trackId)}/lyrics-suggestions?q=${encodeURIComponent(query)}`);
     state.lyricsSuggestions = suggestions;
     if (suggestions.length === 0) {
-      lyricsScraperStatus.textContent = 'No lyrics found. You can paste lyrics manually.';
+      setLyricsEditorStatus('No lyrics found. You can paste lyrics manually.');
       return;
     }
-    lyricsScraperStatus.textContent = `${suggestions.length} result${suggestions.length === 1 ? '' : 's'} found.`;
+    setLyricsEditorStatus(`${suggestions.length} result${suggestions.length === 1 ? '' : 's'} found.`);
+    if (!lyricsScraperResults) return;
     lyricsScraperResults.innerHTML = suggestions.map((suggestion, index) => `
       <button type="button" class="tag-scraper-result" data-lyrics-index="${index}">
         <strong>${escapeHtml(suggestion.title)}</strong>
@@ -3260,28 +3813,32 @@ async function searchLyricsSuggestions() {
       button.addEventListener('click', () => {
         const suggestion = state.lyricsSuggestions[Number(button.dataset.lyricsIndex)];
         if (!suggestion) return;
-        lyricsSyncedInput.value = suggestion.syncedLyrics || '';
-        lyricsPlainInput.value = suggestion.plainLyrics || '';
-        lyricsScraperStatus.textContent = suggestion.syncedLyrics
+        syncLyricsEditorRefs();
+        if (lyricsSyncedInput) lyricsSyncedInput.value = suggestion.syncedLyrics || '';
+        if (lyricsPlainInput) lyricsPlainInput.value = suggestion.plainLyrics || '';
+        setLyricsEditorStatus(suggestion.syncedLyrics
           ? 'Synced lyrics loaded. Save to keep them locally.'
-          : 'Plain lyrics loaded. Save to keep them locally.';
+          : 'Plain lyrics loaded. Save to keep them locally.');
       });
     });
   } finally {
-    lyricsScraperSearchButton.disabled = false;
+    syncLyricsEditorRefs();
+    if (lyricsScraperSearchButton) lyricsScraperSearchButton.disabled = false;
   }
 }
 
 async function saveLyricsEditor() {
   const trackId = state.lyricsEditorTrackId;
   if (!trackId) return;
-  lyricsEditorSaveButton.disabled = true;
-  lyricsScraperStatus.textContent = 'Saving lyrics...';
+  const saveButton = document.querySelector('#lyrics-editor-save-button');
+  if (saveButton) saveButton.disabled = true;
+  syncLyricsEditorRefs();
+  setLyricsEditorStatus('Saving lyrics...');
   try {
-    const syncedInput = lyricsSyncedInput.value.trim();
-    const plainInput = lyricsPlainInput.value.trim();
+    const syncedInput = lyricsSyncedInput?.value.trim() || '';
+    const plainInput = lyricsPlainInput?.value.trim() || '';
     const plainHasTimestamps = !syncedInput && parseSyncedLyrics(plainInput).length > 0;
-    lyricsScraperStatus.textContent = 'Saving lyrics and .lrc sidecar...';
+    setLyricsEditorStatus('Saving lyrics and .lrc sidecar...');
     await fetchJson(`/api/tracks/${encodeURIComponent(trackId)}/lyrics`, {
       method: 'POST',
       body: JSON.stringify({
@@ -3301,14 +3858,15 @@ async function saveLyricsEditor() {
       console.warn('Lyrics saved, but no timestamped synced lines were detected.');
     }
   } finally {
-    lyricsEditorSaveButton.disabled = false;
+    if (saveButton) saveButton.disabled = false;
   }
 }
 
 async function resetLyricsEditor() {
   const trackId = state.lyricsEditorTrackId;
   if (!trackId || !window.confirm('Remove saved lyrics for this track?')) return;
-  lyricsEditorResetButton.disabled = true;
+  const resetButton = document.querySelector('#lyrics-editor-reset-button');
+  if (resetButton) resetButton.disabled = true;
   try {
     await fetchJson(`/api/tracks/${encodeURIComponent(trackId)}/lyrics`, {
       method: 'POST',
@@ -3316,104 +3874,14 @@ async function resetLyricsEditor() {
     });
     state.lyricsRefreshRequestedIds.delete(trackId);
     await loadTrackLyrics(trackId, { force: true });
-    lyricsSyncedInput.value = '';
-    lyricsPlainInput.value = '';
+    syncLyricsEditorRefs();
+    if (lyricsSyncedInput) lyricsSyncedInput.value = '';
+    if (lyricsPlainInput) lyricsPlainInput.value = '';
     renderFullscreenView();
-    lyricsScraperStatus.textContent = 'Lyrics reset.';
+    setLyricsEditorStatus('Lyrics reset.');
   } finally {
-    lyricsEditorResetButton.disabled = false;
+    if (resetButton) resetButton.disabled = false;
   }
-}
-
-function createTrackRow(track, queueTracks) {
-  const favorite = isFavoriteTrack(track.id);
-  const playing = track.id === state.currentTrackId && !audioPlayer.paused;
-  const row = document.createElement('article');
-  row.className = `track-row${track.id === state.currentTrackId ? ' is-active' : ''}`;
-  row.innerHTML = `
-    ${track.coverUrl
-      ? `<img src="${track.coverUrl}" alt="${escapeHtml(track.album)} cover art" loading="lazy">`
-      : createCoverPlaceholder('Track', 'track-thumb-placeholder')}
-    <div class="track-copy">
-      <h4>${escapeHtml(track.title)}</h4>
-      <p>${escapeHtml(track.artist)} · ${escapeHtml(track.album)}</p>
-    </div>
-    <div class="row-actions">
-      <button type="button" class="favorite-toggle-button${favorite ? ' active' : ''}" aria-label="${favorite ? 'Unfavorite' : 'Favorite'} ${escapeHtml(track.title)}">
-        ${materialIcon('favorite', { filled: favorite })}
-      </button>
-      <button type="button" class="queue-track-button" aria-label="Add ${escapeHtml(track.title)} to queue">
-        ${materialIcon('addQueue')}
-      </button>
-      <button type="button" class="row-play-button" aria-label="Play ${escapeHtml(track.title)}">
-        ${materialIcon(playing ? 'pause' : 'play')}
-      </button>
-    </div>
-  `;
-
-  row.addEventListener('click', () => playTrack(track, queueTracks));
-  row.querySelector('.favorite-toggle-button').addEventListener('click', (event) => {
-    event.stopPropagation();
-    toggleFavoriteTrack(track.id);
-  });
-  row.querySelector('.queue-track-button').addEventListener('click', (event) => {
-    event.stopPropagation();
-    addTracksToQueue([track]);
-  });
-  row.querySelector('.row-play-button').addEventListener('click', (event) => {
-    event.stopPropagation();
-    if (track.id === state.currentTrackId) {
-      togglePlayback();
-    } else {
-      playTrack(track, queueTracks);
-    }
-  });
-  return row;
-}
-
-function createAlbumTrackRow(track) {
-  const favorite = isFavoriteTrack(track.id);
-  const playing = track.id === state.currentTrackId && !audioPlayer.paused;
-  const row = document.createElement('article');
-  row.className = `album-track-row${track.id === state.currentTrackId ? ' is-active' : ''}`;
-  row.innerHTML = `
-    <span class="track-index">${track.trackNumber ?? '•'}</span>
-    <div class="track-title-group">
-      <strong>${escapeHtml(track.title)}</strong>
-      <span>${escapeHtml(track.artist)}</span>
-    </div>
-    <span class="track-album-name">${escapeHtml(track.album)}</span>
-    <div class="row-actions">
-      <button type="button" class="favorite-toggle-button${favorite ? ' active' : ''}" aria-label="${favorite ? 'Unfavorite' : 'Favorite'} ${escapeHtml(track.title)}">
-        ${materialIcon('favorite', { filled: favorite })}
-      </button>
-      <button type="button" class="queue-track-button" aria-label="Add ${escapeHtml(track.title)} to queue">
-        ${materialIcon('addQueue')}
-      </button>
-      <button type="button" class="row-play-button" aria-label="Play ${escapeHtml(track.title)}">
-        ${materialIcon(playing ? 'pause' : 'play')}
-      </button>
-    </div>
-  `;
-
-  row.addEventListener('click', () => playTrack(track, [track]));
-  row.querySelector('.favorite-toggle-button').addEventListener('click', (event) => {
-    event.stopPropagation();
-    toggleFavoriteTrack(track.id);
-  });
-  row.querySelector('.queue-track-button').addEventListener('click', (event) => {
-    event.stopPropagation();
-    addTracksToQueue([track]);
-  });
-  row.querySelector('.row-play-button').addEventListener('click', (event) => {
-    event.stopPropagation();
-    if (track.id === state.currentTrackId) {
-      togglePlayback();
-    } else {
-      playTrack(track, [track]);
-    }
-  });
-  return row;
 }
 
 function playTrack(track, queueTracks = null) {
@@ -3710,57 +4178,28 @@ function updatePlayerUi() {
   const queue = getPlaybackQueue();
   const currentIndex = track ? queue.indexOf(track.id) : -1;
 
-  playPauseButton.innerHTML = materialIcon(audioPlayer.paused ? 'play' : 'pause');
-  playPauseButton.title = audioPlayer.paused ? 'Play' : 'Pause';
-  playPauseButton.setAttribute('aria-label', audioPlayer.paused ? 'Play' : 'Pause');
   fullscreenPlayPauseButton.innerHTML = materialIcon(audioPlayer.paused ? 'play' : 'pause');
   fullscreenPlayPauseButton.title = audioPlayer.paused ? 'Play' : 'Pause';
   fullscreenPlayPauseButton.setAttribute('aria-label', audioPlayer.paused ? 'Play' : 'Pause');
 
-  shuffleButton.classList.toggle('active', state.shuffleActive);
   fullscreenShuffleButton.classList.toggle('active', state.shuffleActive);
-  shuffleButton.setAttribute('aria-pressed', String(state.shuffleActive));
   fullscreenShuffleButton.setAttribute('aria-pressed', String(state.shuffleActive));
-  shuffleButton.title = state.shuffleActive ? 'Shuffle on' : 'Shuffle off';
   fullscreenShuffleButton.title = state.shuffleActive ? 'Shuffle on' : 'Shuffle off';
-  shuffleButton.setAttribute('aria-label', state.shuffleActive ? 'Shuffle on' : 'Shuffle off');
   fullscreenShuffleButton.setAttribute('aria-label', state.shuffleActive ? 'Shuffle on' : 'Shuffle off');
-  shuffleButton.innerHTML = materialIcon('shuffle');
   fullscreenShuffleButton.innerHTML = materialIcon('shuffle');
 
-  repeatButton.classList.toggle('active', state.repeatMode !== 'off');
   fullscreenRepeatButton.classList.toggle('active', state.repeatMode !== 'off');
-  repeatButton.setAttribute('aria-pressed', String(state.repeatMode !== 'off'));
   fullscreenRepeatButton.setAttribute('aria-pressed', String(state.repeatMode !== 'off'));
-  repeatButton.title = getRepeatLabel();
   fullscreenRepeatButton.title = getRepeatLabel();
-  repeatButton.setAttribute('aria-label', getRepeatLabel());
   fullscreenRepeatButton.setAttribute('aria-label', getRepeatLabel());
-  repeatButton.innerHTML = renderRepeatIcon();
   fullscreenRepeatButton.innerHTML = renderRepeatIcon();
 
   queueStatus.textContent = track && currentIndex >= 0 ? `${currentIndex + 1} of ${queue.length}` : `0 of ${queue.length}`;
-  queueToggleButton.classList.toggle('active', state.queueOpen);
-  queueToggleButton.setAttribute('aria-pressed', String(state.queueOpen));
+  renderPlayerNowPlaying(track);
+  renderPlayerTransportControls();
+  renderPlayerUtilityControls(track);
 
   if (!track) {
-    playerTitle.textContent = 'Select a track';
-    playerAlbum.textContent = '';
-    playerArtist.textContent = 'Your queue will appear here.';
-    favoriteTrackButton.disabled = true;
-    favoriteTrackButton.classList.remove('active');
-    favoriteTrackButton.setAttribute('aria-pressed', 'false');
-    favoriteTrackButton.setAttribute('aria-label', 'Favorite current track');
-    favoriteTrackButton.title = 'Favorite current track';
-    downloadTrackLink.href = '#';
-    downloadTrackLink.setAttribute('aria-disabled', 'true');
-    setImageOrFallback({
-      imageElement: playerCover,
-      fallbackElement: playerCoverFallback,
-      src: '',
-      alt: '',
-    });
-    audioQualityInfo.hidden = true;
     updateMediaSession(null);
     updateProgressUi();
     syncVolumeUi();
@@ -3768,25 +4207,6 @@ function updatePlayerUi() {
     return;
   }
 
-  playerTitle.textContent = track.title;
-  playerAlbum.textContent = track.album;
-  playerArtist.textContent = track.artist;
-  favoriteTrackButton.disabled = false;
-  favoriteTrackButton.classList.toggle('active', isFavoriteTrack(track.id));
-  favoriteTrackButton.setAttribute('aria-pressed', String(isFavoriteTrack(track.id)));
-  favoriteTrackButton.setAttribute('aria-label', isFavoriteTrack(track.id) ? 'Unfavorite current track' : 'Favorite current track');
-  favoriteTrackButton.title = isFavoriteTrack(track.id) ? 'Unfavorite current track' : 'Favorite current track';
-  downloadTrackLink.href = track.streamUrl;
-  downloadTrackLink.download = formatDownloadName(track);
-  downloadTrackLink.removeAttribute('aria-disabled');
-
-  setImageOrFallback({
-    imageElement: playerCover,
-    fallbackElement: playerCoverFallback,
-    src: track.coverUrl || '',
-    alt: `${track.album} cover art`,
-  });
-  updateAudioQualityInfo(track.audioQuality);
   updateMediaSession(track);
 
   updateProgressUi();
@@ -3794,32 +4214,100 @@ function updatePlayerUi() {
   renderFullscreenView();
 }
 
-function updateAudioQualityInfo(quality) {
-  audioQualityInfo.hidden = !state.settings.showQualityInfo || !state.currentTrackId;
-  if (!state.settings.showQualityInfo || !state.currentTrackId) return;
+function renderPlayerNowPlaying(track = getCurrentTrack()) {
+  if (!playerTrackInfoRoot) return;
+  const album = track ? findAlbumByTrack(track) : null;
+  window.MonochromeReact?.renderPlayerNowPlaying(playerTrackInfoRoot, {
+    track,
+    album,
+    coverUrl: track?.coverUrl || '',
+    coverAlt: track ? `${track.album} cover art` : '',
+    title: track?.title || 'Select a track',
+    albumTitle: track?.album || '',
+    artist: track?.artist || 'Your queue will appear here.',
+    onNowPlayingClick: handleNowPlayingClick,
+    onAlbumClick: () => {
+      if (album) openAlbum(album.id);
+    },
+    onArtistClick: () => {
+      if (track?.artist) openArtist(track.artist);
+    },
+  });
+}
 
-  const label = quality?.label || 'Audio quality unknown';
-  const iconUrl = quality?.iconType ? AUDIO_QUALITY_ICONS[quality.iconType] : '';
-  const labelTop = quality?.labelTop || label;
-  const labelBottom = quality?.labelBottom || '';
+function renderPlayerTransportControls() {
+  if (!playerTransportControls) return;
+  const playing = !audioPlayer.paused && Boolean(state.currentTrackId);
+  window.MonochromeReact?.renderPlayerTransportControls(playerTransportControls, {
+    playing,
+    shuffleActive: state.shuffleActive,
+    repeatActive: state.repeatMode !== 'off',
+    repeatLabel: getRepeatLabel(),
+    playIconHtml: materialIcon(playing ? 'pause' : 'play'),
+    shuffleIconHtml: materialIcon('shuffle'),
+    previousIconHtml: materialIcon('skipBack'),
+    nextIconHtml: materialIcon('skipForward'),
+    repeatIconHtml: renderRepeatIcon(),
+    onPlayPause: togglePlayback,
+    onPrevious: playPreviousTrack,
+    onNext: playNextTrack,
+    onShuffle: toggleShuffle,
+    onRepeat: cycleRepeatMode,
+  });
+}
 
-  audioQualityInfo.title = label;
-  audioQualityLabel.innerHTML = `
-    <span class="audio-quality-top">${escapeHtml(labelTop)}</span>
-    ${labelBottom ? `<span class="audio-quality-bottom">${escapeHtml(labelBottom)}</span>` : ''}
-  `;
+function renderPlayerUtilityControls(track = getCurrentTrack()) {
+  if (!playerUtilityControls) return;
+  const quality = track?.audioQuality || null;
+  window.MonochromeReact?.renderPlayerUtilityControls(playerUtilityControls, {
+    hasTrack: Boolean(track),
+    currentTrackTitle: track?.title || '',
+    downloadUrl: track?.streamUrl || '#',
+    downloadName: track ? formatDownloadName(track) : '',
+    favorite: track ? isFavoriteTrack(track.id) : false,
+    queueOpen: state.queueOpen,
+    volume: state.volume,
+    showQuality: Boolean(state.settings.showQualityInfo && track),
+    quality: normalizeAudioQualityForReact(quality),
+    onFavorite: () => {
+      if (state.currentTrackId) toggleFavoriteTrack(state.currentTrackId);
+    },
+    onQueueToggle: () => {
+      state.queueOpen = !state.queueOpen;
+      renderQueuePanel();
+      updatePlayerUi();
+    },
+    onVolumeToggle: toggleMute,
+  });
+  syncPlayerUtilityElementRefs();
+}
 
-  if (iconUrl) {
-    audioQualityIcon.hidden = false;
-    audioQualityIcon.src = iconUrl;
-    audioQualityIcon.alt = quality.iconType === 'cd' ? 'CD Audio' : 'Hi-Res Audio';
-    audioQualityFallbackIcon.hidden = true;
-  } else {
-    audioQualityIcon.hidden = true;
-    audioQualityIcon.removeAttribute('src');
-    audioQualityIcon.alt = '';
-    audioQualityFallbackIcon.hidden = false;
-  }
+function normalizeAudioQualityForReact(quality) {
+  if (!quality) return null;
+  return {
+    label: quality.label || 'Audio quality unknown',
+    labelTop: quality.labelTop || quality.label || 'Audio quality unknown',
+    labelBottom: quality.labelBottom || '',
+    iconUrl: quality.iconType ? AUDIO_QUALITY_ICONS[quality.iconType] : '',
+    iconAlt: quality.iconType === 'cd' ? 'CD Audio' : quality.iconType === 'hires' ? 'Hi-Res Audio' : '',
+  };
+}
+
+function syncPlayerUtilityElementRefs() {
+  return {
+    favoriteTrackButton: document.querySelector('#favorite-track-button'),
+    downloadTrackLink: document.querySelector('#download-track-link'),
+    audioQualityInfo: document.querySelector('#audio-quality-info'),
+    queueToggleButton: document.querySelector('#queue-toggle-button'),
+    volumeButton: document.querySelector('#volume-btn'),
+  };
+}
+
+function getVolumePlayerIcon() {
+  if (state.volume <= 0) return playerIcon('volumeMuted');
+  if (state.volume < 0.34) return playerIcon('volumeLow');
+  if (state.volume < 0.67) return playerIcon('volumeMedium');
+  return playerIcon('volumeHigh');
 }
 
 function renderFullscreenView() {
@@ -3849,7 +4337,11 @@ function renderFullscreenView() {
       src: '',
       alt: '',
     });
-    fullscreenLyricsContent.innerHTML = '<div class="fullscreen-lyrics-empty">Start playing a track to fill this view.</div>';
+    renderFullscreenLyricsContent({
+      mode: 'empty',
+      message: 'Start playing a track to fill this view.',
+      signature: 'empty',
+    });
     return;
   }
 
@@ -3912,18 +4404,15 @@ function renderFullscreenLyricsPane(track, queue, currentIndex) {
     fullscreenLyricsContent.dataset.lyricCount = String(syncedLines.length);
     fullscreenLyricsContent.dataset.activeLyricIndex = '-1';
     fullscreenLyricsContent.dataset.lyricsSignature = lyricsSignature;
-    fullscreenLyricsContent.innerHTML = syncedLines.map((line, index) => `
-      <button type="button" class="fullscreen-lyric-line" data-lyric-index="${index}" data-time="${line.time}">
-        <span>${escapeHtml(line.text)}</span>
-      </button>
-    `).join('');
-
-    fullscreenLyricsContent.querySelectorAll('.fullscreen-lyric-line[data-time]').forEach((button) => {
-      button.addEventListener('click', () => {
-        audioPlayer.currentTime = Number(button.dataset.time) || 0;
+    renderFullscreenLyricsContent({
+      mode: 'synced',
+      syncedLines,
+      signature: lyricsSignature,
+      onSeek: (time) => {
+        audioPlayer.currentTime = Number(time) || 0;
         updateFullscreenLyricsHighlight({ forceScroll: true });
         persistPlaybackState();
-      });
+      },
     });
 
     updateFullscreenLyricsHighlight({ forceScroll: true });
@@ -3943,11 +4432,11 @@ function renderFullscreenLyricsPane(track, queue, currentIndex) {
     fullscreenLyricsContent.dataset.lyricCount = String(plainLines.length);
     fullscreenLyricsContent.dataset.activeLyricIndex = '-1';
     fullscreenLyricsContent.dataset.lyricsSignature = lyricsSignature;
-    fullscreenLyricsContent.innerHTML = plainLines.map((line) => `
-      <div class="fullscreen-lyric-line is-plain">
-        <span>${escapeHtml(line)}</span>
-      </div>
-    `).join('');
+    renderFullscreenLyricsContent({
+      mode: 'plain',
+      plainLines,
+      signature: lyricsSignature,
+    });
     return;
   }
 
@@ -3961,27 +4450,29 @@ function renderFullscreenLyricsQueue(queue, currentIndex) {
   fullscreenLyricsContent.dataset.lyricsSignature = '';
   const queueTracks = queue.map((id) => state.trackMap.get(id)).filter(Boolean);
   if (queueTracks.length === 0 || currentIndex < 0) {
-    fullscreenLyricsContent.innerHTML = '<div class="fullscreen-lyrics-empty">Your queue will appear here.</div>';
+    renderFullscreenLyricsContent({
+      mode: 'queue',
+      queueTracks,
+      currentIndex,
+      signature: 'queue-empty',
+      onPlayTrack: playTrackById,
+    });
     return;
   }
 
-  const startIndex = Math.max(0, currentIndex - 5);
-  const visibleTracks = queueTracks.slice(startIndex, currentIndex + 9);
-  fullscreenLyricsContent.innerHTML = visibleTracks.map((track, visibleIndex) => {
-    const queueIndex = startIndex + visibleIndex;
-    const distance = Math.abs(queueIndex - currentIndex);
-    const active = queueIndex === currentIndex;
-    const blurClass = distance > 3 ? ' is-distant' : distance > 1 ? ' is-soft' : '';
-    return `
-      <button type="button" class="fullscreen-lyric-line${active ? ' is-active' : ''}${blurClass}" data-track-id="${escapeHtml(track.id)}">
-        <span>${escapeHtml(track.title)}</span>
-        <small>${escapeHtml(track.artist)}</small>
-      </button>
-    `;
-  }).join('');
+  renderFullscreenLyricsContent({
+    mode: 'queue',
+    queueTracks,
+    currentIndex,
+    signature: `queue:${queue.join('|')}:${currentIndex}`,
+    onPlayTrack: playTrackById,
+  });
+}
 
-  fullscreenLyricsContent.querySelectorAll('.fullscreen-lyric-line').forEach((button) => {
-    button.addEventListener('click', () => playTrackById(button.dataset.trackId));
+function renderFullscreenLyricsContent(props = {}) {
+  window.MonochromeReact?.renderFullscreenLyrics(fullscreenLyricsContent, {
+    renderKey: props.signature || `${props.mode || 'empty'}-${Date.now()}`,
+    ...props,
   });
 }
 
@@ -4165,17 +4656,14 @@ function bindVolumeControl(bar) {
 function syncVolumeUi() {
   volumeFill.style.width = `${state.volume * 100}%`;
   fullscreenVolumeFill.style.width = `${state.volume * 100}%`;
+  renderPlayerUtilityControls();
   if (state.volume === 0) {
-    volumeButton.innerHTML = playerIcon('volumeMuted');
     fullscreenVolumeButton.innerHTML = playerIcon('volumeMuted');
   } else if (state.volume < 0.34) {
-    volumeButton.innerHTML = playerIcon('volumeLow');
     fullscreenVolumeButton.innerHTML = playerIcon('volumeLow');
   } else if (state.volume < 0.67) {
-    volumeButton.innerHTML = playerIcon('volumeMedium');
     fullscreenVolumeButton.innerHTML = playerIcon('volumeMedium');
   } else {
-    volumeButton.innerHTML = playerIcon('volumeHigh');
     fullscreenVolumeButton.innerHTML = playerIcon('volumeHigh');
   }
 }
@@ -4246,18 +4734,13 @@ function stopVisualizer() {
 }
 
 function applyStaticIcons() {
-  shuffleButton.innerHTML = materialIcon('shuffle');
-  prevButton.innerHTML = materialIcon('skipBack');
-  nextButton.innerHTML = materialIcon('skipForward');
-  repeatButton.innerHTML = renderRepeatIcon();
+  renderPlayerNowPlaying();
+  renderPlayerTransportControls();
   fullscreenShuffleButton.innerHTML = materialIcon('shuffle');
   fullscreenPrevButton.innerHTML = materialIcon('skipBack');
   fullscreenNextButton.innerHTML = materialIcon('skipForward');
   fullscreenRepeatButton.innerHTML = renderRepeatIcon();
-  favoriteTrackButton.innerHTML = materialIcon('favorite');
-  downloadTrackLink.innerHTML = playerIcon('download');
-  volumeButton.innerHTML = playerIcon('volumeHigh');
-  queueToggleButton.innerHTML = playerIcon('queue');
+  renderPlayerUtilityControls();
   queueDownloadButton.innerHTML = playerIcon('download');
   queueFavoriteButton.innerHTML = materialIcon('favorite');
   queueClearButton.innerHTML = playerIcon('clearQueue');
@@ -4400,16 +4883,9 @@ function reorderQueue(dragTrackId, targetTrackId) {
   state.queueIds = nextQueue;
   state.shuffledQueueIds = nextQueue;
   state.shuffleActive = false;
-  state.draggingQueueTrackId = null;
   persistPlaybackState({ includeTime: false });
   updatePlayerUi();
   render();
-}
-
-function clearQueueDropTargets() {
-  document.querySelectorAll('.queue-item.drop-target').forEach((item) => {
-    item.classList.remove('drop-target');
-  });
 }
 
 function materialIcon(name, { filled = false } = {}) {
@@ -4442,160 +4918,6 @@ async function loadArtistInfo(artistName) {
   } finally {
     state.artistInfoLoading.delete(artistName);
   }
-}
-
-function buildFolderTree(tracks) {
-  const root = {
-    name: 'root',
-    folders: new Map(),
-    tracks: [],
-    trackCount: 0,
-  };
-
-  for (const track of tracks) {
-    const normalized = track.relativePath.replaceAll('\\', '/');
-    const parts = normalized.split('/').filter(Boolean);
-    let cursor = root;
-    cursor.trackCount += 1;
-
-    for (const part of parts.slice(0, -1)) {
-      if (!cursor.folders.has(part)) {
-        cursor.folders.set(part, {
-          name: part,
-          folders: new Map(),
-          tracks: [],
-          trackCount: 0,
-        });
-      }
-      cursor = cursor.folders.get(part);
-      cursor.trackCount += 1;
-    }
-
-    cursor.tracks.push(track);
-  }
-
-  return root;
-}
-
-function createFolderNode(folder) {
-  const folderPath = normalizeFolderPath(folder.path || folder.name);
-  const canPlayFolder = Boolean(folder.canPlayFolder)
-    || Number(folder.directTrackCount || 0) > 0
-    || Boolean(folder.hasDirectTracks);
-  const details = document.createElement('details');
-  details.className = 'folder-node';
-  details.open = state.expandedFolderPaths.has(folderPath);
-  details.innerHTML = `
-    <summary>
-      <span class="folder-node-arrow" aria-hidden="true">
-        <span class="folder-arrow-closed">${materialIcon('chevronRight')}</span>
-        <span class="folder-arrow-open">${materialIcon('chevronDown')}</span>
-      </span>
-      <span class="folder-node-main">
-        <span class="folder-node-name">${escapeHtml(folder.name)}</span>
-        <span class="folder-node-meta">${folder.trackCount} track${folder.trackCount === 1 ? '' : 's'}</span>
-      </span>
-      ${canPlayFolder ? `
-        <button type="button" class="folder-node-play" aria-label="Play ${escapeHtml(folder.name)} folder">
-          ${materialIcon('play')}
-        </button>
-      ` : ''}
-    </summary>
-  `;
-
-  const body = document.createElement('div');
-  body.className = 'folder-node-body';
-  body.dataset.rendered = 'false';
-
-  details.append(body);
-  if (details.open) {
-    renderFolderNodeBody(body, folderPath);
-  }
-  details.addEventListener('toggle', () => {
-    if (details.open) {
-      state.expandedFolderPaths.add(folderPath);
-      renderFolderNodeBody(body, folderPath);
-    } else {
-      state.expandedFolderPaths.delete(folderPath);
-    }
-  });
-  details.querySelector('.folder-node-play')?.addEventListener('click', async (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const folderTracks = await loadFolderPlayQueue(folderPath);
-    if (folderTracks.length > 0) {
-      state.expandedFolderPaths.add(folderPath);
-      state.shuffleActive = false;
-      rebuildShuffledQueue();
-      playTrack(folderTracks[0], folderTracks);
-    }
-  });
-  return details;
-}
-
-function renderFolderNodeBody(body, folderPath) {
-  if (body.dataset.rendered === 'true') return;
-  const listing = state.folderCache.get(folderPath);
-  if (!listing) {
-    body.innerHTML = '<p class="empty-state">Loading folder...</p>';
-    loadFolderListing(folderPath)
-      .then(() => {
-        body.dataset.rendered = 'false';
-        body.innerHTML = '';
-        renderFolderNodeBody(body, folderPath);
-      })
-      .catch((error) => {
-        console.error(error);
-        body.innerHTML = '<p class="empty-state">Unable to load this folder.</p>';
-      });
-    return;
-  }
-
-  for (const child of listing.folders || []) {
-    body.append(createFolderNode(child));
-  }
-
-  for (const track of listing.tracks || []) {
-    body.append(createFolderTrackRow(track, listing.tracks));
-  }
-
-  body.dataset.rendered = 'true';
-}
-
-function createFolderTrackRow(track, queueTracks) {
-  const favorite = isFavoriteTrack(track.id);
-  const playing = track.id === state.currentTrackId && !audioPlayer.paused;
-  const row = document.createElement('div');
-  row.className = `folder-track-row${track.id === state.currentTrackId ? ' is-active' : ''}`;
-  row.innerHTML = `
-    <button type="button" class="folder-track-main" aria-label="Play ${escapeHtml(track.title)}">
-      <strong>${escapeHtml(track.title)}</strong>
-      <span>${escapeHtml(track.relativePath.replaceAll('\\', ' / '))}</span>
-    </button>
-    <div class="row-actions">
-      <button type="button" class="favorite-toggle-button${favorite ? ' active' : ''}" aria-label="${favorite ? 'Unfavorite' : 'Favorite'} ${escapeHtml(track.title)}">
-        ${materialIcon('favorite', { filled: favorite })}
-      </button>
-      <button type="button" class="row-play-button" aria-label="Play ${escapeHtml(track.title)}">
-        ${materialIcon(playing ? 'pause' : 'play')}
-      </button>
-    </div>
-  `;
-
-  row.querySelector('.folder-track-main').addEventListener('click', () => playTrack(track, queueTracks));
-  row.querySelector('.favorite-toggle-button').addEventListener('click', (event) => {
-    event.stopPropagation();
-    toggleFavoriteTrack(track.id);
-  });
-  row.querySelector('.row-play-button').addEventListener('click', (event) => {
-    event.stopPropagation();
-    if (track.id === state.currentTrackId) {
-      togglePlayback();
-    } else {
-      playTrack(track, queueTracks);
-    }
-  });
-  return row;
 }
 
 function buildArtistGroups(tracks) {
@@ -4678,6 +5000,15 @@ function getRandomAlbumIds(albums, limit) {
 }
 
 function getHomeAlbums(filteredAlbums) {
+  if (!state.searchTerm && state.homeAlbumIds.length > 0) {
+    const randomized = state.homeAlbumIds
+      .map((id) => state.albumMap.get(id))
+      .filter(Boolean);
+    if (randomized.length > 0) {
+      return randomized.slice(0, 50);
+    }
+  }
+
   const filteredById = new Map(filteredAlbums.map((album) => [album.id, album]));
   const randomized = state.homeAlbumIds
     .map((id) => filteredById.get(id))
@@ -4862,6 +5193,8 @@ function renderAudioQualityBadge(quality, { includeLabel = false } = {}) {
 }
 
 function setSelectedMediaTypes(mediaTypes) {
+  syncTagEditorRefs();
+  if (!tagAlbumMediaTypesInput) return;
   const selected = new Set((Array.isArray(mediaTypes) ? mediaTypes : [mediaTypes]).map(normalizeMediaTypeName));
   for (const input of tagAlbumMediaTypesInput.querySelectorAll('input[type="checkbox"]')) {
     input.checked = selected.has(input.value);
@@ -4869,6 +5202,8 @@ function setSelectedMediaTypes(mediaTypes) {
 }
 
 function getSelectedMediaTypes() {
+  syncTagEditorRefs();
+  if (!tagAlbumMediaTypesInput) return ['Digital Media'];
   const selected = [...tagAlbumMediaTypesInput.querySelectorAll('input[type="checkbox"]:checked')]
     .map((input) => input.value);
   return selected.length > 0 ? selected : ['Digital Media'];

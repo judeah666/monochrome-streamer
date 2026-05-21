@@ -1,6 +1,7 @@
 .git
 .env
 config.json
+node_modules
 sample-library
 data
 *.log

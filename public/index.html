@@ -124,12 +124,14 @@
                 <button id="library-tab-folders" class="library-tab is-active" type="button" role="tab" aria-selected="true">Folders</button>
                 <button id="library-tab-albums" class="library-tab" type="button" role="tab" aria-selected="false">Albums</button>
                 <button id="library-tab-artists" class="library-tab" type="button" role="tab" aria-selected="false">Artists</button>
+                <button id="library-tab-tracks" class="library-tab" type="button" role="tab" aria-selected="false">Tracks</button>
                 <button id="library-tab-playlists" class="library-tab" type="button" role="tab" aria-selected="false">Playlists</button>
               </div>
 
               <div id="library-panel-folders" class="library-panel" role="tabpanel"></div>
               <div id="library-panel-albums" class="library-panel" role="tabpanel" hidden></div>
               <div id="library-panel-artists" class="library-panel" role="tabpanel" hidden></div>
+              <div id="library-panel-tracks" class="library-panel" role="tabpanel" hidden></div>
               <div id="library-panel-playlists" class="library-panel" role="tabpanel" hidden></div>
             </section>
           </section>
@@ -279,36 +281,10 @@
     </div>
 
     <footer class="now-playing-bar">
-      <div class="track-info">
-        <img id="player-cover" class="cover" alt="" hidden />
-        <div id="player-cover-fallback" class="player-cover-fallback">
-          <i class="fa-solid fa-record-vinyl" aria-hidden="true"></i>
-        </div>
-        <div class="details">
-          <div id="player-title" class="title">Select a track</div>
-          <div id="player-album" class="album"></div>
-          <div id="player-artist" class="artist">Your queue will appear here.</div>
-        </div>
-      </div>
+      <div id="player-track-info-root" class="track-info"></div>
 
       <div class="player-controls">
-        <div class="buttons">
-          <button id="shuffle-btn" class="transport-icon-button" type="button" title="Shuffle" aria-label="Shuffle">
-            <i class="fa-solid fa-shuffle" aria-hidden="true"></i>
-          </button>
-          <button id="prev-btn" type="button" title="Previous" aria-label="Previous">
-            <i class="fa-solid fa-backward-step" aria-hidden="true"></i>
-          </button>
-          <button id="play-pause-btn" class="play-pause-btn" type="button" title="Play" aria-label="Play">
-            <i class="fa-solid fa-play" aria-hidden="true"></i>
-          </button>
-          <button id="next-btn" type="button" title="Next" aria-label="Next">
-            <i class="fa-solid fa-forward-step" aria-hidden="true"></i>
-          </button>
-          <button id="repeat-btn" class="transport-icon-button" type="button" title="Repeat" aria-label="Repeat">
-            <i class="fa-solid fa-repeat" aria-hidden="true"></i>
-          </button>
-        </div>
+        <div id="player-transport-controls" class="buttons"></div>
 
         <div class="progress-container">
           <span id="current-time">0:00</span>
@@ -324,25 +300,9 @@
           <span class="label">Queue</span>
           <strong id="queue-status">0 of 0</strong>
         </div>
-        <button id="favorite-track-button" class="icon-button player-icon-control" type="button" aria-label="Favorite current track" disabled>
-          <i class="fa-solid fa-heart" aria-hidden="true"></i>
-        </button>
-        <a id="download-track-link" class="icon-button icon-link player-icon-control" href="#" download aria-label="Download current track">
-          <i class="fa-solid fa-download" aria-hidden="true"></i>
-        </a>
-        <button id="queue-toggle-button" class="icon-button player-icon-control" type="button" aria-label="Open queue">
-          <i class="fa-solid fa-list" aria-hidden="true"></i>
-        </button>
-        <button id="volume-btn" class="icon-button player-icon-control" type="button" aria-label="Mute">
-          <i class="fa-solid fa-volume-high" aria-hidden="true"></i>
-        </button>
+        <div id="player-utility-controls" class="player-utility-controls"></div>
         <div id="volume-bar" class="volume-bar" aria-label="Volume">
           <div id="volume-fill" class="volume-fill"></div>
-        </div>
-        <div id="audio-quality-info" class="audio-quality-info" title="Audio quality" hidden>
-          <img id="audio-quality-icon" alt="" hidden />
-          <i id="audio-quality-fallback-icon" class="fa-solid fa-file-audio" aria-hidden="true"></i>
-          <span id="audio-quality-label">Audio quality unknown</span>
         </div>
       </div>
     </footer>
@@ -485,93 +445,7 @@
         </button>
       </header>
 
-      <div class="tag-editor-body">
-        <form id="tag-editor-form" class="tag-editor-form">
-          <div class="tag-editor-cover">
-            <img id="tag-editor-cover-preview" alt="" hidden />
-            <div id="tag-editor-cover-fallback" class="cover-fallback">
-              <i class="fa-solid fa-record-vinyl" aria-hidden="true"></i>
-            </div>
-          </div>
-
-          <div class="tag-editor-fields">
-            <label>
-              <span>Album title</span>
-              <input id="tag-album-title" type="text" autocomplete="off" />
-            </label>
-            <label>
-              <span>Album artist</span>
-              <input id="tag-album-artist" type="text" autocomplete="off" />
-            </label>
-            <label>
-              <span>Year</span>
-              <input id="tag-album-date" type="text" placeholder="2021" autocomplete="off" inputmode="numeric" />
-            </label>
-            <label>
-              <span>Genre</span>
-              <input id="tag-album-genre" type="text" autocomplete="off" />
-            </label>
-            <fieldset class="wide-field media-type-picker">
-              <span>Media type</span>
-              <div class="media-type-options" id="tag-album-media-types">
-                <label>
-                  <input type="checkbox" value="CD" />
-                  <i class="media-type-symbol" style="--media-type-icon: url('/media-type-icons/compact-disc.svg')" aria-hidden="true"></i>
-                  <span>CD</span>
-                </label>
-                <label>
-                  <input type="checkbox" value="Digital Media" />
-                  <i class="media-type-symbol" style="--media-type-icon: url('/media-type-icons/file-waveform.svg')" aria-hidden="true"></i>
-                  <span>Digital</span>
-                </label>
-                <label>
-                  <input type="checkbox" value="Vinyl" />
-                  <i class="media-type-symbol" style="--media-type-icon: url('/media-type-icons/record-vinyl.svg')" aria-hidden="true"></i>
-                  <span>Vinyl</span>
-                </label>
-                <label>
-                  <input type="checkbox" value="Cassette Tape" />
-                  <i class="media-type-symbol" style="--media-type-icon: url('/media-type-icons/cassette-tape.svg')" aria-hidden="true"></i>
-                  <span>Cassette</span>
-                </label>
-              </div>
-            </fieldset>
-            <label>
-              <span>Status</span>
-              <select id="tag-album-status">
-                <option>Collection</option>
-                <option>Wanted</option>
-              </select>
-            </label>
-            <label class="wide-field">
-              <span>Cover URL</span>
-              <input id="tag-album-cover-url" type="url" placeholder="https://..." autocomplete="off" />
-            </label>
-          </div>
-        </form>
-
-        <section class="tag-scraper-panel">
-          <div class="tag-scraper-search">
-            <label>
-              <span>Online search</span>
-              <input id="tag-scraper-query" type="search" autocomplete="off" />
-            </label>
-            <button id="tag-scraper-search-button" class="secondary-button" type="button">Search MusicBrainz</button>
-          </div>
-          <p id="tag-scraper-status" class="tag-scraper-status">Search results will appear here.</p>
-          <div id="tag-scraper-results" class="tag-scraper-results"></div>
-        </section>
-
-        <section class="tag-track-editor">
-          <div class="section-heading">
-            <div>
-              <h3>Tracks</h3>
-              <p>Edit track titles, artists, disc, and track numbers for this album.</p>
-            </div>
-          </div>
-          <div id="tag-track-list" class="tag-track-list"></div>
-        </section>
-      </div>
+      <div id="tag-editor-body-root"></div>
 
       <footer class="tag-editor-footer">
         <button id="tag-editor-reset-button" class="secondary-button" type="button">Reset overrides</button>
@@ -595,22 +469,7 @@
         </button>
       </header>
 
-      <div class="tag-editor-body">
-        <form class="artist-editor-form">
-          <label>
-            <span>Image URL</span>
-            <input id="artist-image-url" type="url" placeholder="https://..." autocomplete="off" />
-          </label>
-          <label>
-            <span>Artist info</span>
-            <textarea id="artist-bio" rows="7" placeholder="Short artist bio or notes..."></textarea>
-          </label>
-          <label>
-            <span>Source URL</span>
-            <input id="artist-source-url" type="url" placeholder="https://..." autocomplete="off" />
-          </label>
-        </form>
-      </div>
+      <div id="artist-editor-body-root"></div>
 
       <footer class="tag-editor-footer">
         <button id="artist-editor-reset-button" class="secondary-button" type="button">Clear edited info</button>
@@ -634,30 +493,7 @@
         </button>
       </header>
 
-      <div class="tag-editor-body lyrics-editor-body">
-        <section class="tag-scraper-panel">
-          <div class="tag-scraper-search">
-            <label>
-              <span>Online search</span>
-              <input id="lyrics-scraper-query" type="search" autocomplete="off" />
-            </label>
-            <button id="lyrics-scraper-search-button" class="secondary-button" type="button">Search LRCLIB</button>
-          </div>
-          <p id="lyrics-scraper-status" class="tag-scraper-status">Search LRCLIB for synced or plain lyrics.</p>
-          <div id="lyrics-scraper-results" class="tag-scraper-results"></div>
-        </section>
-
-        <form class="lyrics-editor-form">
-          <label>
-            <span>Synced lyrics (LRC)</span>
-            <textarea id="lyrics-synced-input" rows="12" placeholder="[00:12.50] First lyric line"></textarea>
-          </label>
-          <label>
-            <span>Plain lyrics</span>
-            <textarea id="lyrics-plain-input" rows="12" placeholder="Paste plain lyrics here..."></textarea>
-          </label>
-        </form>
-      </div>
+      <div id="lyrics-editor-body-root" class="tag-editor-body lyrics-editor-body"></div>
 
       <footer class="tag-editor-footer">
         <button id="lyrics-editor-reset-button" class="secondary-button" type="button">Reset lyrics</button>
@@ -668,7 +504,9 @@
       </footer>
     </section>
 
+    <div id="react-root" hidden></div>
     <audio id="audio-player" preload="metadata" style="display: none"></audio>
+    <script type="module" src="/react/app.js"></script>
     <script type="module" src="/app.js"></script>
   </body>
 </html>

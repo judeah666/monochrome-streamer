@@ -77,10 +77,16 @@ It will still scan nested folders recursively, but the `Artist/Album/Track` layo
 npm install
 ```
 
-4. Start the server:
+4. Build the React frontend bundle:
 
 ```powershell
-node server.mjs
+npm run build
+```
+
+5. Start the server:
+
+```powershell
+npm start
 ```
 
 If online metadata search fails on Windows with a certificate error, start Node with the system certificate store:
@@ -90,7 +96,7 @@ $env:NODE_OPTIONS="--use-system-ca"
 node server.mjs
 ```
 
-5. Open:
+6. Open:
 
 ```text
 http://localhost:8888
@@ -99,6 +105,8 @@ http://localhost:8888
 ## Docker
 
 You can run it in Docker without creating `config.json`.
+
+Docker builds the React frontend automatically before the server starts.
 
 ### Recommended: docker compose
 
@@ -233,6 +241,22 @@ curl http://127.0.0.1:8888/api/config
 ```
 
 ## Configuration
+
+## Frontend Development
+
+The app now has a Vite + React frontend pipeline. The current React entry is a small bridge so existing pages keep working while UI sections are migrated safely.
+
+```powershell
+npm run build
+```
+
+The production bundle is written to `public/react/app.js`, which is loaded by `public/index.html`. The backend API remains in `server.mjs`.
+
+For frontend-only iteration, you can also run:
+
+```powershell
+npm run dev:frontend
+```
 
 `config.json`
 

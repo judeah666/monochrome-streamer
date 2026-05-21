@@ -8,14 +8,19 @@ LABEL org.opencontainers.image.title="monochrome-streamer" \
 
 WORKDIR /app
 
-COPY package.json ./
+COPY package*.json ./
 RUN apk add --no-cache ca-certificates \
-  && npm install --omit=dev
+  && npm install
 
 COPY server.mjs ./
 COPY artist-info.example.json ./
 COPY lib ./lib
 COPY public ./public
+COPY src ./src
+COPY vite.config.js ./
+
+RUN npm run build \
+  && npm prune --omit=dev
 
 ENV HOST=0.0.0.0
 ENV PORT=8888
