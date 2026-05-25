@@ -7,6 +7,7 @@
   "libraryFoldersPath": "library-folders.json",
   "libraryDatabasePath": "library.sqlite",
   "coverCachePath": "covers",
+  "widgetSettingsPath": "widget-settings.json",
   "scanMetadata": "tags",
   "scanDurations": false,
   "autoScanOnStart": false,

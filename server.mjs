@@ -1,7 +1,7 @@
 import { createReadStream, existsSync, promises as fs } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { timingSafeEqual } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
   buildByteRange,
@@ -47,6 +47,7 @@ const defaultConfig = {
   libraryFoldersPath: 'library-folders.json',
   libraryDatabasePath: 'library.sqlite',
   coverCachePath: 'covers',
+  widgetSettingsPath: 'widget-settings.json',
   scanMetadata: 'tags',
   scanDurations: false,
   autoScanOnStart: false,
@@ -67,6 +68,7 @@ const libraryFoldersPath = config.libraryFoldersPath ? path.resolve(__dirname, c
 const libraryDatabasePath = config.libraryDatabasePath ? path.resolve(__dirname, config.libraryDatabasePath) : '';
 const legacyLibraryCachePath = config.libraryCachePath ? path.resolve(__dirname, config.libraryCachePath) : '';
 const coverCachePath = config.coverCachePath ? path.resolve(__dirname, config.coverCachePath) : '';
+const widgetSettingsPath = config.widgetSettingsPath ? path.resolve(__dirname, config.widgetSettingsPath) : '';
 
 if (!libraryRoot || !existsSync(libraryRoot)) {
   console.error(`Music library path is missing or invalid: ${libraryRoot || '(empty)'}`);
@@ -96,6 +98,7 @@ let artistOverridesCache = null;
 let albumOverridesCache = null;
 let lyricsOverridesCache = null;
 let selectedLibraryFoldersCache = null;
+let widgetSettingsCache = await readWidgetSettings();
 
 class HttpError extends Error {
   constructor(statusCode, message) {
@@ -138,6 +141,17 @@ const server = http.createServer(async (request, response) => {
           error: scanState.error || null,
         },
       });
+    }
+
+    if (url.pathname === '/api/widget/settings') {
+      if (request.method === 'GET') {
+        return respondJson(response, 200, getWidgetSettingsPayload(request));
+      }
+      if (request.method === 'POST') {
+        const payload = await updateWidgetSettings(request);
+        return respondJson(response, 200, payload);
+      }
+      return respondJson(response, 405, { error: 'Method Not Allowed' });
     }
 
     if (url.pathname === '/api/config') {
@@ -401,6 +415,7 @@ async function loadConfig() {
     libraryCachePath: process.env.LIBRARY_CACHE_PATH || fileConfig.libraryCachePath || dataPath('library-cache.json'),
     libraryDatabasePath: process.env.LIBRARY_DATABASE_PATH || fileConfig.libraryDatabasePath || dataPath(defaultConfig.libraryDatabasePath),
     coverCachePath: process.env.COVER_CACHE_PATH || fileConfig.coverCachePath || dataPath(defaultConfig.coverCachePath),
+    widgetSettingsPath: process.env.WIDGET_SETTINGS_PATH || fileConfig.widgetSettingsPath || dataPath(defaultConfig.widgetSettingsPath),
     scanMetadata: normalizeScanMetadata(process.env.SCAN_METADATA || fileConfig.scanMetadata || defaultConfig.scanMetadata),
     scanDurations: parseBoolean(process.env.SCAN_DURATIONS ?? fileConfig.scanDurations ?? defaultConfig.scanDurations),
     autoScanOnStart: parseBoolean(process.env.AUTO_SCAN_ON_START ?? fileConfig.autoScanOnStart ?? defaultConfig.autoScanOnStart),
@@ -752,6 +767,91 @@ async function writeSelectedLibraryFolders(folders) {
   await fs.mkdir(path.dirname(libraryFoldersPath), { recursive: true });
   await fs.writeFile(libraryFoldersPath, `${JSON.stringify({ folders }, null, 2)}\n`, 'utf8');
   selectedLibraryFoldersCache = folders;
+}
+
+async function readWidgetSettings() {
+  if (!widgetSettingsPath || !existsSync(widgetSettingsPath)) return null;
+
+  try {
+    const raw = JSON.parse(await fs.readFile(widgetSettingsPath, 'utf8'));
+    return normalizeWidgetSettings(raw);
+  } catch (error) {
+    console.warn(`Unable to read ${path.basename(widgetSettingsPath)}:`, error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+async function updateWidgetSettings(request) {
+  const payload = await readRequestJson(request, 64 * 1024);
+  const current = getEffectiveWidgetSettings();
+  const action = String(payload.action || '').trim();
+  const shouldGenerate = action === 'generate-key';
+  const enabled = typeof payload.enabled === 'boolean'
+    ? payload.enabled
+    : current.enabled;
+  const apiKey = shouldGenerate
+    ? createWidgetApiKey()
+    : String(payload.apiKey ?? current.apiKey ?? '').trim();
+  const widgetCorsOrigin = String(payload.widgetCorsOrigin ?? current.widgetCorsOrigin ?? '*').trim() || '*';
+
+  const settings = normalizeWidgetSettings({
+    enabled,
+    apiKey: enabled && !apiKey ? createWidgetApiKey() : apiKey,
+    widgetCorsOrigin,
+  });
+  await writeWidgetSettings(settings);
+  return getWidgetSettingsPayload(request);
+}
+
+async function writeWidgetSettings(settings) {
+  if (!widgetSettingsPath) throw new HttpError(400, 'Widget settings are not configured.');
+  await fs.mkdir(path.dirname(widgetSettingsPath), { recursive: true });
+  await fs.writeFile(widgetSettingsPath, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+  widgetSettingsCache = settings;
+}
+
+function getWidgetSettingsPayload(request) {
+  const settings = getEffectiveWidgetSettings();
+  const origin = `http://${request.headers.host || `${config.host}:${config.port}`}`;
+  return {
+    enabled: settings.enabled,
+    apiKey: settings.apiKey,
+    hasApiKey: Boolean(settings.apiKey),
+    widgetCorsOrigin: settings.widgetCorsOrigin,
+    source: settings.source,
+    endpoint: '/api/widget/stats',
+    statsUrl: `${origin}/api/widget/stats`,
+    exampleUrl: settings.apiKey
+      ? `${origin}/api/widget/stats?apiKey=${encodeURIComponent(settings.apiKey)}`
+      : `${origin}/api/widget/stats?apiKey=YOUR_KEY`,
+  };
+}
+
+function getEffectiveWidgetSettings() {
+  const storedEnabled = typeof widgetSettingsCache?.enabled === 'boolean'
+    ? widgetSettingsCache.enabled
+    : null;
+  const storedApiKey = String(widgetSettingsCache?.apiKey || '').trim();
+  const envApiKey = String(config.widgetApiKey || '').trim();
+  const apiKey = storedApiKey || envApiKey;
+  return {
+    enabled: storedEnabled ?? Boolean(apiKey),
+    apiKey,
+    widgetCorsOrigin: String(widgetSettingsCache?.widgetCorsOrigin || config.widgetCorsOrigin || '*').trim() || '*',
+    source: storedApiKey ? 'settings' : (envApiKey ? 'environment' : 'none'),
+  };
+}
+
+function normalizeWidgetSettings(settings) {
+  return {
+    enabled: Boolean(settings?.enabled),
+    apiKey: String(settings?.apiKey || '').trim(),
+    widgetCorsOrigin: String(settings?.widgetCorsOrigin || '*').trim() || '*',
+  };
+}
+
+function createWidgetApiKey() {
+  return `ms_${randomBytes(24).toString('base64url')}`;
 }
 
 function normalizeLibraryFolders(folders) {
@@ -1931,8 +2031,9 @@ function respondJson(response, statusCode, body) {
 }
 
 function getWidgetCorsHeaders() {
+  const settings = getEffectiveWidgetSettings();
   return {
-    'Access-Control-Allow-Origin': config.widgetCorsOrigin || '*',
+    'Access-Control-Allow-Origin': settings.widgetCorsOrigin || '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, X-API-Key, Content-Type',
     'Vary': 'Origin',
@@ -1956,8 +2057,9 @@ function respondWidgetJson(response, statusCode, body) {
 }
 
 function isWidgetRequestAuthorized(request, url) {
-  const expectedKey = String(config.widgetApiKey || '').trim();
-  if (!expectedKey) return false;
+  const settings = getEffectiveWidgetSettings();
+  const expectedKey = String(settings.apiKey || '').trim();
+  if (!settings.enabled || !expectedKey) return false;
   const providedKey = String(
     url.searchParams.get('apiKey')
       || request.headers['x-api-key']

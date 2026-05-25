@@ -517,6 +517,7 @@ const state = {
   scanPollInFlight: false,
   searchFetchId: 0,
   artistFetchId: 0,
+  widgetSettings: null,
 };
 
 let settingsReactPanelContainer = null;
@@ -533,6 +534,7 @@ async function init() {
   const [config, libraryFolders] = await Promise.all([
     fetchJson('/api/config'),
     fetchJson('/api/library/folders').catch(() => ({ available: [], selected: [], scan: null })),
+    refreshWidgetSettings().catch(() => null),
   ]);
   const library = await fetchLibraryPagePayload(0);
 
@@ -1714,10 +1716,12 @@ function getReactSettingsPanelProps(tab) {
       instanceUrl: state.settings.instanceUrl || window.location.origin,
       instancePlaceholder: window.location.origin,
       currentApiText: `${window.location.origin} · ${state.tracks.length} tracks · ${state.albums.length} albums`,
+      widgetSettings: state.widgetSettings || createDefaultWidgetSettings(),
       debugText: JSON.stringify({
         route: state.route.view,
         libraryGeneratedAt: state.generatedAt,
         queueLength: state.queueIds.length,
+        widgetApiEnabled: Boolean(state.widgetSettings?.enabled),
       }, null, 2),
     };
   }
@@ -1973,6 +1977,7 @@ function renderDownloadSettings() {
 
 function renderInstanceSettings() {
   const instanceUrl = state.settings.instanceUrl || window.location.origin;
+  const widget = state.widgetSettings || createDefaultWidgetSettings();
   return `
     ${settingsGroup('Local Instance', 'Manage the API instance this browser is using.', `
       <label class="settings-field">
@@ -1985,11 +1990,40 @@ function renderInstanceSettings() {
       </div>
       ${settingToggle('devMode', 'Dev Mode', 'Show local API details for debugging this self-hosted app.')}
     `)}
+    ${settingsGroup('Widget API', 'Create a small API endpoint for dashboards and other apps that only need library counts.', `
+      <div class="widget-api-settings" data-widget-api-settings>
+        <label class="setting-row">
+          <div><strong>Enable Widget API</strong><span>Allow /api/widget/stats when the API key matches.</span></div>
+          <input type="checkbox" data-widget-enabled ${widget.enabled ? 'checked' : ''} />
+        </label>
+        <label class="settings-field">
+          <span>API Key</span>
+          <input type="text" data-widget-api-key value="${escapeHtml(widget.apiKey || '')}" placeholder="Generate a key or paste your own" spellcheck="false" />
+        </label>
+        <label class="settings-field">
+          <span>CORS Origin</span>
+          <input type="text" data-widget-cors-origin value="${escapeHtml(widget.widgetCorsOrigin || '*')}" placeholder="* or https://your-dashboard.local" spellcheck="false" />
+        </label>
+        <div class="setting-row widget-api-url-row">
+          <div><strong>Widget URL</strong><span>${escapeHtml(widget.exampleUrl)}</span></div>
+          <div class="settings-actions">
+            <button type="button" class="secondary-button" data-settings-action="copy-widget-api-url">Copy URL</button>
+            <button type="button" class="secondary-button" data-settings-action="test-widget-api">Test</button>
+          </div>
+        </div>
+        <div class="settings-actions">
+          <button type="button" class="secondary-button" data-settings-action="generate-widget-api-key">Generate API Key</button>
+          <button type="button" class="primary-button" data-settings-action="save-widget-api">Save Widget API</button>
+        </div>
+        <p class="settings-help">Current source: ${escapeHtml(widget.source)}. Stats endpoint: ${escapeHtml(widget.statsUrl)}</p>
+      </div>
+    `)}
     ${state.settings.devMode ? settingsGroup('Debug', 'Read-only runtime information.', `
       <div class="settings-code">${escapeHtml(JSON.stringify({
         route: state.route.view,
         libraryGeneratedAt: state.generatedAt,
         queueLength: state.queueIds.length,
+        widgetApiEnabled: Boolean(state.widgetSettings?.enabled),
       }, null, 2))}</div>
     `) : ''}
   `;
@@ -2119,6 +2153,88 @@ function handleSettingsAction(button) {
     fetchJson('/api/config')
       .then(() => showSettingsStatus('Local API is online.'))
       .catch(() => showSettingsStatus('Local API check failed.'));
+  } else if (action === 'save-widget-api') {
+    saveWidgetSettings(false);
+  } else if (action === 'generate-widget-api-key') {
+    saveWidgetSettings(true);
+  } else if (action === 'copy-widget-api-url') {
+    copyWidgetApiUrl();
+  } else if (action === 'test-widget-api') {
+    testWidgetApi();
+  }
+}
+
+async function refreshWidgetSettings() {
+  state.widgetSettings = await fetchJson('/api/widget/settings');
+  return state.widgetSettings;
+}
+
+function createDefaultWidgetSettings() {
+  const statsUrl = `${window.location.origin}/api/widget/stats`;
+  return {
+    enabled: false,
+    apiKey: '',
+    hasApiKey: false,
+    widgetCorsOrigin: '*',
+    source: 'none',
+    endpoint: '/api/widget/stats',
+    statsUrl,
+    exampleUrl: `${statsUrl}?apiKey=YOUR_KEY`,
+  };
+}
+
+function readWidgetSettingsForm() {
+  const form = settingsPanels.querySelector('[data-widget-api-settings]');
+  return {
+    enabled: Boolean(form?.querySelector('[data-widget-enabled]')?.checked),
+    apiKey: form?.querySelector('[data-widget-api-key]')?.value?.trim() || '',
+    widgetCorsOrigin: form?.querySelector('[data-widget-cors-origin]')?.value?.trim() || '*',
+  };
+}
+
+async function saveWidgetSettings(generateKey) {
+  try {
+    const payload = readWidgetSettingsForm();
+    if (generateKey) {
+      payload.enabled = true;
+      payload.action = 'generate-key';
+    }
+    state.widgetSettings = await fetchJson('/api/widget/settings', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    renderSettingsView();
+    showSettingsStatus(generateKey ? 'Widget API key generated.' : 'Widget API settings saved.');
+  } catch (error) {
+    console.error(error);
+    showSettingsStatus('Unable to save widget API settings.');
+  }
+}
+
+async function copyWidgetApiUrl() {
+  const url = state.widgetSettings?.exampleUrl || createDefaultWidgetSettings().exampleUrl;
+  try {
+    await navigator.clipboard.writeText(url);
+    showSettingsStatus('Widget API URL copied.');
+  } catch {
+    showSettingsStatus(url);
+  }
+}
+
+async function testWidgetApi() {
+  const apiKey = settingsPanels.querySelector('[data-widget-api-key]')?.value?.trim()
+    || state.widgetSettings?.apiKey
+    || '';
+  if (!apiKey) {
+    showSettingsStatus('Generate or enter a widget API key first.');
+    return;
+  }
+  try {
+    const stats = await fetchJson(`/api/widget/stats?apiKey=${encodeURIComponent(apiKey)}`);
+    showSettingsStatus(`Widget API online: ${stats.albumCount} albums, ${stats.trackCount} tracks.`);
+  } catch (error) {
+    console.error(error);
+    showSettingsStatus('Widget API test failed. Check that it is enabled and the key is correct.');
   }
 }
 

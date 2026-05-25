@@ -10,6 +10,7 @@ services:
       DATA_DIR: /data
       LIBRARY_DATABASE_PATH: /data/library.sqlite
       COVER_CACHE_PATH: /data/covers
+      WIDGET_SETTINGS_PATH: /data/widget-settings.json
       SCAN_METADATA: tags
       SCAN_DURATIONS: "false"
       AUTO_SCAN_ON_START: "false"
@@ -18,6 +19,7 @@ services:
       PUID: "1000"
       PGID: "1000"
       UMASK: "022"
+      CHOWN_DATA: "true"
     volumes:
       - /path/to/your/music:/music
       - /opt/monochrome-streamer/data:/data

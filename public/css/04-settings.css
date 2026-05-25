@@ -411,6 +411,21 @@
   white-space: pre-wrap;
 }
 
+.widget-api-settings {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.widget-api-url-row span {
+  font-family: "Cascadia Mono", "IBM Plex Mono", Consolas, monospace;
+  word-break: break-all;
+}
+
+.widget-api-settings input[data-widget-api-key],
+.widget-api-settings input[data-widget-cors-origin] {
+  font-family: "Cascadia Mono", "IBM Plex Mono", Consolas, monospace;
+}
+
 .setting-row.danger {
   border-color: rgba(255, 82, 82, 0.36);
   background: rgba(255, 82, 82, 0.08);

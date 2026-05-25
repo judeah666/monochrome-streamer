@@ -52,7 +52,16 @@ export function DownloadSettings({ settings, downloadQualityOptions = [], bulkDo
   );
 }
 
-export function InstanceSettings({ settings, instanceUrl, instancePlaceholder, currentApiText, debugText }) {
+export function InstanceSettings({ settings, instanceUrl, instancePlaceholder, currentApiText, widgetSettings, debugText }) {
+  const widget = widgetSettings || {
+    enabled: false,
+    apiKey: '',
+    widgetCorsOrigin: '*',
+    source: 'none',
+    statsUrl: '/api/widget/stats',
+    exampleUrl: '/api/widget/stats?apiKey=YOUR_KEY',
+  };
+
   return (
     <>
       <SettingsGroup title="Local Instance" description="Manage the API instance this browser is using.">
@@ -68,6 +77,34 @@ export function InstanceSettings({ settings, instanceUrl, instancePlaceholder, c
           <button type="button" className="secondary-button" data-settings-action="check-instance">Check</button>
         </div>
         <SettingToggle settingKey="devMode" title="Dev Mode" description="Show local API details for debugging this self-hosted app." checked={settings.devMode} />
+      </SettingsGroup>
+      <SettingsGroup title="Widget API" description="Create a small API endpoint for dashboards and other apps that only need library counts.">
+        <div className="widget-api-settings" data-widget-api-settings>
+          <SettingToggle settingKey="" title="Enable Widget API" description="Allow /api/widget/stats when the API key matches." checked={widget.enabled} extraAttrs={{ 'data-widget-enabled': true }} />
+          <label className="settings-field">
+            <span>API Key</span>
+            <input type="text" data-widget-api-key defaultValue={widget.apiKey || ''} placeholder="Generate a key or paste your own" spellCheck="false" />
+          </label>
+          <label className="settings-field">
+            <span>CORS Origin</span>
+            <input type="text" data-widget-cors-origin defaultValue={widget.widgetCorsOrigin || '*'} placeholder="* or https://your-dashboard.local" spellCheck="false" />
+          </label>
+          <div className="setting-row widget-api-url-row">
+            <div>
+              <strong>Widget URL</strong>
+              <span>{widget.exampleUrl}</span>
+            </div>
+            <div className="settings-actions">
+              <button type="button" className="secondary-button" data-settings-action="copy-widget-api-url">Copy URL</button>
+              <button type="button" className="secondary-button" data-settings-action="test-widget-api">Test</button>
+            </div>
+          </div>
+          <div className="settings-actions">
+            <button type="button" className="secondary-button" data-settings-action="generate-widget-api-key">Generate API Key</button>
+            <button type="button" className="primary-button" data-settings-action="save-widget-api">Save Widget API</button>
+          </div>
+          <p className="settings-help">Current source: {widget.source}. Stats endpoint: {widget.statsUrl}</p>
+        </div>
       </SettingsGroup>
       {settings.devMode ? (
         <SettingsGroup title="Debug" description="Read-only runtime information.">
@@ -170,14 +207,23 @@ function SettingsGroup({ title, description, children }) {
   );
 }
 
-function SettingToggle({ settingKey, title, description, checked }) {
+function SettingToggle({ settingKey, title, description, checked, extraAttrs = {} }) {
+  const inputProps = settingKey
+    ? { 'data-setting': settingKey }
+    : {};
   return (
     <label className="setting-row">
       <div>
         <strong>{title}</strong>
         <span>{description}</span>
       </div>
-      <input type="checkbox" data-setting={settingKey} defaultChecked={checked} />
+      <input
+        key={`${settingKey || title}-${checked ? 'on' : 'off'}`}
+        type="checkbox"
+        {...inputProps}
+        {...extraAttrs}
+        defaultChecked={checked}
+      />
     </label>
   );
 }

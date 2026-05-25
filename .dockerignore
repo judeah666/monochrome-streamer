@@ -6,6 +6,7 @@ sample-library
 data
 *.log
 library-cache.json
+widget-settings.json
 *.zip
 lyrics/
 lyrics-overrides.json

@@ -137,7 +137,9 @@ APP_TITLE=Monochrome-Streamer
 PUID=1000
 PGID=1000
 UMASK=022
+CHOWN_DATA=true
 WIDGET_API_KEY=change-this-widget-key
+WIDGET_SETTINGS_PATH=/data/widget-settings.json
 IMAGE_TAG=0.1.1
 ```
 
@@ -164,6 +166,9 @@ docker build -t monochrome-streamer .
 ```powershell
 docker run --rm -p 8888:8888 `
   -e APP_TITLE="Monochrome-Streamer" `
+  -e PUID=1000 `
+  -e PGID=1000 `
+  -e UMASK=022 `
   --mount type=bind,source="/path/to/your/Music",target=/music `
   --mount type=bind,source="/opt/monochrome-streamer/data",target=/data `
   monochrome-streamer
@@ -214,10 +219,12 @@ services:
       DATA_DIR: /data
       SCAN_METADATA: tags
       SCAN_DURATIONS: "false"
+      WIDGET_SETTINGS_PATH: /data/widget-settings.json
       WIDGET_API_KEY: change-this-widget-key
       PUID: "1000"
       PGID: "1000"
       UMASK: "022"
+      CHOWN_DATA: "true"
     volumes:
       - /path/to/your/music:/music
       - /opt/monochrome-streamer/data:/data
@@ -230,6 +237,8 @@ Set `PUID` and `PGID` to the Linux user and group that should own files created 
 ```bash
 id yourusername
 ```
+
+`CHOWN_DATA=true` fixes `/data` ownership on container start. After the data folder is already owned correctly, you can set it to `false` to make startup faster on very large cache folders.
 
 If the container exits with code `137`, the server is probably killing the scan for memory. Try this safer scanner mode first:
 
@@ -284,6 +293,7 @@ npm run dev:frontend
   "libraryFoldersPath": "library-folders.json",
   "libraryDatabasePath": "library.sqlite",
   "coverCachePath": "covers",
+  "widgetSettingsPath": "widget-settings.json",
   "widgetApiKey": "change-this-widget-key",
   "widgetCorsOrigin": "*",
   "host": "0.0.0.0",
@@ -304,8 +314,10 @@ You can also override values with environment variables:
 - `AUTO_SCAN_ON_START` as `true` or `false`
 - `WIDGET_API_KEY` for the external stats widget API
 - `WIDGET_CORS_ORIGIN` for widget browser access, defaults to `*`
+- `WIDGET_SETTINGS_PATH` for widget API settings saved from the app, defaults to `/data/widget-settings.json` in Docker
 - `PUID` and `PGID` for Docker file ownership, defaults to `1000`
 - `UMASK` for Docker-created file permissions, defaults to `022`
+- `CHOWN_DATA` as `true` or `false`, defaults to `true`
 - `ARTIST_INFO_PATH`
 - `HOST`
 - `PORT`
@@ -363,6 +375,8 @@ Lyrics saved in the app are stored in `library.sqlite` and also written as `.lrc
 ### External widget stats API
 
 Use `GET /api/widget/stats` when another app only needs the current album and track counts. This endpoint is protected by `WIDGET_API_KEY` and does not return the full library.
+
+You can also create, rotate, copy, and test the widget API key from Settings > Instances > Widget API. Changes made there are saved in `/data/widget-settings.json` in Docker, so they survive image updates.
 
 Header auth:
 
