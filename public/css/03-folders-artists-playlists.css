@@ -1,0 +1,236 @@
+/* Folder browser, artist groups, and playlists */
+
+.side-card-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.empty-state {
+  margin: 0;
+  padding: 20px 2px;
+}
+
+.folder-node {
+  margin: 0;
+  border-left: 1px solid color-mix(in srgb, var(--line-strong) 78%, transparent);
+  padding-left: 22px;
+}
+
+.folder-node + .folder-node {
+  margin-top: 10px;
+}
+
+.folder-node summary {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(14px);
+}
+
+.folder-node summary:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+.folder-node summary::-webkit-details-marker {
+  display: none;
+}
+
+.folder-node-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  color: var(--muted);
+}
+
+.folder-node[open] > summary .folder-node-arrow {
+  color: var(--accent);
+}
+
+.folder-node[open] > summary .folder-arrow-closed,
+.folder-node:not([open]) > summary .folder-arrow-open {
+  display: none;
+}
+
+.folder-node-main {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.folder-node-name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-node-meta {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.folder-node-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--glass);
+  color: var(--text);
+}
+
+.folder-node-play:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.folder-node-body {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  margin-left: 11px;
+  padding-left: 22px;
+  border-left: 1px dashed color-mix(in srgb, var(--line-strong) 70%, transparent);
+}
+
+.folder-node-body > .folder-node {
+  margin-left: 4px;
+}
+
+.folder-track-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  backdrop-filter: blur(14px);
+}
+
+.folder-track-row.is-active {
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.folder-track-main {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 0;
+}
+
+.folder-track-main strong,
+.folder-track-main span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-track-main span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.artist-group + .artist-group {
+  margin-top: 10px;
+}
+
+.artist-group {
+  display: grid;
+  grid-template-columns: 52px minmax(180px, 0.8fr) minmax(0, 1.2fr);
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  backdrop-filter: blur(14px);
+}
+
+.artist-avatar {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: var(--glass-strong);
+  color: var(--text);
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.artist-group-header h4,
+.playlist-detail-header h4 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.artist-group-header p,
+.playlist-detail-header p,
+.playlist-card p,
+.playlist-card span {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.artist-group-body {
+  min-width: 0;
+}
+
+.artist-group-body p {
+  margin: 0 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.artist-group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.artist-album-chip {
+  min-height: 30px;
+  max-width: 180px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artist-album-chip:hover {
+  border-color: var(--line-strong);
+  background: var(--hover-surface);
+}
+
+.playlist-browser {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 18px;
+}
+

@@ -1,0 +1,220 @@
+/* Queue drawer and queue rows */
+
+.queue-panel {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  bottom: 18px;
+  width: min(560px, calc(100vw - 36px));
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: var(--glass-heavy);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+  overflow: hidden;
+}
+
+body[data-view='fullscreen'] .queue-panel {
+  z-index: 96;
+}
+
+body[data-view='fullscreen'] .queue-overlay {
+  z-index: 92;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.queue-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: color-mix(in srgb, var(--body-bottom) 42%, transparent);
+}
+
+.queue-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.queue-panel-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.queue-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.queue-panel-actions .queue-icon-control,
+.queue-panel-actions .queue-icon-control:hover,
+.queue-panel-actions .queue-icon-control.active {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  backdrop-filter: none;
+}
+
+.queue-panel-actions .queue-icon-control:hover,
+.queue-panel-actions .queue-icon-control.active {
+  color: var(--text);
+}
+
+.queue-panel-actions .queue-icon-control .player-symbol,
+.queue-panel-actions .queue-icon-control .fa-solid {
+  width: 24px;
+  height: 24px;
+  font-size: 24px;
+}
+
+.queue-list {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  display: grid;
+  align-content: start;
+  grid-auto-rows: max-content;
+  gap: 8px;
+}
+
+.queue-item {
+  min-height: 78px;
+  display: grid;
+  grid-template-columns: 36px 56px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 18px;
+  border: 1px solid transparent;
+  background: transparent;
+  text-align: left;
+}
+
+.queue-item:hover,
+.queue-item.is-active {
+  border-color: var(--line);
+  background: var(--glass);
+}
+
+.queue-item.drop-target {
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.queue-item.is-dragging {
+  opacity: 0.6;
+}
+
+.queue-item img,
+.queue-thumb-fallback {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.queue-thumb-fallback {
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  background: var(--glass);
+  color: var(--muted);
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.queue-item-main {
+  display: block;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 0;
+}
+
+.queue-item-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.queue-item-copy strong,
+.queue-item-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-item-copy span,
+.queue-item-index {
+  color: var(--muted);
+}
+
+.queue-item-trailing {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.queue-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.queue-item-actions .queue-item-favorite,
+.queue-item-actions .queue-item-remove,
+.queue-item-actions .queue-item-favorite:hover,
+.queue-item-actions .queue-item-remove:hover,
+.queue-item-actions .queue-item-favorite.active {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  backdrop-filter: none;
+}
+
+.queue-item-actions .queue-item-favorite:hover,
+.queue-item-actions .queue-item-remove:hover {
+  color: var(--text);
+}
+
+.queue-item-actions .queue-item-favorite.active,
+.queue-item-actions .queue-item-favorite.active .fa-solid {
+  color: var(--favorite-red);
+}
+
+.queue-item-actions .queue-item-remove .player-symbol,
+.queue-item-actions .queue-item-favorite .fa-solid {
+  width: 22px;
+  height: 22px;
+  font-size: 22px;
+}
+
+.queue-item-remove:disabled {
+  opacity: 0.35;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: color-mix(in srgb, var(--body-bottom) 64%, transparent);
+  backdrop-filter: blur(10px);
+}
+

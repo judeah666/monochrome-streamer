@@ -48,9 +48,18 @@ export function AlbumDetail({
             <p className="album-detail-artist">By {album.artist}</p>
             {album.folder ? <p className="album-detail-folder">Folder: {album.folder}</p> : null}
             <div className="album-actions">
-              <button className="primary-button" type="button" disabled={!canQueue} onClick={() => onPlayAlbum?.(album.id)}>Play album</button>
-              <button className="secondary-button" type="button" disabled={!canQueue} onClick={() => onQueueAlbum?.(album.id)}>Add to queue</button>
-              <button className="secondary-button" type="button" disabled={!canQueue} onClick={() => onShuffleAlbum?.(album.id)}>Shuffle</button>
+              <button className="primary-button album-action-button" type="button" disabled={!canQueue} aria-label="Play album" title="Play album" onClick={() => onPlayAlbum?.(album.id)}>
+                <i className="fa-solid fa-play album-action-icon" aria-hidden="true"></i>
+                <span className="album-action-label">Play album</span>
+              </button>
+              <button className="secondary-button album-action-button" type="button" disabled={!canQueue} aria-label="Add album to queue" title="Add album to queue" onClick={() => onQueueAlbum?.(album.id)}>
+                <i className="fa-solid fa-list-ul album-action-icon" aria-hidden="true"></i>
+                <span className="album-action-label">Add to queue</span>
+              </button>
+              <button className="secondary-button album-action-button" type="button" disabled={!canQueue} aria-label="Shuffle album" title="Shuffle album" onClick={() => onShuffleAlbum?.(album.id)}>
+                <i className="fa-solid fa-shuffle album-action-icon" aria-hidden="true"></i>
+                <span className="album-action-label">Shuffle</span>
+              </button>
               <button
                 className="icon-button album-edit-button"
                 type="button"

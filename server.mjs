@@ -1,6 +1,7 @@
 import { createReadStream, existsSync, promises as fs } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
   buildByteRange,
@@ -49,6 +50,8 @@ const defaultConfig = {
   scanMetadata: 'tags',
   scanDurations: false,
   autoScanOnStart: false,
+  widgetApiKey: '',
+  widgetCorsOrigin: '*',
   host: '0.0.0.0',
   port: 8888,
 };
@@ -104,6 +107,38 @@ class HttpError extends Error {
 const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
+
+    if (url.pathname === '/api/widget/stats' || url.pathname === '/api/widgets/stats') {
+      if (request.method === 'OPTIONS') {
+        return respondWidgetOptions(response);
+      }
+      if (request.method !== 'GET') {
+        return respondWidgetJson(response, 405, { error: 'Method Not Allowed' });
+      }
+      if (!isWidgetRequestAuthorized(request, url)) {
+        return respondWidgetJson(response, 401, {
+          error: config.widgetApiKey ? 'Invalid widget API key' : 'Widget API key is not configured',
+        });
+      }
+      const librarySummary = libraryCache
+        ? { generatedAt: libraryCache.generatedAt, trackCount: libraryCache.trackCount, albumCount: libraryCache.albumCount }
+        : await readLibraryDatabaseSummary(libraryDatabasePath);
+      return respondWidgetJson(response, 200, {
+        title: config.title,
+        albumCount: librarySummary.albumCount || 0,
+        trackCount: librarySummary.trackCount || 0,
+        generatedAt: librarySummary.generatedAt || null,
+        scan: {
+          status: scanState.status,
+          percent: scanState.percent || 0,
+          currentFolder: scanState.currentFolder || '',
+          processedFiles: scanState.processedFiles || 0,
+          totalFiles: scanState.totalFiles || 0,
+          finishedAt: scanState.finishedAt || null,
+          error: scanState.error || null,
+        },
+      });
+    }
 
     if (url.pathname === '/api/config') {
       const librarySummary = libraryCache
@@ -369,6 +404,8 @@ async function loadConfig() {
     scanMetadata: normalizeScanMetadata(process.env.SCAN_METADATA || fileConfig.scanMetadata || defaultConfig.scanMetadata),
     scanDurations: parseBoolean(process.env.SCAN_DURATIONS ?? fileConfig.scanDurations ?? defaultConfig.scanDurations),
     autoScanOnStart: parseBoolean(process.env.AUTO_SCAN_ON_START ?? fileConfig.autoScanOnStart ?? defaultConfig.autoScanOnStart),
+    widgetApiKey: process.env.WIDGET_API_KEY || fileConfig.widgetApiKey || defaultConfig.widgetApiKey,
+    widgetCorsOrigin: process.env.WIDGET_CORS_ORIGIN || fileConfig.widgetCorsOrigin || defaultConfig.widgetCorsOrigin,
     host: process.env.HOST || fileConfig.host || defaultConfig.host,
     port: Number.parseInt(process.env.PORT || fileConfig.port || defaultConfig.port, 10),
   };
@@ -1891,4 +1928,54 @@ function respondJson(response, statusCode, body) {
     'Cache-Control': 'no-store',
   });
   response.end(payload);
+}
+
+function getWidgetCorsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': config.widgetCorsOrigin || '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization, X-API-Key, Content-Type',
+    'Vary': 'Origin',
+    'Cache-Control': 'no-store',
+  };
+}
+
+function respondWidgetOptions(response) {
+  response.writeHead(204, getWidgetCorsHeaders());
+  response.end();
+}
+
+function respondWidgetJson(response, statusCode, body) {
+  const payload = JSON.stringify(body);
+  response.writeHead(statusCode, {
+    ...getWidgetCorsHeaders(),
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(payload),
+  });
+  response.end(payload);
+}
+
+function isWidgetRequestAuthorized(request, url) {
+  const expectedKey = String(config.widgetApiKey || '').trim();
+  if (!expectedKey) return false;
+  const providedKey = String(
+    url.searchParams.get('apiKey')
+      || request.headers['x-api-key']
+      || parseBearerToken(request.headers.authorization)
+      || ''
+  ).trim();
+  if (!providedKey) return false;
+  return timingSafeStringEqual(providedKey, expectedKey);
+}
+
+function parseBearerToken(value) {
+  const match = /^Bearer\s+(.+)$/iu.exec(String(value || '').trim());
+  return match ? match[1] : '';
+}
+
+function timingSafeStringEqual(left, right) {
+  const leftBuffer = Buffer.from(String(left));
+  const rightBuffer = Buffer.from(String(right));
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return timingSafeEqual(leftBuffer, rightBuffer);
 }

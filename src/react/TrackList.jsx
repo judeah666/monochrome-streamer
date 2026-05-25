@@ -10,23 +10,35 @@ export function TrackList({
   onArtistClick,
   onAlbumClick,
 }) {
+  if (variant === 'album') {
+    return (
+      <>
+        {groupTracksByDisc(tracks).map(([discNumber, discTracks]) => (
+          <React.Fragment key={discNumber}>
+            <div className="album-disc-header">
+              <span>Disc {discNumber}</span>
+              <small>{discTracks.length} track{discTracks.length === 1 ? '' : 's'}</small>
+            </div>
+            {discTracks.map((track) => (
+              <AlbumTrackRow
+                key={track.id}
+                track={track}
+                onPlay={(options) => onPlay?.(track.id, options)}
+                onFavorite={() => onFavorite?.(track.id)}
+                onAddQueue={() => onAddQueue?.(track.id)}
+                onArtistClick={() => onArtistClick?.(track.artist)}
+                onAlbumClick={() => onAlbumClick?.(track.id)}
+              />
+            ))}
+          </React.Fragment>
+        ))}
+      </>
+    );
+  }
+
   return (
     <>
       {tracks.map((track) => {
-        if (variant === 'album') {
-          return (
-            <AlbumTrackRow
-              key={track.id}
-              track={track}
-              onPlay={(options) => onPlay?.(track.id, options)}
-              onFavorite={() => onFavorite?.(track.id)}
-              onAddQueue={() => onAddQueue?.(track.id)}
-              onArtistClick={() => onArtistClick?.(track.artist)}
-              onAlbumClick={() => onAlbumClick?.(track.id)}
-            />
-          );
-        }
-
         return (
           <TrackRow
             key={track.id}
@@ -153,4 +165,16 @@ function TrackActions({ track, onFavorite, onAddQueue, onPlay }) {
       />
     </div>
   );
+}
+
+function groupTracksByDisc(tracks) {
+  const groups = new Map();
+  for (const track of tracks) {
+    const discNumber = track.discNumber || 1;
+    if (!groups.has(discNumber)) {
+      groups.set(discNumber, []);
+    }
+    groups.get(discNumber).push(track);
+  }
+  return [...groups.entries()].sort(([leftDisc], [rightDisc]) => Number(leftDisc) - Number(rightDisc));
 }

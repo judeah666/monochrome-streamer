@@ -1,0 +1,379 @@
+/* Album, artist, lyrics, and scraper editors */
+
+.tag-editor-modal {
+  position: fixed;
+  inset: 28px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  width: min(1180px, calc(100vw - 56px));
+  height: min(920px, calc(100vh - 56px));
+  max-width: 1180px;
+  max-height: calc(100vh - 56px);
+  margin: auto;
+  border-radius: 28px;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(circle at 20% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 36%),
+    var(--glass-heavy);
+  backdrop-filter: blur(22px);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+#tag-editor-body-root,
+#artist-editor-body-root {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.tag-editor-header,
+.tag-editor-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tag-editor-footer {
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
+
+.tag-editor-footer > div {
+  display: flex;
+  gap: 12px;
+}
+
+.tag-editor-header h2 {
+  margin: 0;
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  letter-spacing: -0.04em;
+}
+
+.tag-editor-header p,
+.tag-scraper-status,
+.tag-track-editor p {
+  color: var(--muted);
+}
+
+.tag-editor-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 24px;
+  display: grid;
+  gap: 22px;
+  align-content: start;
+}
+
+.tag-editor-form {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 22px;
+}
+
+.tag-editor-cover img,
+.tag-editor-cover .cover-fallback {
+  width: 180px;
+  height: 180px;
+  border-radius: 24px;
+  object-fit: cover;
+}
+
+.tag-editor-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.tag-editor-fields label,
+.tag-scraper-search label,
+.media-type-picker {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.media-type-picker {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.media-type-picker > span {
+  display: block;
+}
+
+.media-type-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.media-type-options label {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--glass);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.media-type-options label:has(input:checked) {
+  border-color: color-mix(in srgb, var(--accent) 78%, transparent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text);
+}
+
+.media-type-options input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tag-editor-fields input,
+.tag-editor-fields select,
+.artist-editor-form input,
+.artist-editor-form textarea,
+.tag-scraper-search input,
+.tag-track-row input {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--input-surface);
+  color: var(--text);
+  padding: 10px 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.tag-editor-fields input:focus,
+.tag-editor-fields select:focus,
+.artist-editor-form input:focus,
+.artist-editor-form textarea:focus,
+.tag-scraper-search input:focus,
+.tag-track-row input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.artist-editor-modal {
+  inset: max(48px, 8vh) 28px;
+  max-width: 760px;
+}
+
+.lyrics-editor-modal {
+  inset: max(34px, 5vh) 28px;
+  max-width: 1080px;
+  z-index: 100;
+}
+
+#lyrics-editor-overlay {
+  z-index: 99;
+}
+
+.lyrics-editor-body {
+  grid-template-columns: 1fr;
+}
+
+.lyrics-editor-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.artist-editor-form {
+  display: grid;
+  gap: 16px;
+}
+
+.artist-editor-form label,
+.lyrics-editor-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.artist-editor-form textarea,
+.lyrics-editor-form textarea {
+  min-height: 150px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.lyrics-editor-form textarea {
+  min-height: 320px;
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--input-surface);
+  color: var(--text);
+  padding: 14px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.lyrics-editor-form textarea:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.wide-field {
+  grid-column: 1 / -1;
+}
+
+.tag-scraper-panel {
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  backdrop-filter: blur(14px);
+  padding: 18px;
+}
+
+.tag-track-editor {
+  display: grid;
+  gap: 14px;
+}
+
+.tag-scraper-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.tag-scraper-status {
+  margin: 12px 0;
+}
+
+.tag-scraper-results,
+.tag-track-list {
+  display: grid;
+  gap: 10px;
+}
+
+.tag-disc-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: var(--glass);
+}
+
+.tag-disc-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tag-disc-card-header div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.tag-disc-card-header .label {
+  margin: 0;
+}
+
+.tag-disc-card-header strong {
+  font-size: 1.1rem;
+}
+
+.tag-disc-card-header > span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.tag-disc-track-list {
+  display: grid;
+  gap: 6px;
+}
+
+.tag-disc-track-header,
+.tag-track-row {
+  display: grid;
+  grid-template-columns: 72px minmax(180px, 1fr) minmax(160px, 0.8fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.tag-disc-track-header {
+  padding: 0 4px 2px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.tag-suggestion-card {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--glass);
+}
+
+.tag-suggestion-card img,
+.tag-suggestion-card .track-thumb-placeholder {
+  width: 58px;
+  height: 58px;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
+.tag-suggestion-card div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.tag-suggestion-card strong,
+.tag-suggestion-card span,
+.tag-suggestion-card small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-suggestion-card span,
+.tag-suggestion-card small {
+  color: var(--muted);
+}
+
+.tag-track-row {
+  padding: 0;
+}
+

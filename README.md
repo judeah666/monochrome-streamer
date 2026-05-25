@@ -134,6 +134,10 @@ Then edit `.env`:
 MUSIC_DIR=/path/to/your/music
 APP_DATA_DIR=/monochrome-streamer/data
 APP_TITLE=Monochrome-Streamer
+PUID=1000
+PGID=1000
+UMASK=022
+WIDGET_API_KEY=change-this-widget-key
 IMAGE_TAG=0.1.1
 ```
 
@@ -210,12 +214,22 @@ services:
       DATA_DIR: /data
       SCAN_METADATA: tags
       SCAN_DURATIONS: "false"
+      WIDGET_API_KEY: change-this-widget-key
+      PUID: "1000"
+      PGID: "1000"
+      UMASK: "022"
     volumes:
       - /path/to/your/music:/music
       - /opt/monochrome-streamer/data:/data
 ```
 
 Change `/path/to/your/music` to the real music folder on the server running Dockge. If Dockge is running on Linux, do not use Windows paths like `D:\Music`; use Linux paths like `/mnt/music`, `/media/music`, or `/home/yourname/Music`.
+
+Set `PUID` and `PGID` to the Linux user and group that should own files created in `/data`. On many home servers this is `1000:1000`, but you can check with:
+
+```bash
+id yourusername
+```
 
 If the container exits with code `137`, the server is probably killing the scan for memory. Try this safer scanner mode first:
 
@@ -270,6 +284,8 @@ npm run dev:frontend
   "libraryFoldersPath": "library-folders.json",
   "libraryDatabasePath": "library.sqlite",
   "coverCachePath": "covers",
+  "widgetApiKey": "change-this-widget-key",
+  "widgetCorsOrigin": "*",
   "host": "0.0.0.0",
   "port": 8888
 }
@@ -286,6 +302,10 @@ You can also override values with environment variables:
 - `SCAN_METADATA` as `tags` or `filename`
 - `SCAN_DURATIONS` as `true` or `false`
 - `AUTO_SCAN_ON_START` as `true` or `false`
+- `WIDGET_API_KEY` for the external stats widget API
+- `WIDGET_CORS_ORIGIN` for widget browser access, defaults to `*`
+- `PUID` and `PGID` for Docker file ownership, defaults to `1000`
+- `UMASK` for Docker-created file permissions, defaults to `022`
 - `ARTIST_INFO_PATH`
 - `HOST`
 - `PORT`
@@ -326,6 +346,7 @@ Lyrics saved in the app are stored in `library.sqlite` and also written as `.lrc
 ## API
 
 - `GET /api/config`
+- `GET /api/widget/stats`
 - `GET /api/library`
 - `POST /api/rescan`
 - `GET /api/library/folders`
@@ -338,6 +359,42 @@ Lyrics saved in the app are stored in `library.sqlite` and also written as `.lrc
 - `GET /api/musicbrainz/releases/:id`
 - `GET /api/tracks/:id/stream`
 - `GET /api/tracks/:id/cover`
+
+### External widget stats API
+
+Use `GET /api/widget/stats` when another app only needs the current album and track counts. This endpoint is protected by `WIDGET_API_KEY` and does not return the full library.
+
+Header auth:
+
+```bash
+curl -H "x-api-key: change-this-widget-key" http://127.0.0.1:8888/api/widget/stats
+```
+
+Query auth, useful for simple dashboard widgets:
+
+```bash
+curl "http://127.0.0.1:8888/api/widget/stats?apiKey=change-this-widget-key"
+```
+
+Example response:
+
+```json
+{
+  "title": "Monochrome-Streamer",
+  "albumCount": 1444,
+  "trackCount": 16285,
+  "generatedAt": "2026-05-20T10:18:30.000Z",
+  "scan": {
+    "status": "ready",
+    "percent": 100,
+    "currentFolder": "",
+    "processedFiles": 16285,
+    "totalFiles": 16285,
+    "finishedAt": "2026-05-20T10:18:30.000Z",
+    "error": null
+  }
+}
+```
 
 ## Notes
 

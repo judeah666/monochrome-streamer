@@ -1399,6 +1399,30 @@ function openAlbum(albumId) {
   scrollPageToTop();
 }
 
+async function openAlbumForTrackId(trackId) {
+  const track = state.trackMap.get(trackId);
+  if (!track) return;
+
+  const album = findAlbumByTrack(track);
+  if (album) {
+    openAlbum(album.id);
+    return;
+  }
+
+  if (!track.albumId) return;
+
+  try {
+    const library = await fetchJson(`/api/albums/${encodeURIComponent(track.albumId)}/tracks`);
+    mergeLibraryData(library);
+    const loadedAlbum = state.albumMap.get(track.albumId);
+    if (loadedAlbum) {
+      openAlbum(loadedAlbum.id);
+    }
+  } catch (error) {
+    console.error('Unable to open album from track search result', error);
+  }
+}
+
 function scrollPageToTop() {
   window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'smooth' }));
 }
@@ -3076,8 +3100,8 @@ function createLibraryPager() {
         ${selectOptions([[25, '25'], [50, '50'], [100, '100']], limit)}
       </select>
     </label>
-    <button type="button" class="secondary-button" data-library-page-action="previous" ${page.hasPrevious ? '' : 'disabled'}>Previous</button>
-    <button type="button" class="secondary-button" data-library-page-action="next" ${page.hasNext ? '' : 'disabled'}>Next</button>
+    <button type="button" class="library-pager-icon-button" data-library-page-action="previous" aria-label="Previous page" title="Previous page" ${page.hasPrevious ? '' : 'disabled'}><i class="pager-symbol pager-symbol-left" aria-hidden="true"></i></button>
+    <button type="button" class="library-pager-icon-button" data-library-page-action="next" aria-label="Next page" title="Next page" ${page.hasNext ? '' : 'disabled'}><i class="pager-symbol pager-symbol-right" aria-hidden="true"></i></button>
   `;
   return pager;
 }
@@ -3102,8 +3126,8 @@ function createWantedPager() {
         ${selectOptions([[25, '25'], [50, '50'], [100, '100']], limit)}
       </select>
     </label>
-    <button type="button" class="secondary-button" data-library-page-action="previous" ${page.hasPrevious ? '' : 'disabled'}>Previous</button>
-    <button type="button" class="secondary-button" data-library-page-action="next" ${page.hasNext ? '' : 'disabled'}>Next</button>
+    <button type="button" class="library-pager-icon-button" data-library-page-action="previous" aria-label="Previous page" title="Previous page" ${page.hasPrevious ? '' : 'disabled'}><i class="pager-symbol pager-symbol-left" aria-hidden="true"></i></button>
+    <button type="button" class="library-pager-icon-button" data-library-page-action="next" aria-label="Next page" title="Next page" ${page.hasNext ? '' : 'disabled'}><i class="pager-symbol pager-symbol-right" aria-hidden="true"></i></button>
   `;
   return pager;
 }
@@ -3122,8 +3146,8 @@ function createArtistPager() {
       <strong>${start}-${end}</strong>
       <span>of ${total} artist${total === 1 ? '' : 's'}</span>
     </div>
-    <button type="button" class="secondary-button" data-artist-page-action="previous" ${page.hasPrevious ? '' : 'disabled'}>Previous</button>
-    <button type="button" class="secondary-button" data-artist-page-action="next" ${page.hasNext ? '' : 'disabled'}>Next</button>
+    <button type="button" class="library-pager-icon-button" data-artist-page-action="previous" aria-label="Previous page" title="Previous page" ${page.hasPrevious ? '' : 'disabled'}><i class="pager-symbol pager-symbol-left" aria-hidden="true"></i></button>
+    <button type="button" class="library-pager-icon-button" data-artist-page-action="next" aria-label="Next page" title="Next page" ${page.hasNext ? '' : 'disabled'}><i class="pager-symbol pager-symbol-right" aria-hidden="true"></i></button>
   `;
   return pager;
 }
@@ -3142,8 +3166,8 @@ function createTrackPager() {
       <strong>${start}-${end}</strong>
       <span>of ${total} track${total === 1 ? '' : 's'}</span>
     </div>
-    <button type="button" class="secondary-button" data-library-page-action="previous" ${page.hasPrevious ? '' : 'disabled'}>Previous</button>
-    <button type="button" class="secondary-button" data-library-page-action="next" ${page.hasNext ? '' : 'disabled'}>Next</button>
+    <button type="button" class="library-pager-icon-button" data-library-page-action="previous" aria-label="Previous page" title="Previous page" ${page.hasPrevious ? '' : 'disabled'}><i class="pager-symbol pager-symbol-left" aria-hidden="true"></i></button>
+    <button type="button" class="library-pager-icon-button" data-library-page-action="next" aria-label="Next page" title="Next page" ${page.hasNext ? '' : 'disabled'}><i class="pager-symbol pager-symbol-right" aria-hidden="true"></i></button>
   `;
   return pager;
 }
@@ -3187,6 +3211,9 @@ function renderTrackRows(container, tracks, queueTracks, { variant = 'standard',
     onArtistClick: (artistName) => {
       if (artistName) openArtist(artistName);
     },
+    onAlbumClick: (trackId) => {
+      openAlbumForTrackId(trackId);
+    },
   });
 }
 
@@ -3199,6 +3226,7 @@ function prepareTrackRowForReact(track) {
     artist: track.artist || 'Unknown artist',
     album: track.album || 'Unknown album',
     trackNumber: track.trackNumber,
+    discNumber: track.discNumber || 1,
     folderPath: getTrackFolderPath(track.relativePath || ''),
     coverUrl: track.coverUrl || '',
     favorite,

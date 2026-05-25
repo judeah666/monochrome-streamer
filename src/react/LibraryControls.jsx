@@ -90,19 +90,23 @@ export function LibraryPager({
       ) : null}
       <button
         type="button"
-        className="secondary-button"
+        className="library-pager-icon-button"
         disabled={!page.hasPrevious}
+        aria-label="Previous page"
+        title="Previous page"
         onClick={() => onPage?.('previous')}
       >
-        Previous
+        <i className="pager-symbol pager-symbol-left" aria-hidden="true"></i>
       </button>
       <button
         type="button"
-        className="secondary-button"
+        className="library-pager-icon-button"
         disabled={!page.hasNext}
+        aria-label="Next page"
+        title="Next page"
         onClick={() => onPage?.('next')}
       >
-        Next
+        <i className="pager-symbol pager-symbol-right" aria-hidden="true"></i>
       </button>
     </div>
   );

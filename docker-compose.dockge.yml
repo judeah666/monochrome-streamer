@@ -13,6 +13,11 @@ services:
       SCAN_METADATA: tags
       SCAN_DURATIONS: "false"
       AUTO_SCAN_ON_START: "false"
+      WIDGET_API_KEY: change-this-widget-key
+      WIDGET_CORS_ORIGIN: "*"
+      PUID: "1000"
+      PGID: "1000"
+      UMASK: "022"
     volumes:
       - /path/to/your/music:/music
       - /opt/monochrome-streamer/data:/data

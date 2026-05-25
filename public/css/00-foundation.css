@@ -1,0 +1,131 @@
+/* Foundation, theme tokens, and base elements */
+
+:root {
+  color-scheme: dark;
+  --background: #090909;
+  --background-soft: rgba(255, 255, 255, 0.04);
+  --background-strong: rgba(255, 255, 255, 0.08);
+  --surface: rgba(15, 15, 15, 0.78);
+  --surface-2: rgba(20, 20, 20, 0.94);
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --text: #f4f4f0;
+  --muted: rgba(244, 244, 240, 0.65);
+  --accent: #eb9200;
+  --accent-contrast: #140d00;
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+  --glass: rgba(255, 255, 255, 0.055);
+  --glass-strong: rgba(255, 255, 255, 0.1);
+  --glass-heavy: rgba(10, 10, 10, 0.76);
+  --input-surface: rgba(255, 255, 255, 0.055);
+  --hover-surface: rgba(255, 255, 255, 0.12);
+  --placeholder-surface: #101010;
+  --active-control-text: #111111;
+  --favorite-red: #e11d48;
+  --wanted-line: color-mix(in srgb, var(--accent) 66%, rgba(255, 255, 255, 0.22));
+  --wanted-surface: color-mix(in srgb, var(--accent) 20%, transparent);
+  --wanted-text: color-mix(in srgb, var(--accent) 72%, #ffffff);
+  --player-height: 110px;
+  --sidebar-width: 210px;
+  --sidebar-expanded-width: 210px;
+  --sidebar-collapsed-width: 84px;
+  --album-card-size: 150px;
+  --radius: 24px;
+  --radius-small: 18px;
+  --font-body: "Plus Jakarta Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Space Grotesk", "Plus Jakarta Sans", "Segoe UI", sans-serif;
+  --body-top: #1c120d;
+  --body-mid: #090909;
+  --body-bottom: #050505;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  background: var(--body-bottom);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--app-font-size, 15px);
+  line-height: 1.45;
+  font-feature-settings: "kern", "liga", "tnum";
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.06), transparent 24%),
+    radial-gradient(circle at right 18%, rgba(235, 146, 0, 0.07), transparent 25%),
+    linear-gradient(180deg, var(--body-top) 0%, var(--body-mid) 32%, var(--body-bottom) 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 22px 22px;
+  opacity: 0.7;
+}
+
+button,
+input,
+a,
+textarea,
+select {
+  font: inherit;
+}
+
+select {
+  color-scheme: dark;
+}
+
+body.light-ui select {
+  color-scheme: light;
+}
+
+body.sidebar-collapsed {
+  --sidebar-width: var(--sidebar-collapsed-width);
+}
+
+select option {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+button,
+a {
+  color: inherit;
+}
+
+button {
+  letter-spacing: -0.01em;
+}
+
+a {
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+}
+
+button:not(:disabled),
+a[href],
+[role="button"],
+summary {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
