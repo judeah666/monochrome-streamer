@@ -1,9 +1,41 @@
 import React from 'react';
 
+const settingsGroupClassName = [
+  'settings-group tw-grid tw-grid-cols-[minmax(180px,0.35fr)_minmax(0,1fr)] tw-gap-[22px]',
+  'tw-rounded-[22px] tw-border tw-border-line tw-bg-[linear-gradient(135deg,var(--glass),transparent_58%),var(--surface)]',
+  'tw-p-5 tw-backdrop-blur-lg max-[1200px]:tw-grid-cols-1',
+].join(' ');
+
+const settingsGroupBodyClassName = 'settings-group-body tw-grid tw-min-w-0 tw-gap-3';
+
+const settingRowClassName = [
+  'setting-row tw-grid tw-grid-cols-[minmax(0,1fr)_auto] tw-items-center tw-gap-4',
+  'tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--glass)] tw-p-3.5 tw-backdrop-blur-md',
+  'max-[720px]:tw-grid-cols-1 max-[720px]:tw-items-start',
+].join(' ');
+
+const settingsFieldClassName = [
+  'settings-field tw-grid tw-grid-cols-[180px_minmax(0,1fr)] tw-items-center tw-gap-4',
+  'tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--glass)] tw-p-3.5 tw-backdrop-blur-md',
+  'max-[720px]:tw-grid-cols-1 max-[720px]:tw-items-start',
+].join(' ');
+
+const settingsHelpClassName = 'settings-help tw-mt-2 tw-text-muted tw-leading-relaxed';
+const settingsActionsClassName = 'settings-actions tw-flex tw-flex-wrap tw-items-center tw-gap-2.5';
+const scanProgressClassName = 'scan-progress tw-h-2.5 tw-overflow-hidden tw-rounded-pill tw-border tw-border-line tw-bg-[var(--background-soft)]';
+const libraryFolderListClassName = [
+  'library-folder-list tw-grid tw-max-h-[280px] tw-grid-cols-[repeat(auto-fill,minmax(190px,1fr))]',
+  'tw-gap-2.5 tw-overflow-auto tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--background-soft)] tw-p-2',
+].join(' ');
+const libraryFolderOptionClassName = [
+  'library-folder-option tw-flex tw-min-h-[42px] tw-items-center tw-gap-2.5',
+  'tw-rounded-[14px] tw-border tw-border-line tw-bg-surface tw-px-3 tw-py-2.5 tw-font-extrabold tw-text-text',
+].join(' ');
+
 export function AudioSettings({ settings, playerLayoutOptions = [] }) {
   return (
     <SettingsGroup title="Playback" description="Controls that work with the browser audio element and your local files.">
-      <label className="settings-field">
+      <label className={settingsFieldClassName}>
         <span>Player Layout</span>
         <select data-setting="playerLayout" defaultValue={settings.playerLayout}>
           {playerLayoutOptions.map(([value, label]) => (
@@ -19,8 +51,8 @@ export function AudioSettings({ settings, playerLayoutOptions = [] }) {
 
 export function DownloadSettings({ settings, downloadQualityOptions = [], bulkDownloadOptions = [] }) {
   return (
-    <SettingsGroup title="Downloads" description="Direct browser downloads for your local files.">
-      <label className="settings-field">
+    <SettingsGroup title="Downloads" description="Download originals or convert to MP3 before the file leaves the server.">
+      <label className={settingsFieldClassName}>
         <span>Download Quality</span>
         <select data-setting="downloadQuality" defaultValue={settings.downloadQuality}>
           {downloadQualityOptions.map(([value, label]) => (
@@ -28,7 +60,8 @@ export function DownloadSettings({ settings, downloadQualityOptions = [], bulkDo
           ))}
         </select>
       </label>
-      <label className="settings-field">
+      <p className={settingsHelpClassName}>MP3 downloads are converted server-side with ffmpeg at 320 kbps. Playback still uses your original local file.</p>
+      <label className={settingsFieldClassName}>
         <span>Bulk Download Method</span>
         <select data-setting="bulkDownloadMethod" defaultValue={settings.bulkDownloadMethod}>
           {bulkDownloadOptions.map(([value, label]) => (
@@ -36,18 +69,12 @@ export function DownloadSettings({ settings, downloadQualityOptions = [], bulkDo
           ))}
         </select>
       </label>
-      <label className="settings-field">
+      <p className={settingsHelpClassName}>Queue and album downloads can either start one file at a time or stream one ZIP archive from the server.</p>
+      <label className={settingsFieldClassName}>
         <span>Filename Template</span>
         <input type="text" data-setting="filenameTemplate" defaultValue={settings.filenameTemplate} />
       </label>
-      <label className="settings-field">
-        <span>Folder Template</span>
-        <input type="text" data-setting="folderTemplate" defaultValue={settings.folderTemplate} />
-      </label>
-      <p className="settings-help">Available: {'{discNumber}'}, {'{trackNumber}'}, {'{artist}'}, {'{title}'}, {'{album}'}, {'{albumArtist}'}, {'{year}'}. Browser security may ignore folders in the download name.</p>
-      <SettingToggle settingKey="includeCoverFile" title="Include Cover File" description="Stored preference for future ZIP/export downloads." checked={settings.includeCoverFile} />
-      <SettingToggle settingKey="generateM3u" title="Generate M3U" description="Stored preference for future playlist exports." checked={settings.generateM3u} />
-      <SettingToggle settingKey="generateJson" title="Generate JSON" description="Stored preference for future metadata exports." checked={settings.generateJson} />
+      <p className={settingsHelpClassName}>Available: {'{discNumber}'}, {'{trackNumber}'}, {'{artist}'}, {'{title}'}, {'{album}'}, {'{albumArtist}'}, {'{year}'}.</p>
     </SettingsGroup>
   );
 }
@@ -65,11 +92,11 @@ export function InstanceSettings({ settings, instanceUrl, instancePlaceholder, c
   return (
     <>
       <SettingsGroup title="Local Instance" description="Manage the API instance this browser is using.">
-        <label className="settings-field">
+        <label className={settingsFieldClassName}>
           <span>Instance URL</span>
           <input type="url" data-setting="instanceUrl" defaultValue={instanceUrl} placeholder={instancePlaceholder} />
         </label>
-        <div className="setting-row">
+        <div className={settingRowClassName}>
           <div>
             <strong>Current API</strong>
             <span>{currentApiText}</span>
@@ -79,36 +106,36 @@ export function InstanceSettings({ settings, instanceUrl, instancePlaceholder, c
         <SettingToggle settingKey="devMode" title="Dev Mode" description="Show local API details for debugging this self-hosted app." checked={settings.devMode} />
       </SettingsGroup>
       <SettingsGroup title="Widget API" description="Create a small API endpoint for dashboards and other apps that only need library counts.">
-        <div className="widget-api-settings" data-widget-api-settings>
+        <div className="widget-api-settings tw-grid tw-min-w-0 tw-gap-3" data-widget-api-settings>
           <SettingToggle settingKey="" title="Enable Widget API" description="Allow /api/widget/stats when the API key matches." checked={widget.enabled} extraAttrs={{ 'data-widget-enabled': true }} />
-          <label className="settings-field">
+          <label className={settingsFieldClassName}>
             <span>API Key</span>
             <input type="text" data-widget-api-key defaultValue={widget.apiKey || ''} placeholder="Generate a key or paste your own" spellCheck="false" />
           </label>
-          <label className="settings-field">
+          <label className={settingsFieldClassName}>
             <span>CORS Origin</span>
             <input type="text" data-widget-cors-origin defaultValue={widget.widgetCorsOrigin || '*'} placeholder="* or https://your-dashboard.local" spellCheck="false" />
           </label>
-          <div className="setting-row widget-api-url-row">
+          <div className={`${settingRowClassName} widget-api-url-row`}>
             <div>
               <strong>Widget URL</strong>
               <span>{widget.exampleUrl}</span>
             </div>
-            <div className="settings-actions">
+            <div className={settingsActionsClassName}>
               <button type="button" className="secondary-button" data-settings-action="copy-widget-api-url">Copy URL</button>
               <button type="button" className="secondary-button" data-settings-action="test-widget-api">Test</button>
             </div>
           </div>
-          <div className="settings-actions">
+          <div className={settingsActionsClassName}>
             <button type="button" className="secondary-button" data-settings-action="generate-widget-api-key">Generate API Key</button>
             <button type="button" className="primary-button" data-settings-action="save-widget-api">Save Widget API</button>
           </div>
-          <p className="settings-help">Current source: {widget.source}. Stats endpoint: {widget.statsUrl}</p>
+          <p className={settingsHelpClassName}>Current source: {widget.source}. Stats endpoint: {widget.statsUrl}</p>
         </div>
       </SettingsGroup>
       {settings.devMode ? (
         <SettingsGroup title="Debug" description="Read-only runtime information.">
-          <div className="settings-code">{debugText}</div>
+          <div className="settings-code tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--glass)] tw-p-3.5 tw-font-mono tw-text-sm tw-text-text">{debugText}</div>
         </SettingsGroup>
       ) : null}
     </>
@@ -124,37 +151,37 @@ export function SystemSettings({ settings, folders, scan, selectedLabel, stats }
   return (
     <>
       <SettingsGroup title="Scan Status" description="Watch the current scan and choose which folders are included.">
-        <div className="setting-row scan-status-row">
+        <div className={`${settingRowClassName} scan-status-row`}>
           <div>
             <strong>{statusText}</strong>
             <span>{scanDetail}</span>
           </div>
           <button type="button" className="secondary-button" data-settings-action="refresh-library-folders">Refresh Folders</button>
         </div>
-        <div className="scan-progress" aria-label="Scan progress">
-          <span style={{ width: `${scan.percent}%` }} />
+        <div className={scanProgressClassName} aria-label="Scan progress">
+          <span className="tw-block tw-h-full tw-rounded-pill tw-bg-[linear-gradient(90deg,var(--accent),color-mix(in_srgb,var(--accent)_55%,#fff))] tw-transition-[width]" style={{ width: `${scan.percent}%` }} />
         </div>
-        <p className="settings-help" data-library-folder-summary>Selected folders: {selectedLabel}</p>
+        <p className={settingsHelpClassName} data-library-folder-summary>Selected folders: {selectedLabel}</p>
       </SettingsGroup>
 
       <SettingsGroup title="Library Folders" description="Choose which top-level folders inside your mounted music folder should be indexed.">
-        <div className="library-folder-list">
+        <div className={libraryFolderListClassName}>
           {folderRows.length ? folderRows.map((folder) => (
-            <label key={folder} className="library-folder-option">
+            <label key={folder} className={libraryFolderOptionClassName}>
               <input type="checkbox" data-library-folder={folder} defaultChecked={selectedFolders.has(folder)} />
               <span>{folder}</span>
             </label>
-          )) : <p className="settings-help">No top-level folders were found in the mounted music folder.</p>}
+          )) : <p className={settingsHelpClassName}>No top-level folders were found in the mounted music folder.</p>}
         </div>
-        <div className="settings-actions">
+        <div className={settingsActionsClassName}>
           <button type="button" className="secondary-button" data-settings-action="save-library-folders">Save Selected Folders</button>
           <button type="button" className="primary-button" data-settings-action="save-and-scan-library-folders">Save & Scan</button>
         </div>
-        <p className="settings-help">Tip: start with one artist folder, scan, then add more folders after the app is stable.</p>
+        <p className={settingsHelpClassName}>Tip: start with one artist folder, scan, then add more folders after the app is stable.</p>
       </SettingsGroup>
 
       <SettingsGroup title="Library System" description="Maintenance for your local index and browser data.">
-        <div className="setting-row">
+        <div className={settingRowClassName}>
           <div>
             <strong>Cache</strong>
             <span>{settings.cacheEnabled ? 'Browser settings cache is enabled.' : 'Browser settings cache is disabled.'}</span>
@@ -163,7 +190,7 @@ export function SystemSettings({ settings, folders, scan, selectedLabel, stats }
         </div>
         <SettingToggle settingKey="cacheEnabled" title="Cache" description="Stores local settings and favorites in this browser." checked={settings.cacheEnabled} />
         <SettingToggle settingKey="autoUpdate" title="Auto-Update App" description="Reserved for a future service worker reload flow." checked={settings.autoUpdate} />
-        <div className="setting-row">
+        <div className={settingRowClassName}>
           <div>
             <strong>Rescan Library</strong>
             <span>Ask the server to index your music folder again.</span>
@@ -173,17 +200,17 @@ export function SystemSettings({ settings, folders, scan, selectedLabel, stats }
       </SettingsGroup>
 
       <SettingsGroup title="Backup & Restore" description="Export or import local UI settings as JSON.">
-        <div className="setting-row">
+        <div className={settingRowClassName}>
           <div>
             <strong>Export All Settings</strong>
             <span>Download appearance, interface, audio, download, instance, and system settings.</span>
           </div>
-          <div className="settings-actions">
+          <div className={settingsActionsClassName}>
             <button type="button" className="secondary-button" data-settings-action="export-settings">Export</button>
             <button type="button" className="secondary-button" data-settings-action="import-settings">Import</button>
           </div>
         </div>
-        <div className="setting-row danger">
+        <div className={`${settingRowClassName} danger tw-border-[rgba(255,82,82,0.36)] tw-bg-[rgba(255,82,82,0.08)]`}>
           <div>
             <strong>Reset Local Data</strong>
             <span>Clear settings, favorites, and playback state from this browser.</span>
@@ -197,12 +224,12 @@ export function SystemSettings({ settings, folders, scan, selectedLabel, stats }
 
 function SettingsGroup({ title, description, children }) {
   return (
-    <section className="settings-group">
+    <section className={settingsGroupClassName}>
       <div className="settings-group-heading">
         <h4>{title}</h4>
         <p>{description}</p>
       </div>
-      <div className="settings-group-body">{children}</div>
+      <div className={settingsGroupBodyClassName}>{children}</div>
     </section>
   );
 }
@@ -212,7 +239,7 @@ function SettingToggle({ settingKey, title, description, checked, extraAttrs = {
     ? { 'data-setting': settingKey }
     : {};
   return (
-    <label className="setting-row">
+    <label className={settingRowClassName}>
       <div>
         <strong>{title}</strong>
         <span>{description}</span>

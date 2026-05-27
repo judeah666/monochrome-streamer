@@ -1,5 +1,9 @@
 import React from 'react';
 
+const lyricButtonClassName = 'fullscreen-lyric-line tw-block tw-w-full tw-border-0 tw-bg-transparent tw-p-0 tw-text-left tw-text-inherit tw-cursor-pointer tw-transition hover:tw-text-white';
+const lyricPlainClassName = 'fullscreen-lyric-line is-plain tw-block';
+const lyricEmptyClassName = 'fullscreen-lyrics-empty tw-text-muted';
+
 export function FullscreenLyrics({
   mode = 'empty',
   message = '',
@@ -17,7 +21,7 @@ export function FullscreenLyrics({
           <button
             key={`${line.time}-${index}`}
             type="button"
-            className="fullscreen-lyric-line"
+            className={lyricButtonClassName}
             data-lyric-index={index}
             data-time={line.time}
             onClick={() => onSeek?.(line.time)}
@@ -33,7 +37,7 @@ export function FullscreenLyrics({
     return (
       <>
         {plainLines.map((line, index) => (
-          <div key={`${line}-${index}`} className="fullscreen-lyric-line is-plain">
+          <div key={`${line}-${index}`} className={lyricPlainClassName}>
             <span>{line}</span>
           </div>
         ))}
@@ -43,7 +47,7 @@ export function FullscreenLyrics({
 
   if (mode === 'queue') {
     if (!queueTracks.length || currentIndex < 0) {
-      return <div className="fullscreen-lyrics-empty">Your queue will appear here.</div>;
+      return <div className={lyricEmptyClassName}>Your queue will appear here.</div>;
     }
 
     const startIndex = Math.max(0, currentIndex - 5);
@@ -60,7 +64,7 @@ export function FullscreenLyrics({
             <button
               key={`${track.id}-${queueIndex}`}
               type="button"
-              className={`fullscreen-lyric-line${active ? ' is-active' : ''}${blurClass}`}
+              className={`${lyricButtonClassName}${active ? ' is-active' : ''}${blurClass}`}
               data-track-id={track.id}
               onClick={() => onPlayTrack?.(track.id)}
             >
@@ -73,5 +77,5 @@ export function FullscreenLyrics({
     );
   }
 
-  return <div className="fullscreen-lyrics-empty">{message || 'Start playing a track to fill this view.'}</div>;
+  return <div className={lyricEmptyClassName}>{message || 'Start playing a track to fill this view.'}</div>;
 }

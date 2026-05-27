@@ -1,6 +1,6 @@
 # monochrome-streamer
 
-Current release: `v0.1.0`
+Current release: `v0.2.0`
 
 A small self-hosted music streamer inspired by the look and feel of [Monochrome](https://github.com/monochrome-music/monochrome), but built for your own files on your own server.
 
@@ -140,7 +140,7 @@ UMASK=022
 CHOWN_DATA=true
 WIDGET_API_KEY=change-this-widget-key
 WIDGET_SETTINGS_PATH=/data/widget-settings.json
-IMAGE_TAG=0.1.1
+IMAGE_TAG=0.2.0
 ```
 
 `APP_DATA_DIR` is the local server folder where album edits, artist edits, saved `.lrc` lyrics, the SQLite library index, and cached cover art are stored. Inside Docker it is mounted as `/data`.
@@ -185,7 +185,7 @@ docker login
 Build and push the release tag:
 
 ```powershell
-docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:0.1.0 --push .
+docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:0.2.0 --push .
 ```
 
 Also update `latest` if this is the version you want Dockge to pull by default:
@@ -197,7 +197,7 @@ docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:late
 Or push both tags in one build:
 
 ```powershell
-docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:0.1.0 -t judeah666/monochrome-streamer:latest --push .
+docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:0.2.0 -t judeah666/monochrome-streamer:latest --push .
 ```
 
 ### Dockge
@@ -209,7 +209,7 @@ Use [docker-compose.dockge.yml](docker-compose.dockge.yml) as the starting point
 ```yaml
 services:
   monochrome-streamer:
-    image: judeah666/monochrome-streamer:0.1.0
+    image: judeah666/monochrome-streamer:0.2.0
     container_name: monochrome-streamer
     restart: unless-stopped
     ports:
@@ -267,7 +267,7 @@ curl http://127.0.0.1:8888/api/config
 
 ## Frontend Development
 
-The app now has a Vite + React frontend pipeline. The current React entry is a small bridge so existing pages keep working while UI sections are migrated safely.
+The app uses a Vite + React frontend pipeline with Tailwind available for gradual UI work.
 
 ```powershell
 npm run build
@@ -275,10 +275,37 @@ npm run build
 
 The production bundle is written to `public/react/app.js`, which is loaded by `public/index.html`. The backend API remains in `server.mjs`.
 
+The current frontend is a stable hybrid:
+
+- `src/react/` contains the React shell and UI sections.
+- `src/controller/` owns routing, playback, scanning, data loading, persistence actions, and tested view-model presenters.
+- React UI sections receive stable snapshots for queue, player, settings, album/detail views, library views, and editors.
+- Tailwind classes use the `tw-` prefix and Preflight is disabled so Tailwind can coexist with the existing CSS.
+
 For frontend-only iteration, you can also run:
 
 ```powershell
 npm run dev:frontend
+```
+
+Tailwind is scaffolded for gradual React migration. It uses a `tw-` prefix and disables Preflight so it can coexist with the current CSS. When adding Tailwind classes during development, run this in a second terminal:
+
+```powershell
+npm run dev:tailwind
+```
+
+See [docs/tailwind-migration.md](docs/tailwind-migration.md) for the migration rules.
+
+Run the test suite after controller, presenter, player, queue, settings, or library changes:
+
+```powershell
+npm test
+```
+
+For Docker parity, verify with:
+
+```powershell
+docker run --rm -v "${PWD}:/app" -w /app node:24-alpine sh -lc "npm run build"
 ```
 
 `config.json`

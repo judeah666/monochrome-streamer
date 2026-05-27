@@ -1,5 +1,25 @@
 import React from 'react';
 
+const settingsGroupClassName = [
+  'settings-group tw-grid tw-grid-cols-[minmax(180px,0.35fr)_minmax(0,1fr)] tw-gap-[22px]',
+  'tw-rounded-[22px] tw-border tw-border-line tw-bg-[linear-gradient(135deg,var(--glass),transparent_58%),var(--surface)]',
+  'tw-p-5 tw-backdrop-blur-lg max-[1200px]:tw-grid-cols-1',
+].join(' ');
+
+const settingsGroupBodyClassName = 'settings-group-body tw-grid tw-min-w-0 tw-gap-3';
+
+const settingRowClassName = [
+  'setting-row tw-grid tw-grid-cols-[minmax(0,1fr)_auto] tw-items-center tw-gap-4',
+  'tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--glass)] tw-p-3.5 tw-backdrop-blur-md',
+  'max-[720px]:tw-grid-cols-1 max-[720px]:tw-items-start',
+].join(' ');
+
+const settingsFieldClassName = [
+  'settings-field tw-grid tw-grid-cols-[180px_minmax(0,1fr)] tw-items-center tw-gap-4',
+  'tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--glass)] tw-p-3.5 tw-backdrop-blur-md',
+  'max-[720px]:tw-grid-cols-1 max-[720px]:tw-items-start',
+].join(' ');
+
 export function InterfaceSettings({
   settings,
   libraryPageSizeOptions = [],
@@ -32,12 +52,12 @@ export function InterfaceSettings({
           description="Use icon-only navigation and compact sidebar status."
           checked={settings.sidebarCollapsed}
         />
-        <div className="setting-row is-disabled">
+        <div className={`${settingRowClassName} is-disabled`}>
           <div>
             <strong>Show Settings in Sidebar</strong>
             <span>Always visible so you cannot lock yourself out.</span>
           </div>
-          <span className="settings-pill">Always on</span>
+          <span className="settings-pill tw-rounded-pill tw-border tw-border-line tw-px-2.5 tw-py-1.5 tw-text-[0.82rem] tw-font-extrabold tw-uppercase tw-tracking-[0.08em] tw-text-muted">Always on</span>
         </div>
       </SettingsGroup>
 
@@ -48,7 +68,7 @@ export function InterfaceSettings({
           description="Close queue and editor panels when switching views."
           checked={settings.closePanelsOnNavigation}
         />
-        <label className="settings-field">
+        <label className={settingsFieldClassName}>
           <span>Library Albums Per Page</span>
           <select data-setting="libraryPageSize" defaultValue={settings.libraryPageSize}>
             {libraryPageSizeOptions.map(([value, label]) => (
@@ -58,7 +78,7 @@ export function InterfaceSettings({
             ))}
           </select>
         </label>
-        <label className="settings-field">
+        <label className={settingsFieldClassName}>
           <span>Now Playing Click Action</span>
           <select data-setting="nowPlayingClickAction" defaultValue={settings.nowPlayingClickAction}>
             {nowPlayingClickOptions.map(([value, label]) => (
@@ -75,19 +95,19 @@ export function InterfaceSettings({
 
 function SettingsGroup({ title, description, children }) {
   return (
-    <section className="settings-group">
+    <section className={settingsGroupClassName}>
       <div className="settings-group-heading">
         <h4>{title}</h4>
         <p>{description}</p>
       </div>
-      <div className="settings-group-body">{children}</div>
+      <div className={settingsGroupBodyClassName}>{children}</div>
     </section>
   );
 }
 
 function SettingToggle({ settingKey, title, description, checked }) {
   return (
-    <label className="setting-row">
+    <label className={settingRowClassName}>
       <div>
         <strong>{title}</strong>
         <span>{description}</span>

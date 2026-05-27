@@ -1,6 +1,6 @@
 FROM node:24-alpine
 
-ARG APP_VERSION=0.1.0
+ARG APP_VERSION=0.2.0
 LABEL org.opencontainers.image.title="monochrome-streamer" \
   org.opencontainers.image.description="A self-hosted music streamer for local server files." \
   org.opencontainers.image.version="${APP_VERSION}" \
@@ -9,7 +9,7 @@ LABEL org.opencontainers.image.title="monochrome-streamer" \
 WORKDIR /app
 
 COPY package*.json ./
-RUN apk add --no-cache ca-certificates su-exec \
+RUN apk add --no-cache ca-certificates ffmpeg su-exec \
   && npm install
 
 COPY server.mjs ./
@@ -17,6 +17,8 @@ COPY artist-info.example.json ./
 COPY lib ./lib
 COPY public ./public
 COPY src ./src
+COPY tailwind.config.js ./
+COPY postcss.config.js ./
 COPY vite.config.js ./
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 

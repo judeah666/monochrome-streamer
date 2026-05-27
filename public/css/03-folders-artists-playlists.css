@@ -12,7 +12,6 @@
 
 .folder-node {
   margin: 0;
-  border-left: 1px solid color-mix(in srgb, var(--line-strong) 78%, transparent);
   padding-left: 22px;
 }
 
@@ -103,7 +102,6 @@
   margin-top: 12px;
   margin-left: 11px;
   padding-left: 22px;
-  border-left: 1px dashed color-mix(in srgb, var(--line-strong) 70%, transparent);
 }
 
 .folder-node-body > .folder-node {

@@ -1,6 +1,23 @@
 import React, { useState } from 'react';
 
 const REMOVE_ICON = '/player-icons/trash.svg';
+const queueItemBaseClassName = [
+  'queue-item tw-grid tw-grid-cols-[38px_58px_minmax(0,1fr)_auto] tw-items-center tw-gap-3',
+  'tw-rounded-[18px] tw-border tw-border-line tw-bg-surface tw-p-3 tw-transition',
+  'hover:tw-border-[var(--line-strong)] hover:tw-bg-surface2',
+].join(' ');
+const queueItemActiveClassName = ' is-active tw-border-[color-mix(in_srgb,var(--accent)_42%,transparent)] tw-bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]';
+const queueDragClassName = ' is-dragging tw-opacity-60';
+const queueDropTargetClassName = ' drop-target tw-border-accent';
+const queueHandleClassName = 'queue-drag-handle tw-inline-flex tw-h-[38px] tw-w-[38px] tw-items-center tw-justify-center tw-rounded-pill tw-border tw-border-line tw-bg-[var(--glass)] tw-p-0';
+const queueImageClassName = 'tw-h-[58px] tw-w-[58px] tw-rounded-[12px] tw-object-cover';
+const queueFallbackClassName = 'queue-thumb-fallback cover-placeholder-art tw-grid tw-h-[58px] tw-w-[58px] tw-place-items-center tw-rounded-[12px]';
+const queueMainClassName = 'queue-item-main tw-min-w-0 tw-border-0 tw-bg-transparent tw-p-0 tw-text-left tw-text-inherit tw-cursor-pointer';
+const queueCopyClassName = 'queue-item-copy tw-grid tw-min-w-0 tw-gap-1';
+const queueTextClassName = 'tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap';
+const queueTrailingClassName = 'queue-item-trailing tw-flex tw-items-center';
+const queueActionsClassName = 'queue-item-actions tw-flex tw-items-center tw-gap-2';
+const queueActionButtonClassName = 'tw-inline-flex tw-h-[38px] tw-w-[38px] tw-items-center tw-justify-center tw-rounded-pill tw-border tw-border-line tw-bg-[var(--glass)] tw-p-0';
 
 export function QueueList({
   tracks = [],
@@ -23,7 +40,7 @@ export function QueueList({
 
   return (
     <>
-      {tracks.map((track, index) => {
+      {tracks.map((track) => {
         const favorite = favoriteSet.has(track.id);
         const isCurrent = track.id === currentTrackId;
         const isDropTarget = dropTargetId === track.id && dragTrackId !== track.id;
@@ -32,10 +49,10 @@ export function QueueList({
           <article
             key={track.id}
             className={[
-              'queue-item',
-              isCurrent ? 'is-active' : '',
-              dragTrackId === track.id ? 'is-dragging' : '',
-              isDropTarget ? 'drop-target' : '',
+              queueItemBaseClassName,
+              isCurrent ? queueItemActiveClassName : '',
+              dragTrackId === track.id ? queueDragClassName : '',
+              isDropTarget ? queueDropTargetClassName : '',
             ].filter(Boolean).join(' ')}
             draggable
             data-track-id={track.id}
@@ -65,31 +82,30 @@ export function QueueList({
               setDropTargetId('');
             }}
           >
-            <button type="button" className="queue-drag-handle" aria-label={`Drag ${track.title}`}>
+            <button type="button" className={queueHandleClassName} aria-label={`Drag ${track.title}`}>
               <i className="fa-solid fa-grip-lines" aria-hidden="true" />
             </button>
 
             {track.coverUrl ? (
-              <img src={track.coverUrl} alt={`${track.album} cover art`} loading="lazy" />
+              <img className={queueImageClassName} src={track.coverUrl} alt={`${track.album} cover art`} loading="lazy" />
             ) : (
-              <div className="queue-thumb-fallback cover-placeholder-art">
+              <div className={queueFallbackClassName}>
                 <i className="fa-solid fa-record-vinyl" aria-hidden="true" />
               </div>
             )}
 
-            <button type="button" className="queue-item-main" aria-label={`Play ${track.title}`} onClick={() => onPlay?.(track.id)}>
-              <div className="queue-item-copy">
-                <strong>{track.title}</strong>
-                <span>{track.artist}</span>
+            <button type="button" className={queueMainClassName} aria-label={`Play ${track.title}`} onClick={() => onPlay?.(track.id)}>
+              <div className={queueCopyClassName}>
+                <strong className={queueTextClassName}>{track.title}</strong>
+                <span className={`${queueTextClassName} tw-text-muted`}>{track.artist}</span>
               </div>
             </button>
 
-            <div className="queue-item-trailing">
-              <span className="queue-item-index">{index + 1}</span>
-              <div className="queue-item-actions">
+            <div className={queueTrailingClassName}>
+              <div className={queueActionsClassName}>
                 <button
                   type="button"
-                  className={`queue-item-favorite${favorite ? ' active' : ''}`}
+                  className={`queue-item-favorite ${queueActionButtonClassName}${favorite ? ' active' : ''}`}
                   aria-label={`${favorite ? 'Unfavorite' : 'Favorite'} ${track.title}`}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -100,7 +116,7 @@ export function QueueList({
                 </button>
                 <button
                   type="button"
-                  className="queue-item-remove"
+                  className={`queue-item-remove ${queueActionButtonClassName}`}
                   aria-label={`Remove ${track.title} from queue`}
                   disabled={isCurrent}
                   onClick={(event) => {

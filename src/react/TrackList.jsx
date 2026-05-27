@@ -1,4 +1,35 @@
 import React from 'react';
+import { CoverPlaceholder, FontAwesomeIcon } from './VisualBits.jsx';
+
+const albumDiscHeaderClassName = [
+  'album-disc-header tw-flex tw-items-center tw-justify-between tw-gap-3.5',
+  'tw-border-b tw-border-line tw-bg-[color-mix(in_srgb,var(--surface-2)_78%,transparent)]',
+  'tw-px-5 tw-py-3 tw-text-text tw-uppercase tw-tracking-[0.16em]',
+].join(' ');
+const trackRowBaseClassName = [
+  'track-row tw-grid tw-grid-cols-[76px_minmax(0,1fr)_auto] tw-items-center tw-gap-4',
+  'tw-rounded-[20px] tw-border tw-border-line tw-bg-surface tw-p-3.5 tw-shadow-panel',
+  'tw-backdrop-blur-md tw-cursor-pointer tw-transition hover:tw-border-[var(--line-strong)] hover:tw-bg-surface2',
+].join(' ');
+const trackRowActiveClassName = ' is-active tw-border-[color-mix(in_srgb,var(--accent)_42%,transparent)] tw-bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]';
+const trackImageClassName = 'tw-h-[76px] tw-w-[76px] tw-rounded-[16px] tw-object-cover';
+const trackPlaceholderClassName = 'track-placeholder-host tw-block tw-h-[76px] tw-w-[76px]';
+const trackCopyClassName = 'track-copy tw-min-w-0';
+const trackTitleClassName = 'tw-m-0 tw-mb-1 tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap tw-font-display tw-leading-[1.12] tw-tracking-[-0.035em]';
+const trackMetaClassName = 'tw-m-0 tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap tw-leading-[1.35] tw-text-muted';
+const trackFolderClassName = 'track-folder-path tw-m-0 tw-mt-1 tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap tw-text-[0.78rem] tw-text-muted tw-opacity-80';
+const albumTrackRowBaseClassName = [
+  'album-track-row tw-grid tw-grid-cols-[56px_minmax(0,1fr)_minmax(120px,180px)_156px]',
+  'tw-items-center tw-gap-[18px] tw-border-b tw-border-line tw-bg-surface tw-px-5 tw-py-4',
+  'tw-backdrop-blur-md tw-cursor-pointer tw-transition hover:tw-border-[var(--line-strong)] hover:tw-bg-surface2',
+].join(' ');
+const trackIndexClassName = 'track-index tw-text-muted';
+const trackTitleGroupClassName = 'track-title-group tw-grid tw-min-w-0 tw-gap-1';
+const inlineButtonClassName = 'tw-min-w-0 tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap tw-border-0 tw-bg-transparent tw-p-0 tw-text-left tw-text-inherit tw-cursor-pointer hover:tw-text-accent';
+const albumInlineButtonClassName = `album-inline-link ${inlineButtonClassName}`;
+const artistInlineButtonClassName = `artist-inline-link ${inlineButtonClassName}`;
+const rowActionsClassName = 'row-actions tw-flex tw-items-center tw-gap-2';
+const rowIconButtonClassName = 'tw-inline-flex tw-h-[42px] tw-w-[42px] tw-items-center tw-justify-center tw-rounded-pill tw-border tw-border-line tw-bg-[var(--glass)] tw-p-0 tw-backdrop-blur-md';
 
 export function TrackList({
   tracks = [],
@@ -15,9 +46,9 @@ export function TrackList({
       <>
         {groupTracksByDisc(tracks).map(([discNumber, discTracks]) => (
           <React.Fragment key={discNumber}>
-            <div className="album-disc-header">
-              <span>Disc {discNumber}</span>
-              <small>{discTracks.length} track{discTracks.length === 1 ? '' : 's'}</small>
+            <div className={albumDiscHeaderClassName}>
+              <span className="tw-text-[0.78rem] tw-font-black">Disc {discNumber}</span>
+              <small className="tw-text-[0.72rem] tw-normal-case tw-tracking-[0.02em] tw-text-muted">{discTracks.length} track{discTracks.length === 1 ? '' : 's'}</small>
             </div>
             {discTracks.map((track) => (
               <AlbumTrackRow
@@ -58,15 +89,17 @@ export function TrackList({
 
 function TrackRow({ track, showAlbum, onPlay, onFavorite, onAddQueue, onArtistClick, onAlbumClick }) {
   return (
-    <article className={`track-row${track.active ? ' is-active' : ''}`} onClick={() => onPlay?.({ toggle: false })}>
+    <article className={`${trackRowBaseClassName}${track.active ? trackRowActiveClassName : ''}`} onClick={() => onPlay?.({ toggle: false })}>
       {track.coverUrl ? (
-        <img src={track.coverUrl} alt={`${track.album} cover art`} loading="lazy" />
+        <img className={trackImageClassName} src={track.coverUrl} alt={`${track.album} cover art`} loading="lazy" />
       ) : (
-        <span className="track-placeholder-host" dangerouslySetInnerHTML={{ __html: track.coverPlaceholderHtml }} />
+        <span className={trackPlaceholderClassName}>
+          <CoverPlaceholder className="track-thumb-placeholder" />
+        </span>
       )}
-      <div className="track-copy">
-        <h4>{track.title}</h4>
-        <p>
+      <div className={trackCopyClassName}>
+        <h4 className={trackTitleClassName}>{track.title}</h4>
+        <p className={trackMetaClassName}>
           <ArtistInlineButton artist={track.artist} onArtistClick={onArtistClick} />
           {showAlbum ? (
             <>
@@ -75,7 +108,7 @@ function TrackRow({ track, showAlbum, onPlay, onFavorite, onAddQueue, onArtistCl
             </>
           ) : null}
         </p>
-        {track.folderPath ? <p className="track-folder-path">{track.folderPath}</p> : null}
+        {track.folderPath ? <p className={trackFolderClassName}>{track.folderPath}</p> : null}
       </div>
       <TrackActions track={track} onFavorite={onFavorite} onAddQueue={onAddQueue} onPlay={onPlay} />
     </article>
@@ -84,13 +117,13 @@ function TrackRow({ track, showAlbum, onPlay, onFavorite, onAddQueue, onArtistCl
 
 function AlbumTrackRow({ track, onPlay, onFavorite, onAddQueue, onArtistClick, onAlbumClick }) {
   return (
-    <article className={`album-track-row${track.active ? ' is-active' : ''}`} onClick={() => onPlay?.({ toggle: false })}>
-      <span className="track-index">{track.trackNumber ?? '•'}</span>
-      <div className="track-title-group">
-        <strong>{track.title}</strong>
+    <article className={`${albumTrackRowBaseClassName}${track.active ? trackRowActiveClassName : ''}`} onClick={() => onPlay?.({ toggle: false })}>
+      <span className={trackIndexClassName}>{track.trackNumber ?? '•'}</span>
+      <div className={trackTitleGroupClassName}>
+        <strong className="tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap">{track.title}</strong>
         <ArtistInlineButton artist={track.artist} onArtistClick={onArtistClick} />
       </div>
-      <AlbumInlineButton className="track-album-name" album={track.album} onAlbumClick={onAlbumClick} />
+      <AlbumInlineButton className="track-album-name tw-text-muted" album={track.album} onAlbumClick={onAlbumClick} />
       <TrackActions track={track} onFavorite={onFavorite} onAddQueue={onAddQueue} onPlay={onPlay} />
     </article>
   );
@@ -102,7 +135,7 @@ function ArtistInlineButton({ artist, onArtistClick }) {
   return (
     <button
       type="button"
-      className="artist-inline-link"
+      className={artistInlineButtonClassName}
       onClick={(event) => {
         event.stopPropagation();
         onArtistClick?.();
@@ -119,7 +152,7 @@ function AlbumInlineButton({ album, className = '', onAlbumClick }) {
   return (
     <button
       type="button"
-      className={`album-inline-link${className ? ` ${className}` : ''}`}
+      className={`${albumInlineButtonClassName}${className ? ` ${className}` : ''}`}
       onClick={(event) => {
         event.stopPropagation();
         onAlbumClick?.();
@@ -132,37 +165,40 @@ function AlbumInlineButton({ album, className = '', onAlbumClick }) {
 
 function TrackActions({ track, onFavorite, onAddQueue, onPlay }) {
   return (
-    <div className="row-actions">
+    <div className={rowActionsClassName}>
       <button
         type="button"
-        className={`favorite-toggle-button${track.favorite ? ' active' : ''}`}
+        className={`favorite-toggle-button ${rowIconButtonClassName}${track.favorite ? ' active' : ''}`}
         aria-label={`${track.favorite ? 'Unfavorite' : 'Favorite'} ${track.title}`}
         onClick={(event) => {
           event.stopPropagation();
           onFavorite?.();
         }}
-        dangerouslySetInnerHTML={{ __html: track.favoriteIconHtml }}
-      />
+      >
+        <FontAwesomeIcon name="favorite" />
+      </button>
       <button
         type="button"
-        className="queue-track-button"
+        className={`queue-track-button ${rowIconButtonClassName}`}
         aria-label={`Add ${track.title} to queue`}
         onClick={(event) => {
           event.stopPropagation();
           onAddQueue?.();
         }}
-        dangerouslySetInnerHTML={{ __html: track.addQueueIconHtml }}
-      />
+      >
+        <FontAwesomeIcon name="addQueue" />
+      </button>
       <button
         type="button"
-        className="row-play-button"
+        className={`row-play-button ${rowIconButtonClassName}`}
         aria-label={`${track.playing ? 'Pause' : 'Play'} ${track.title}`}
         onClick={(event) => {
           event.stopPropagation();
           onPlay?.({ toggle: true });
         }}
-        dangerouslySetInnerHTML={{ __html: track.playIconHtml }}
-      />
+      >
+        <FontAwesomeIcon name={track.playing ? 'pause' : 'play'} />
+      </button>
     </div>
   );
 }

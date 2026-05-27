@@ -2,6 +2,9 @@ import React from 'react';
 import { AlbumGrid } from './AlbumGrid.jsx';
 import { LibraryFilterBar, LibraryPager } from './LibraryControls.jsx';
 
+const albumGridClassName = 'album-grid tw-grid tw-gap-4';
+const libraryAlbumGridClassName = 'library-album-grid tw-grid tw-gap-4';
+
 export function AlbumCollection({
   albums = [],
   emptyMessage = 'No albums found.',
@@ -39,7 +42,7 @@ export function AlbumCollection({
       {albums.length === 0 ? (
         <p className="empty-state">{emptyMessage}</p>
       ) : wrapGrid ? (
-        <div className={compact ? 'library-album-grid' : 'album-grid'}>
+        <div className={compact ? libraryAlbumGridClassName : albumGridClassName}>
           <AlbumGrid albums={albums} compact={compact} onOpen={onOpen} onPlay={onPlay} />
         </div>
       ) : (

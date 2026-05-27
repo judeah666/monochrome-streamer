@@ -1,8 +1,11 @@
 import { createReadStream, existsSync, promises as fs } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
+import yazl from 'yazl';
 import {
   buildByteRange,
   createTrackId,
@@ -34,6 +37,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicDir = path.join(__dirname, 'public');
 const configPath = path.join(__dirname, 'config.json');
+let ffmpegAvailablePromise = null;
 
 const defaultConfig = {
   title: 'Monochrome-Streamer',
@@ -192,13 +196,13 @@ const server = http.createServer(async (request, response) => {
       return respondJson(response, 200, await createLibraryPayload(await getCurrentLibrary()));
     }
 
-    if (url.pathname === '/api/wanted-albums') {
-      const wantedAlbumIds = await getWantedAlbumIds();
+    if (url.pathname === '/api/wishlist-albums' || url.pathname === '/api/wanted-albums') {
+      const wishlistAlbumIds = await getWishlistAlbumIds();
       const library = await readLibraryAlbumPage(libraryDatabasePath, {
         limit: url.searchParams.get('limit'),
         offset: url.searchParams.get('offset'),
         search: url.searchParams.get('search'),
-        albumIds: wantedAlbumIds,
+        albumIds: wishlistAlbumIds,
       });
       primeTrackMap(library.tracks);
       return respondJson(response, 200, await createLibraryPayload(library));
@@ -344,6 +348,15 @@ const server = http.createServer(async (request, response) => {
       return streamTrack(response, decodeURIComponent(streamMatch[1]), request.headers.range);
     }
 
+    const downloadMatch = /^\/api\/tracks\/([^/]+)\/download$/u.exec(url.pathname);
+    if (downloadMatch) {
+      return downloadTrack(response, decodeURIComponent(downloadMatch[1]), url);
+    }
+
+    if (url.pathname === '/api/downloads/bulk' && request.method === 'POST') {
+      return downloadBulkTracks(response, request);
+    }
+
     const lyricsMatch = /^\/api\/tracks\/([^/]+)\/lyrics$/u.exec(url.pathname);
     if (lyricsMatch) {
       const trackId = decodeURIComponent(lyricsMatch[1]);
@@ -474,7 +487,7 @@ function createEmptyLibrary() {
 }
 
 function createPagedLibrary(library, options = {}) {
-  const limit = [25, 50, 100].includes(Number.parseInt(options.limit || 50, 10))
+  const limit = [25, 50, 100, 200, 500].includes(Number.parseInt(options.limit || 50, 10))
     ? Number.parseInt(options.limit || 50, 10)
     : 50;
   const offset = Math.max(0, Number.parseInt(options.offset || 0, 10) || 0);
@@ -950,10 +963,10 @@ async function createLibraryPayload(library) {
   };
 }
 
-async function getWantedAlbumIds() {
+async function getWishlistAlbumIds() {
   const overrides = await getAlbumOverrides();
   return Object.entries(overrides.albums || {})
-    .filter(([, override]) => normalizeAlbumStatus(override?.status) === 'Wanted')
+    .filter(([, override]) => normalizeAlbumStatus(override?.status) === 'Wishlist')
     .map(([albumId]) => albumId);
 }
 
@@ -1016,6 +1029,313 @@ async function streamTrack(response, trackId, rangeHeader) {
 
   response.writeHead(range.statusCode, headers);
   createReadStream(track.path, { start: range.start, end: range.end }).pipe(response);
+}
+
+async function downloadTrack(response, trackId, url) {
+  const track = await getTrackById(trackId);
+  if (!track) {
+    return respondJson(response, 404, { error: 'Track not found' });
+  }
+
+  const quality = normalizeDownloadQuality(url.searchParams.get('quality'));
+  const requestedName = sanitizeDownloadFilename(url.searchParams.get('filename'));
+
+  if (quality === 'mp3') {
+    return downloadTrackAsMp3(response, track, requestedName);
+  }
+
+  return downloadOriginalTrack(response, track, requestedName);
+}
+
+async function downloadBulkTracks(response, request) {
+  const payload = await readRequestPayload(request, 2_000_000);
+  const quality = normalizeDownloadQuality(payload.quality);
+  const trackRequests = normalizeBulkTrackRequests(payload.tracks || payload.trackIds);
+
+  if (trackRequests.length === 0) {
+    return respondJson(response, 400, { error: 'No tracks selected for download.' });
+  }
+  if (quality === 'mp3' && !await isFfmpegAvailable()) {
+    return respondJson(response, 503, {
+      error: 'MP3 conversion requires ffmpeg. Rebuild the Docker image or install ffmpeg on the server.',
+    });
+  }
+
+  const tracks = [];
+  const usedEntryNames = new Set();
+  for (const trackRequest of trackRequests) {
+    const track = await getTrackById(trackRequest.id);
+    if (!track) continue;
+    tracks.push({
+      track,
+      entryName: createUniqueZipEntryName(createZipEntryName(track, trackRequest, quality), usedEntryNames),
+    });
+  }
+
+  if (tracks.length === 0) {
+    return respondJson(response, 404, { error: 'Selected tracks were not found.' });
+  }
+
+  const zipName = sanitizeDownloadFilename(payload.filename) || 'download.zip';
+  const zip = new yazl.ZipFile();
+  const activeConversions = new Set();
+
+  response.writeHead(200, {
+    'Content-Type': 'application/zip',
+    'Content-Disposition': createContentDisposition(zipName.endsWith('.zip') ? zipName : `${zipName}.zip`),
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+  });
+
+  zip.outputStream.on('error', (error) => {
+    if (!response.destroyed) response.destroy(error);
+  });
+  zip.on('error', (error) => {
+    if (!response.destroyed) response.destroy(error);
+  });
+  response.on('close', () => {
+    for (const ffmpeg of activeConversions) {
+      if (!ffmpeg.killed) ffmpeg.kill('SIGKILL');
+    }
+  });
+
+  for (const { track, entryName } of tracks) {
+    if (quality === 'mp3') {
+      zip.addReadStreamLazy(entryName, { compress: false }, (callback) => {
+        const { stream, ffmpeg } = createMp3ConversionStream(track);
+        activeConversions.add(ffmpeg);
+        ffmpeg.on('close', () => activeConversions.delete(ffmpeg));
+        callback(null, stream);
+      });
+    } else {
+      const stats = await fs.stat(track.path);
+      zip.addFile(track.path, entryName, {
+        size: stats.size,
+        compress: false,
+      });
+    }
+  }
+
+  zip.end();
+  zip.outputStream.pipe(response);
+}
+
+async function downloadOriginalTrack(response, track, requestedName) {
+  const stats = await fs.stat(track.path);
+  const filename = requestedName || sanitizeDownloadFilename(path.basename(track.relativePath || track.path));
+
+  response.writeHead(200, {
+    'Content-Length': String(stats.size),
+    'Content-Type': getContentType(track.path),
+    'Content-Disposition': createContentDisposition(filename),
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  createReadStream(track.path).pipe(response);
+}
+
+async function downloadTrackAsMp3(response, track, requestedName) {
+  if (!await isFfmpegAvailable()) {
+    return respondJson(response, 503, {
+      error: 'MP3 conversion requires ffmpeg. Rebuild the Docker image or install ffmpeg on the server.',
+    });
+  }
+
+  const baseName = requestedName
+    ? requestedName.replace(/\.[^.]+$/u, '')
+    : path.basename(track.relativePath || track.title || 'track', path.extname(track.relativePath || ''));
+  const filename = `${sanitizeDownloadFilename(baseName) || 'track'}.mp3`;
+
+  response.writeHead(200, {
+    'Content-Type': 'audio/mpeg',
+    'Content-Disposition': createContentDisposition(filename),
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+  });
+
+  const ffmpeg = spawn('ffmpeg', [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-i',
+    track.path,
+    '-map',
+    '0:a:0',
+    '-vn',
+    '-codec:a',
+    'libmp3lame',
+    '-b:a',
+    '320k',
+    '-f',
+    'mp3',
+    'pipe:1',
+  ], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  let stderr = '';
+  ffmpeg.stderr.on('data', (chunk) => {
+    stderr += chunk.toString();
+  });
+  ffmpeg.on('error', (error) => {
+    console.error('Unable to start ffmpeg:', error);
+    if (!response.destroyed) response.destroy(error);
+  });
+  ffmpeg.on('close', (code) => {
+    if (code && !response.destroyed) {
+      console.error(`ffmpeg exited with code ${code}: ${stderr.trim()}`);
+      response.destroy(new Error('MP3 conversion failed'));
+    }
+  });
+  response.on('close', () => {
+    if (!ffmpeg.killed) ffmpeg.kill('SIGKILL');
+  });
+
+  ffmpeg.stdout.pipe(response);
+}
+
+function createMp3ConversionStream(track) {
+  const stream = new PassThrough();
+  const ffmpeg = spawn('ffmpeg', [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-i',
+    track.path,
+    '-map',
+    '0:a:0',
+    '-vn',
+    '-codec:a',
+    'libmp3lame',
+    '-b:a',
+    '320k',
+    '-f',
+    'mp3',
+    'pipe:1',
+  ], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  let stderr = '';
+  ffmpeg.stderr.on('data', (chunk) => {
+    stderr += chunk.toString();
+  });
+  ffmpeg.on('error', (error) => {
+    stream.destroy(error);
+  });
+  ffmpeg.on('close', (code) => {
+    if (code) {
+      stream.destroy(new Error(`MP3 conversion failed for ${track.title}: ${stderr.trim()}`));
+    }
+  });
+  stream.on('close', () => {
+    if (!ffmpeg.killed) ffmpeg.kill('SIGKILL');
+  });
+
+  ffmpeg.stdout.pipe(stream);
+  return { stream, ffmpeg };
+}
+
+function normalizeDownloadQuality(value) {
+  return String(value || '').toLowerCase() === 'mp3' ? 'mp3' : 'original';
+}
+
+function normalizeBulkTrackRequests(value) {
+  const items = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  return items
+    .map((item) => {
+      if (typeof item === 'string') return { id: item };
+      if (item && typeof item === 'object') return item;
+      return null;
+    })
+    .filter(Boolean)
+    .map((item) => ({
+      id: String(item.id || '').trim(),
+      filename: sanitizeDownloadFilename(item.filename),
+      folder: sanitizeZipFolder(item.folder),
+    }))
+    .filter((item) => {
+      if (!item.id || seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    })
+    .slice(0, 1200);
+}
+
+function createZipEntryName(track, trackRequest, quality) {
+  const extension = quality === 'mp3'
+    ? '.mp3'
+    : path.extname(track.relativePath || track.path) || '.audio';
+  const requestedBase = trackRequest.filename
+    ? trackRequest.filename.replace(/\.[^.]+$/u, '')
+    : path.basename(track.relativePath || track.title || 'track', path.extname(track.relativePath || ''));
+  const filename = `${sanitizeDownloadFilename(requestedBase) || 'track'}${extension}`;
+  const folder = trackRequest.folder ? `${trackRequest.folder}/` : '';
+  return sanitizeZipEntryPath(`${folder}${filename}`);
+}
+
+function createUniqueZipEntryName(entryName, usedEntryNames) {
+  const safeEntryName = entryName || 'track.audio';
+  if (!usedEntryNames.has(safeEntryName)) {
+    usedEntryNames.add(safeEntryName);
+    return safeEntryName;
+  }
+
+  const extension = path.posix.extname(safeEntryName);
+  const baseName = safeEntryName.slice(0, safeEntryName.length - extension.length);
+  let index = 2;
+  let candidate = `${baseName} (${index})${extension}`;
+  while (usedEntryNames.has(candidate)) {
+    index += 1;
+    candidate = `${baseName} (${index})${extension}`;
+  }
+  usedEntryNames.add(candidate);
+  return candidate;
+}
+
+function sanitizeZipFolder(value) {
+  return sanitizeZipEntryPath(String(value || '').replace(/\/?$/u, ''));
+}
+
+function sanitizeZipEntryPath(value) {
+  return String(value || '')
+    .replace(/\\/gu, '/')
+    .split('/')
+    .map((part) => sanitizeDownloadFilename(part))
+    .filter((part) => part && part !== '.' && part !== '..')
+    .join('/')
+    .slice(0, 240);
+}
+
+function sanitizeDownloadFilename(value) {
+  return String(value || '')
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/gu, '-')
+    .replace(/\s+/gu, ' ')
+    .trim()
+    .slice(0, 180);
+}
+
+function createContentDisposition(filename) {
+  const safeFilename = sanitizeDownloadFilename(filename) || 'download';
+  const asciiFilename = safeFilename.replace(/[^\x20-\x7e]/gu, '_').replace(/"/gu, "'");
+  return `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeRFC5987ValueChars(safeFilename)}`;
+}
+
+function encodeRFC5987ValueChars(value) {
+  return encodeURIComponent(value)
+    .replace(/['()*]/gu, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+async function isFfmpegAvailable() {
+  if (!ffmpegAvailablePromise) {
+    ffmpegAvailablePromise = new Promise((resolve) => {
+      const check = spawn('ffmpeg', ['-version'], { stdio: 'ignore' });
+      check.on('error', () => resolve(false));
+      check.on('exit', (code) => resolve(code === 0));
+    });
+  }
+  return ffmpegAvailablePromise;
 }
 
 async function streamCover(response, trackId) {
@@ -1484,8 +1804,9 @@ function normalizeMediaTypeName(value) {
 }
 
 function normalizeAlbumStatus(value) {
-  const allowed = new Set(['Collection', 'Wanted']);
+  const allowed = new Set(['Collection', 'Wishlist']);
   const status = cleanText(value);
+  if (/^wanted$/iu.test(status)) return 'Wishlist';
   return allowed.has(status) ? status : 'Collection';
 }
 
@@ -1734,6 +2055,27 @@ async function readRequestJson(request, maxBytes) {
     return body ? JSON.parse(body) : {};
   } catch {
     throw new HttpError(400, 'Request body must be valid JSON.');
+  }
+}
+
+async function readRequestPayload(request, maxBytes) {
+  let body = '';
+  for await (const chunk of request) {
+    body += chunk;
+    if (Buffer.byteLength(body) > maxBytes) {
+      throw new HttpError(413, 'Request body is too large.');
+    }
+  }
+
+  const contentType = String(request.headers['content-type'] || '').toLowerCase();
+  const rawPayload = contentType.includes('application/x-www-form-urlencoded')
+    ? new URLSearchParams(body).get('payload') || ''
+    : body;
+
+  try {
+    return rawPayload ? JSON.parse(rawPayload) : {};
+  } catch {
+    throw new HttpError(400, 'Request payload must be valid JSON.');
   }
 }
 

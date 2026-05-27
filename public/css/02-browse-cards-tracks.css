@@ -395,6 +395,10 @@
   font-size: 24px;
 }
 
+.album-card-play .fa-play {
+  transform: none;
+}
+
 .album-card img,
 .album-art-placeholder {
   width: 100%;
@@ -560,8 +564,8 @@
   color: var(--muted);
 }
 
-.album-card-footer.is-wanted {
-  color: var(--wanted-text);
+.album-card-footer.is-wishlist {
+  color: var(--wishlist-text);
 }
 
 .album-card .album-card-format {
@@ -575,11 +579,11 @@
   line-height: 1;
 }
 
-.album-card-footer.is-wanted .album-card-format,
-.album-card-footer.is-wanted .media-type-icon,
-.album-card-footer.is-wanted .fa-solid,
-.album-card-footer.is-wanted .media-type-symbol {
-  color: var(--wanted-text);
+.album-card-footer.is-wishlist .album-card-format,
+.album-card-footer.is-wishlist .media-type-icon,
+.album-card-footer.is-wishlist .fa-solid,
+.album-card-footer.is-wishlist .media-type-symbol {
+  color: var(--wishlist-text);
 }
 
 .media-type-icon {
@@ -819,17 +823,17 @@ body.light-ui .album-hero-scrim {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 300px minmax(0, 1fr);
   gap: 28px;
-  padding: 34px;
+  padding: 28px 34px;
   align-items: center;
 }
 
 .album-cover-frame img,
 .cover-fallback {
-  width: 220px;
-  height: 220px;
-  border-radius: 26px;
+  width: 300px;
+  height: 300px;
+  border-radius: 30px;
   object-fit: cover;
 }
 
@@ -866,10 +870,10 @@ body.light-ui .album-hero-scrim {
   background: var(--glass);
 }
 
-.album-detail-format-card.is-wanted,
-.album-detail-format-card.is-wanted .media-type-icon,
-.album-detail-format-card.is-wanted .media-type-symbol {
-  color: var(--wanted-text);
+.album-detail-format-card.is-wishlist,
+.album-detail-format-card.is-wishlist .media-type-icon,
+.album-detail-format-card.is-wishlist .media-type-symbol {
+  color: var(--wishlist-text);
 }
 
 .album-detail-format .media-type-icon .fa-solid {
@@ -998,6 +1002,12 @@ body.light-ui .album-hero-scrim {
   width: 44px;
   height: 44px;
   padding: 0;
+}
+
+.artist-actions .artist-edit-button {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
 }
 
 .album-actions {

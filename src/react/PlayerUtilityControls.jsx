@@ -8,11 +8,13 @@ const PLAYER_ICONS = {
   volumeLow: '/player-icons/volume-low.svg',
   volumeMuted: '/player-icons/volume-xmark.svg',
 };
+const playerIconControlClassName = 'icon-button player-icon-control tw-inline-flex tw-items-center tw-justify-center tw-border-0 tw-bg-transparent tw-p-0 tw-text-inherit tw-cursor-pointer tw-transition hover:tw-text-accent';
+const audioQualityClassName = 'audio-quality-info tw-inline-flex tw-items-center tw-gap-2 tw-text-text';
+const qualityLabelClassName = 'tw-grid tw-leading-tight';
 
 export function PlayerUtilityControls({
   hasTrack = false,
   currentTrackTitle = '',
-  downloadUrl = '#',
   downloadName = '',
   favorite = false,
   queueOpen = false,
@@ -20,6 +22,7 @@ export function PlayerUtilityControls({
   showQuality = false,
   quality = null,
   onFavorite,
+  onDownload,
   onQueueToggle,
   onVolumeToggle,
 }) {
@@ -30,7 +33,7 @@ export function PlayerUtilityControls({
     <>
       <button
         id="favorite-track-button"
-        className={`icon-button player-icon-control${favorite ? ' active' : ''}`}
+        className={`${playerIconControlClassName}${favorite ? ' active' : ''}`}
         type="button"
         aria-label={favoriteLabel}
         aria-pressed={favorite}
@@ -43,20 +46,23 @@ export function PlayerUtilityControls({
         <i className="fa-solid fa-heart" aria-hidden="true" />
       </button>
 
-      <a
+      <button
         id="download-track-link"
-        className="icon-button icon-link player-icon-control"
-        href={hasTrack ? downloadUrl : '#'}
-        download={hasTrack ? downloadName : undefined}
+        className={`icon-link ${playerIconControlClassName}`}
+        type="button"
         aria-label={hasTrack ? `Download ${currentTrackTitle}` : 'Download current track'}
         aria-disabled={hasTrack ? undefined : 'true'}
+        disabled={!hasTrack}
+        onClick={() => {
+          if (hasTrack) onDownload?.();
+        }}
       >
         <PlayerSymbol icon={PLAYER_ICONS.download} />
-      </a>
+      </button>
 
       <button
         id="queue-toggle-button"
-        className={`icon-button player-icon-control${queueOpen ? ' active' : ''}`}
+        className={`${playerIconControlClassName}${queueOpen ? ' active' : ''}`}
         type="button"
         aria-label="Open queue"
         aria-pressed={queueOpen}
@@ -67,7 +73,7 @@ export function PlayerUtilityControls({
 
       <button
         id="volume-btn"
-        className="icon-button player-icon-control"
+        className={playerIconControlClassName}
         type="button"
         aria-label={volume <= 0 ? 'Unmute' : 'Mute'}
         onClick={() => onVolumeToggle?.()}
@@ -88,13 +94,13 @@ function AudioQualityInfo({ quality }) {
   const iconAlt = quality?.iconAlt || '';
 
   return (
-    <div id="audio-quality-info" className="audio-quality-info" title={label}>
+    <div id="audio-quality-info" className={audioQualityClassName} title={label}>
       {iconUrl ? (
         <img id="audio-quality-icon" src={iconUrl} alt={iconAlt} />
       ) : (
         <i id="audio-quality-fallback-icon" className="fa-solid fa-file-audio" aria-hidden="true" />
       )}
-      <span id="audio-quality-label">
+      <span id="audio-quality-label" className={qualityLabelClassName}>
         <span className="audio-quality-top">{labelTop}</span>
         {labelBottom ? <span className="audio-quality-bottom">{labelBottom}</span> : null}
       </span>

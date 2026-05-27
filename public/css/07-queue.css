@@ -158,15 +158,14 @@ body[data-view='fullscreen'] .queue-overlay {
   white-space: nowrap;
 }
 
-.queue-item-copy span,
-.queue-item-index {
+.queue-item-copy span {
   color: var(--muted);
 }
 
 .queue-item-trailing {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 0;
 }
 
 .queue-item-actions {

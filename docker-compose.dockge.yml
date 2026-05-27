@@ -1,6 +1,6 @@
 services:
   monochrome-streamer:
-    image: judeah666/monochrome-streamer:0.1.1
+    image: judeah666/monochrome-streamer:0.2.0
     container_name: monochrome-streamer
     restart: unless-stopped
     ports:

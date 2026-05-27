@@ -1,0 +1,18 @@
+@tailwind components;
+@tailwind utilities;
+
+.tw-ms-panel {
+  @apply tw-rounded-card tw-border tw-border-line tw-bg-surface tw-shadow-panel tw-backdrop-blur-xl;
+}
+
+.tw-ms-control {
+  @apply tw-rounded-pill tw-border tw-border-line tw-bg-surface2 tw-px-4 tw-py-2 tw-font-bold tw-text-text tw-transition;
+}
+
+.tw-ms-control:hover {
+  @apply tw-border-accent tw-text-accent;
+}
+
+.tw-ms-control-primary {
+  @apply tw-rounded-pill tw-border tw-border-accent tw-bg-accent tw-px-4 tw-py-2 tw-font-extrabold tw-text-background tw-shadow-glow tw-transition;
+}

@@ -252,6 +252,10 @@ body.player-layout-qobuz .repeat-one-badge {
   background: var(--accent);
 }
 
+.progress-fill {
+  transition: none;
+}
+
 .volume-controls {
   display: flex;
   align-items: center;

@@ -1,6 +1,16 @@
 import React from 'react';
 import { TrackList } from './TrackList.jsx';
 
+const playlistBrowserClassName = 'playlist-browser tw-grid tw-grid-cols-[260px_minmax(0,1fr)] tw-gap-[18px] max-[860px]:tw-grid-cols-1';
+const playlistListClassName = 'playlist-list tw-grid tw-content-start tw-gap-3';
+const playlistCardBaseClassName = 'playlist-card tw-rounded-[18px] tw-border tw-border-line tw-bg-surface tw-p-4 tw-text-left tw-backdrop-blur-md tw-transition hover:tw-border-[color-mix(in_srgb,var(--accent)_38%,transparent)] hover:tw-bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface))]';
+const playlistCardActiveClassName = ' is-active tw-border-[color-mix(in_srgb,var(--accent)_38%,transparent)] tw-bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface))]';
+const playlistDetailClassName = 'playlist-detail tw-min-w-0';
+const playlistHeaderClassName = 'playlist-detail-header';
+const playlistTitleClassName = 'tw-m-0 tw-text-[1.2rem]';
+const playlistDescriptionClassName = 'tw-m-0 tw-mt-1 tw-text-muted';
+const playlistTrackListClassName = 'track-list tw-mt-4 tw-grid tw-gap-2.5';
+
 export function PlaylistBrowser({
   playlists = [],
   selectedPlaylistId = '',
@@ -19,32 +29,32 @@ export function PlaylistBrowser({
   }
 
   return (
-    <div className="playlist-browser">
-      <div className="playlist-list">
+    <div className={playlistBrowserClassName}>
+      <div className={playlistListClassName}>
         {playlists.map((playlist) => (
           <button
             key={playlist.id}
             type="button"
-            className={`playlist-card${playlist.id === activePlaylist?.id ? ' is-active' : ''}`}
+            className={`${playlistCardBaseClassName}${playlist.id === activePlaylist?.id ? playlistCardActiveClassName : ''}`}
             onClick={() => onSelectPlaylist?.(playlist.id)}
           >
-            <strong>{playlist.title}</strong>
-            <span>{playlist.tracks.length} track{playlist.tracks.length === 1 ? '' : 's'}</span>
-            <p>{playlist.description}</p>
+            <strong className="tw-block">{playlist.title}</strong>
+            <span className="tw-text-muted">{playlist.tracks.length} track{playlist.tracks.length === 1 ? '' : 's'}</span>
+            <p className="tw-m-0 tw-mt-2 tw-text-muted">{playlist.description}</p>
           </button>
         ))}
       </div>
 
-      <div className="playlist-detail">
+      <div className={playlistDetailClassName}>
         {activePlaylist ? (
           <>
-            <div className="playlist-detail-header">
+            <div className={playlistHeaderClassName}>
               <div>
-                <h4>{activePlaylist.title}</h4>
-                <p>{activePlaylist.description}</p>
+                <h4 className={playlistTitleClassName}>{activePlaylist.title}</h4>
+                <p className={playlistDescriptionClassName}>{activePlaylist.description}</p>
               </div>
             </div>
-            <div className="track-list">
+            <div className={playlistTrackListClassName}>
               {activePlaylist.tracks.length === 0 ? (
                 <p className="empty-state">This playlist is empty right now.</p>
               ) : (
