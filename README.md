@@ -2,145 +2,72 @@
 
 Current release: `v0.2.1`
 
-A small self-hosted music streamer inspired by the look and feel of [Monochrome](https://github.com/monochrome-music/monochrome), but built for your own files on your own server.
+`monochrome-streamer` is a self-hosted music streamer for your own local music files. It is inspired by [Monochrome](https://github.com/monochrome-music/monochrome), but the library, album edits, lyrics, covers, users, and scan data live on your own server.
 
-## What this version does
+## Features
 
-- Streams music files from your server
-- Scans a local folder on your server for audio files
-- Reads embedded tags for track title, album, artist, track number, duration, and embedded cover art
-- Detects album art from sidecar images like `cover.jpg`, `folder.jpg`, or `front.png`
-- Saves synced lyrics as `.lrc` files beside your music files
-- Searches MusicBrainz and Cover Art Archive for album metadata, track lists, and cover art
-- Lets you add or edit artist images and artist info from the artist page
-- Groups music by folder structure:
-  - `Artist/Album/01 - Track.mp3`
-  - `Artist/Album/1-01 - Track.flac`
-- Provides Multiple web UI Theme for browsing albums, artists, favorites, playlists, collections, and folders
-- Includes login, per-user download permissions, and an Admin sidebar tab for server controls
-
-## Recent changes in v0.2.1
-
-- Moved server-only controls into an in-app Admin sidebar view for admin users.
-- Improved login/sidebar account controls with a same-row logout action.
-- Fixed library pager controls so per-page changes work from React-rendered library views.
-- Added collection browsing, wishlist album entry, theme palette improvements, and refined admin/user settings.
+- Stream local music from a mounted server folder.
+- Browse albums, artists, tracks, collections, wishlist albums, and favorites.
+- Scan selected top-level folders instead of forcing a full-library scan on startup.
+- Store the library index, album overrides, artist overrides, lyrics, users, and cached covers in SQLite/data storage.
+- Edit album tags locally without rewriting the original audio files.
+- Save synced lyrics as `.lrc` sidecar files beside music files when possible.
+- Search MusicBrainz and Cover Art Archive for album metadata and covers.
+- Use two player layouts: Floating Player and Edge-to-Edge.
+- Manage users, download permissions, widget API keys, download settings, and scans from the Admin sidebar tab.
 
 ## Screenshots
 
-### Home Screen
-
 ![Home Screen](docs/screenshots/home-screen.png)
-
-### Library
 
 ![Library](docs/screenshots/library.png)
 
-### Album
-
 ![Album](docs/screenshots/album.png)
-
-### Artist
 
 ![Artist](docs/screenshots/artist.png)
 
-### Fullscreen Now Playing
-
 ![Fullscreen Now Playing](docs/screenshots/now-playing.png)
-
-### Add your Folder in settings
-
-![Add Your Folder in settings](docs/screenshots/add-folder.png)
-
-### Floating Player
 
 ![Floating player layout](docs/screenshots/floating-player.png)
 
-### Edge-to-Edge Player
-
 ![Edge-to-edge player layout](docs/screenshots/edge-to-edge-player.png)
 
-## Recommended library layout
+## Recommended Library Layout
 
-This app works best when your library looks like this:
+The app scans recursively, but clean folder/tag organization gives the best result:
 
 ```text
-D:\Music
-  Artist Name
-    Album Name
+Music/
+  Artist Name/
+    Album Name/
       cover.jpg
       01 - First Song.flac
       02 - Second Song.flac
 ```
 
-It will still scan nested folders recursively, but the `Artist/Album/Track` layout gives the cleanest metadata.
-
-## Setup
-
-1. Copy `config.example.json` to `config.json`
-2. Edit `config.json` and set `libraryPath` to your music folder
-3. Install dependencies:
-
-```powershell
-npm install
-```
-
-4. Build the React frontend bundle:
-
-```powershell
-npm run build
-```
-
-5. Start the server:
-
-```powershell
-npm start
-```
-
-If online metadata search fails on Windows with a certificate error, start Node with the system certificate store:
-
-```powershell
-$env:NODE_OPTIONS="--use-system-ca"
-node server.mjs
-```
-
-6. Open:
+For multi-disc or collection albums, nested folders are supported:
 
 ```text
-http://localhost:8888
+Music/
+  Various Artists/
+    80s Collection/
+      Vol 1/
+      Vol 2/
 ```
 
-## Docker
+## Docker Quick Start
 
-You can run it in Docker without creating `config.json`.
-
-Docker builds the React frontend automatically before the server starts.
-
-### Recommended: docker compose
-
-For a quick test with the included sample library:
-
-```powershell
-docker compose up --build
-```
-
-Then open:
-
-```text
-http://localhost:8888
-```
-
-For your real music folder, copy the example env file:
+Copy the example environment file:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Then edit `.env`:
+Edit `.env`:
 
-```text
-MUSIC_DIR=/path/to/your/music
-APP_DATA_DIR=/monochrome-streamer/data
+```env
+MUSIC_DIR=D:\Music
+APP_DATA_DIR=D:\Monochrome-Streamer\data
 APP_TITLE=Monochrome-Streamer
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=change-this-admin-password
@@ -149,78 +76,31 @@ PGID=1000
 UMASK=022
 CHOWN_DATA=true
 WIDGET_API_KEY=change-this-widget-key
-IMAGE_TAG=0.2.1
+WIDGET_CORS_ORIGIN=*
 ```
 
-`APP_DATA_DIR` is the local server folder where album edits, artist edits, saved `.lrc` lyrics, the SQLite library index, and cached cover art are stored. Inside Docker it is mounted as `/data`.
-
-Start it in the background:
+Start the app:
 
 ```powershell
-docker compose up -d --build
+docker compose up -d
 ```
 
-Stop it:
+Open:
 
-```powershell
-docker compose down
+```text
+http://localhost:8888
 ```
 
-### Docker run
+Sign in with the admin account from `.env`, open the `Admin` sidebar tab, then select folders in `System` and click `Save & Scan`.
 
-```powershell
-docker build -t monochrome-streamer .
-```
+## Dockge / Server Compose
 
-```powershell
-docker run --rm -p 8888:8888 `
-  -e APP_TITLE="Monochrome-Streamer" `
-  -e ADMIN_USERNAME=admin `
-  -e ADMIN_PASSWORD="use-a-real-password-here" `
-  -e PUID=1000 `
-  -e PGID=1000 `
-  -e UMASK=022 `
-  --mount type=bind,source="/path/to/your/Music",target=/music `
-  --mount type=bind,source="/opt/monochrome-streamer/data",target=/data `
-  monochrome-streamer
-```
-
-### Upload to Docker Hub
-
-Log in first:
-
-```powershell
-docker login
-```
-
-Build and push the release tag:
-
-```powershell
-docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:0.2.1 --push .
-```
-
-Also update `latest` if this is the version you want Dockge to pull by default:
-
-```powershell
-docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:latest --push .
-```
-
-Or push both tags in one build:
-
-```powershell
-docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:0.2.1 -t judeah666/monochrome-streamer:latest --push .
-```
-
-### Dockge
-
-Dockge should usually use an image-only Compose file, not `build: .`, unless the full project folder exists inside the Dockge stack directory.
-
-Use [docker-compose.dockge.yml](docker-compose.dockge.yml) as the starting point:
+Use this shape for Dockge or a Linux server:
 
 ```yaml
 services:
   monochrome-streamer:
-    image: judeah666/monochrome-streamer:0.2.1
+    image: judeah666/monochrome-streamer:latest
     container_name: monochrome-streamer
     restart: unless-stopped
     ports:
@@ -232,28 +112,73 @@ services:
       - /opt/monochrome-streamer/data:/data
 ```
 
-Change `/path/to/your/music` to the real music folder on the server running Dockge. If Dockge is running on Linux, do not use Windows paths like `D:\Music`; use Linux paths like `/mnt/music`, `/media/music`, or `/home/yourname/Music`.
+On Linux, use Linux paths like `/mnt/music`, `/media/music`, or `/home/user/Music`. Do not use Windows paths like `D:\Music` inside Dockge unless Dockge itself is running on Windows.
 
-The image already defaults to:
+The Docker image already defaults to:
 
-- `MUSIC_LIBRARY_PATH=/music`
-- `DATA_DIR=/data`
-- `SCAN_METADATA=tags`
-- `SCAN_DURATIONS=false`
-- `AUTO_SCAN_ON_START=false`
-- `PUID=1000`, `PGID=1000`, `UMASK=022`, `CHOWN_DATA=true`
-
-You only need to add those values to `.env` if you want to override the defaults.
-
-Set `PUID` and `PGID` to the Linux user and group that should own files created in `/data`. On many home servers this is `1000:1000`, but you can check with:
-
-```bash
-id yourusername
+```env
+MUSIC_LIBRARY_PATH=/music
+DATA_DIR=/data
+SCAN_METADATA=tags
+SCAN_DURATIONS=false
+AUTO_SCAN_ON_START=false
+PORT=8888
 ```
 
-`CHOWN_DATA=true` fixes `/data` ownership on container start. After the data folder is already owned correctly, you can set it to `false` to make startup faster on very large cache folders.
+## Data Folder
 
-If the container exits with code `137`, the server is probably killing the scan for memory. Try this safer scanner mode first:
+`APP_DATA_DIR` on the host is mounted as `/data` inside Docker.
+
+This folder stores:
+
+- `library.sqlite`
+- cached cover art
+- user accounts
+- widget settings
+- app edits and overrides
+- saved lyrics data
+
+Keep this folder when updating Docker images. If it is deleted, the app will need to rebuild the library index.
+
+## Login And Admin
+
+The first admin account comes from `.env`:
+
+```env
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=change-this-admin-password
+```
+
+Change the password before exposing the app on your network. The Docker entrypoint refuses unsafe default passwords.
+
+Admin users can:
+
+- add or update users
+- enable or disable downloads per user
+- manage download behavior
+- manage widget API keys
+- choose scan folders
+- start manual scans
+- view scan status
+
+Regular users only see the main app.
+
+## Scanning
+
+The app does not auto-scan the whole mounted music folder by default. This avoids memory spikes on large libraries.
+
+Recommended first scan:
+
+1. Sign in as admin.
+2. Open `Admin`.
+3. Go to `System`.
+4. Click `Refresh Folders`.
+5. Select one or more top-level folders.
+6. Click `Save & Scan`.
+
+Scans are incremental after the first successful scan. Unchanged files are reused from `library.sqlite` by size and modified time.
+
+If your server runs out of memory, use the safer scan mode:
 
 ```env
 SCAN_METADATA=filename
@@ -261,179 +186,101 @@ SCAN_DURATIONS=false
 AUTO_SCAN_ON_START=false
 ```
 
-`SCAN_METADATA=filename` skips audio tag parsing and builds the library from folder/file names only. After the site is stable, switch it back to `tags`.
+Then scan smaller folder groups from the Admin panel.
 
-On first Docker/Dockge launch, the app does not scan every folder automatically. Sign in with the admin account, open the Admin sidebar tab, then use System > Library Folders to select one or more top-level folders from `/music` and click `Save & Scan`. Start with one folder, confirm the app stays stable, then add more folders and scan again.
+## Environment Variables
 
-Scans are incremental after the first run. The app stores the library index in `/data/library.sqlite` and reuses unchanged files by size and modified time, so future scans only parse new or changed files.
+Common variables:
 
-After deploy, Dockge should show the container as healthy. Open `http://SERVER-IP:8888`, sign in, then use the Admin sidebar tab for server-only controls.
+| Variable | Purpose |
+| --- | --- |
+| `MUSIC_DIR` | Host path mounted to `/music` by compose |
+| `APP_DATA_DIR` | Host path mounted to `/data` by compose |
+| `APP_TITLE` | Browser/app/sidebar title |
+| `ADMIN_USERNAME` | First admin username |
+| `ADMIN_PASSWORD` | First admin password |
+| `PUID` / `PGID` | Linux owner for Docker-created files |
+| `UMASK` | File permission mask |
+| `CHOWN_DATA` | Fix `/data` ownership on startup |
+| `WIDGET_API_KEY` | API key for external stats widgets |
+| `WIDGET_CORS_ORIGIN` | Allowed browser origin for widget API |
 
-### Login and Admin
+Advanced variables:
 
-The web app now requires a login. Put the first admin account in the `.env` file beside your compose file:
+| Variable | Default |
+| --- | --- |
+| `HOST` | `0.0.0.0` |
+| `PORT` | `8888` |
+| `MUSIC_LIBRARY_PATH` | `/music` |
+| `DATA_DIR` | `/data` |
+| `LIBRARY_DATABASE_PATH` | `/data/library.sqlite` |
+| `COVER_CACHE_PATH` | `/data/covers` |
+| `SCAN_METADATA` | `tags` |
+| `SCAN_DURATIONS` | `false` |
+| `AUTO_SCAN_ON_START` | `false` |
+| `REQUIRE_ADMIN_CREDENTIALS` | `true` in Docker entrypoint |
 
-```env
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=change-this-admin-password
+## Local Development
+
+Install dependencies:
+
+```powershell
+npm install
 ```
 
-Change `ADMIN_PASSWORD` before exposing the server on your network. Docker refuses to start when `ADMIN_PASSWORD` is missing, still set to `admin`, or still set to `change-this-admin-password`.
-
-User accounts created in the Admin sidebar tab are saved in `/data/users.json`, so they survive container rebuilds and image updates.
-
-Do not hardcode `ADMIN_USERNAME` or `ADMIN_PASSWORD` directly inside `compose.yaml`. The included compose files load `.env` with `env_file`, and the Docker entrypoint checks that those credentials are present before the app starts.
-
-Use the Admin sidebar tab for:
-
-- adding and removing users
-- enabling or disabling downloads per user
-- download format and ZIP download settings
-- widget/API key settings
-- selected library folders and manual scans
-
-## Configuration
-
-## Frontend Development
-
-The app uses a Vite + React frontend pipeline with Tailwind available for gradual UI work.
+Build:
 
 ```powershell
 npm run build
 ```
 
-The production bundle is written to `public/react/app.js`, which is loaded by `public/index.html`. The backend API remains in `server.mjs`.
-
-The current frontend is a stable hybrid:
-
-- `src/react/` contains the React shell and UI sections.
-- `src/controller/` owns routing, playback, scanning, data loading, persistence actions, and tested view-model presenters.
-- React UI sections receive stable snapshots for queue, player, settings, album/detail views, library views, and editors.
-- Tailwind classes use the `tw-` prefix and Preflight is disabled so Tailwind can coexist with the existing CSS.
-
-For frontend-only iteration, you can also run:
+Start:
 
 ```powershell
+npm start
+```
+
+Open:
+
+```text
+http://localhost:8888
+```
+
+Useful scripts:
+
+```powershell
+npm run dev
 npm run dev:frontend
-```
-
-Tailwind is scaffolded for gradual React migration. It uses a `tw-` prefix and disables Preflight so it can coexist with the current CSS. When adding Tailwind classes during development, run this in a second terminal:
-
-```powershell
 npm run dev:tailwind
-```
-
-See [docs/tailwind-migration.md](docs/tailwind-migration.md) for the migration rules.
-
-Run the test suite after controller, presenter, player, queue, settings, or library changes:
-
-```powershell
 npm test
 ```
 
-For Docker parity, verify with:
+The frontend uses React, Vite, and Tailwind with a `tw-` prefix. Preflight is disabled so Tailwind can coexist with the existing app styling.
+
+## Docker Hub Upload
+
+Log in:
 
 ```powershell
-docker run --rm -v "${PWD}:/app" -w /app node:24-alpine sh -lc "npm run build"
+docker login
 ```
 
-`config.json`
+Build and push both the release tag and `latest`:
 
-```json
-{
-  "title": "Monochrome-Streamer",
-  "libraryPath": "/path/to/your/music",
-  "dataDir": "",
-  "artistInfoPath": "artist-info.json",
-  "lyricsSidecarPath": "lyrics",
-  "libraryFoldersPath": "library-folders.json",
-  "libraryDatabasePath": "library.sqlite",
-  "coverCachePath": "covers",
-  "widgetSettingsPath": "widget-settings.json",
-  "widgetApiKey": "change-this-widget-key",
-  "widgetCorsOrigin": "*",
-  "host": "0.0.0.0",
-  "port": 8888
-}
+```powershell
+docker buildx build --platform linux/amd64 `
+  -t judeah666/monochrome-streamer:0.2.1 `
+  -t judeah666/monochrome-streamer:latest `
+  --push .
 ```
 
-You can also override values with environment variables:
+## Widget Stats API
 
-- `MUSIC_LIBRARY_PATH`
-- `APP_TITLE`
-- `DATA_DIR`
-- `APP_DATA_DIR` for Docker Compose host storage
-- `LIBRARY_DATABASE_PATH` defaults to `/data/library.sqlite` in Docker
-- `COVER_CACHE_PATH` defaults to `/data/covers` in Docker
-- `SCAN_METADATA` as `tags` or `filename`
-- `SCAN_DURATIONS` as `true` or `false`
-- `AUTO_SCAN_ON_START` as `true` or `false`
-- `REQUIRE_ADMIN_CREDENTIALS` as `true` or `false`, defaults to `true` in the Docker entrypoint
-- `WIDGET_API_KEY` for the external stats widget API
-- `WIDGET_CORS_ORIGIN` for widget browser access, defaults to `*`
-- `WIDGET_SETTINGS_PATH` for widget API settings saved from the app, defaults to `/data/widget-settings.json` in Docker
-- `PUID` and `PGID` for Docker file ownership, defaults to `1000`
-- `UMASK` for Docker-created file permissions, defaults to `022`
-- `CHOWN_DATA` as `true` or `false`, defaults to `true`
-- `ARTIST_INFO_PATH`
-- `HOST`
-- `PORT`
+Use this endpoint for dashboards that only need album count, track count, and scan status:
 
-### Manual artist info
-
-Artist pages try `artist-info.json` first. Copy `artist-info.example.json` to `artist-info.json`, then add entries like this:
-
-```json
-{
-  "artists": {
-    "Brownman Revival": {
-      "imageUrl": "https://example.com/artist-image.jpg",
-      "bio": "Short bio to show on the artist page.",
-      "sourceUrl": "https://example.com/artist-info",
-      "source": "manual"
-    }
-  }
-}
+```text
+GET /api/widget/stats
 ```
-
-If an artist is not in that file, the server tries to fetch a Wikipedia image and summary. If the server has no internet access or nothing is found, the UI falls back to initials.
-
-Artist edits made inside the app are saved in `library.sqlite`. Edited artist info takes priority over `artist-info.json`. Existing legacy `artist-overrides.json` files are imported into SQLite automatically if the database does not already contain artist overrides.
-
-### Album tag editor
-
-Use the edit icon on the full album page to open the tag editor. You can edit album title, album artist, year, genre, multiple media types, collection status, cover URL, track titles, track artists, and track numbers.
-
-The editor saves local overrides in `library.sqlite`. Existing legacy `album-overrides.json` files are imported into SQLite automatically if the database does not already contain album overrides. It does not rewrite your original audio files.
-
-The online search uses MusicBrainz for release metadata and Cover Art Archive for cover art.
-
-### Lyrics storage
-
-Lyrics saved in the app are stored in `library.sqlite` and also written as `.lrc` files beside the matching music files when possible. Existing legacy `lyrics-overrides.json` files are imported into SQLite automatically if the database does not already contain lyrics overrides.
-
-## API
-
-- `GET /api/config`
-- `GET /api/widget/stats`
-- `GET /api/library`
-- `POST /api/rescan`
-- `GET /api/library/folders`
-- `POST /api/library/folders`
-- `GET /api/artists/:name/info`
-- `POST /api/artists/:name/info`
-- `POST /api/albums/:id/cover`
-- `POST /api/albums/:id/tags`
-- `GET /api/albums/:id/tag-suggestions`
-- `GET /api/musicbrainz/releases/:id`
-- `GET /api/tracks/:id/stream`
-- `GET /api/tracks/:id/cover`
-
-### External widget stats API
-
-Use `GET /api/widget/stats` when another app only needs the current album and track counts. This endpoint is protected by `WIDGET_API_KEY` and does not return the full library.
-
-You can also create, rotate, copy, and test the widget API key from Admin > Instances. Changes made there are saved in `/data/widget-settings.json` in Docker, so they survive image updates.
 
 Header auth:
 
@@ -441,7 +288,7 @@ Header auth:
 curl -H "x-api-key: change-this-widget-key" http://127.0.0.1:8888/api/widget/stats
 ```
 
-Query auth, useful for simple dashboard widgets:
+Query auth:
 
 ```bash
 curl "http://127.0.0.1:8888/api/widget/stats?apiKey=change-this-widget-key"
@@ -458,10 +305,8 @@ Example response:
   "scan": {
     "status": "ready",
     "percent": 100,
-    "currentFolder": "",
     "processedFiles": 16285,
     "totalFiles": 16285,
-    "finishedAt": "2026-05-20T10:18:30.000Z",
     "error": null
   }
 }
@@ -469,6 +314,7 @@ Example response:
 
 ## Notes
 
-- This is not a full fork of upstream Monochrome. The upstream app is much broader and built around online APIs and remote catalog data.
-- This version keeps the local-server use case simple and focused so you can own the whole stack.
-- In Docker, environment variables are the easiest way to configure the app, especially `MUSIC_LIBRARY_PATH=/music` with a bind mount.
+- Album edits, artist edits, lyrics, and user data are stored locally and survive Docker image updates when `/data` is preserved.
+- The album editor does not rewrite your audio files.
+- Lyrics can also be written as `.lrc` files beside tracks when the music folder is writable.
+- This is not a full fork of upstream Monochrome. It is a local-server streamer built around your own files.
