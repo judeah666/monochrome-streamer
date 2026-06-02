@@ -33,6 +33,18 @@ test('appearance settings snapshot contains theme options and preview data', () 
   assert.ok(snapshot.fontOptions.length > 0);
 });
 
+test('light theme previews use readable text for built-in themes', () => {
+  const snapshot = buildSettingsPanelSnapshot({
+    tab: 'appearance',
+    settings: { ...DEFAULT_SETTINGS, themeBase: 'light', customThemeBase: 'light' },
+    title: 'Library',
+    displayTitle: 'My Library',
+  });
+
+  assert.equal(snapshot.themeOptions.find((theme) => theme.value === 'forest').text, '#17130f');
+  assert.equal(snapshot.themeOptions.find((theme) => theme.value === 'ocean').text, '#17130f');
+});
+
 test('system settings snapshot normalizes scan status and selected folders', () => {
   const snapshot = buildSettingsPanelSnapshot({
     tab: 'system',

@@ -8,9 +8,12 @@ export default defineConfig({
     outDir: 'public/react',
     emptyOutDir: true,
     rollupOptions: {
-      input: 'src/react/main.jsx',
+      input: {
+        app: 'src/react/main.jsx',
+        admin: 'src/react/admin.jsx',
+      },
       output: {
-        entryFileNames: 'app.js',
+        entryFileNames: '[name].js',
         chunkFileNames: 'chunks/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',
       },

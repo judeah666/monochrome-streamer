@@ -1,6 +1,6 @@
 # monochrome-streamer
 
-Current release: `v0.2.0`
+Current release: `v0.2.1`
 
 A small self-hosted music streamer inspired by the look and feel of [Monochrome](https://github.com/monochrome-music/monochrome), but built for your own files on your own server.
 
@@ -16,7 +16,15 @@ A small self-hosted music streamer inspired by the look and feel of [Monochrome]
 - Groups music by folder structure:
   - `Artist/Album/01 - Track.mp3`
   - `Artist/Album/1-01 - Track.flac`
-- Provides Multiple web UI Theme for browsing albums, artists, favorites, playlists, and folders
+- Provides Multiple web UI Theme for browsing albums, artists, favorites, playlists, collections, and folders
+- Includes login, per-user download permissions, and an Admin sidebar tab for server controls
+
+## Recent changes in v0.2.1
+
+- Moved server-only controls into an in-app Admin sidebar view for admin users.
+- Improved login/sidebar account controls with a same-row logout action.
+- Fixed library pager controls so per-page changes work from React-rendered library views.
+- Added collection browsing, wishlist album entry, theme palette improvements, and refined admin/user settings.
 
 ## Screenshots
 
@@ -134,13 +142,14 @@ Then edit `.env`:
 MUSIC_DIR=/path/to/your/music
 APP_DATA_DIR=/monochrome-streamer/data
 APP_TITLE=Monochrome-Streamer
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=change-this-admin-password
 PUID=1000
 PGID=1000
 UMASK=022
 CHOWN_DATA=true
 WIDGET_API_KEY=change-this-widget-key
-WIDGET_SETTINGS_PATH=/data/widget-settings.json
-IMAGE_TAG=0.2.0
+IMAGE_TAG=0.2.1
 ```
 
 `APP_DATA_DIR` is the local server folder where album edits, artist edits, saved `.lrc` lyrics, the SQLite library index, and cached cover art are stored. Inside Docker it is mounted as `/data`.
@@ -166,6 +175,8 @@ docker build -t monochrome-streamer .
 ```powershell
 docker run --rm -p 8888:8888 `
   -e APP_TITLE="Monochrome-Streamer" `
+  -e ADMIN_USERNAME=admin `
+  -e ADMIN_PASSWORD="use-a-real-password-here" `
   -e PUID=1000 `
   -e PGID=1000 `
   -e UMASK=022 `
@@ -185,7 +196,7 @@ docker login
 Build and push the release tag:
 
 ```powershell
-docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:0.2.0 --push .
+docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:0.2.1 --push .
 ```
 
 Also update `latest` if this is the version you want Dockge to pull by default:
@@ -197,7 +208,7 @@ docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:late
 Or push both tags in one build:
 
 ```powershell
-docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:0.2.0 -t judeah666/monochrome-streamer:latest --push .
+docker buildx build --platform linux/amd64 -t judeah666/monochrome-streamer:0.2.1 -t judeah666/monochrome-streamer:latest --push .
 ```
 
 ### Dockge
@@ -209,28 +220,30 @@ Use [docker-compose.dockge.yml](docker-compose.dockge.yml) as the starting point
 ```yaml
 services:
   monochrome-streamer:
-    image: judeah666/monochrome-streamer:0.2.0
+    image: judeah666/monochrome-streamer:0.2.1
     container_name: monochrome-streamer
     restart: unless-stopped
     ports:
       - "8888:8888"
-    environment:
-      APP_TITLE: Monochrome-Streamer
-      DATA_DIR: /data
-      SCAN_METADATA: tags
-      SCAN_DURATIONS: "false"
-      WIDGET_SETTINGS_PATH: /data/widget-settings.json
-      WIDGET_API_KEY: change-this-widget-key
-      PUID: "1000"
-      PGID: "1000"
-      UMASK: "022"
-      CHOWN_DATA: "true"
+    env_file:
+      - .env
     volumes:
       - /path/to/your/music:/music
       - /opt/monochrome-streamer/data:/data
 ```
 
 Change `/path/to/your/music` to the real music folder on the server running Dockge. If Dockge is running on Linux, do not use Windows paths like `D:\Music`; use Linux paths like `/mnt/music`, `/media/music`, or `/home/yourname/Music`.
+
+The image already defaults to:
+
+- `MUSIC_LIBRARY_PATH=/music`
+- `DATA_DIR=/data`
+- `SCAN_METADATA=tags`
+- `SCAN_DURATIONS=false`
+- `AUTO_SCAN_ON_START=false`
+- `PUID=1000`, `PGID=1000`, `UMASK=022`, `CHOWN_DATA=true`
+
+You only need to add those values to `.env` if you want to override the defaults.
 
 Set `PUID` and `PGID` to the Linux user and group that should own files created in `/data`. On many home servers this is `1000:1000`, but you can check with:
 
@@ -242,26 +255,42 @@ id yourusername
 
 If the container exits with code `137`, the server is probably killing the scan for memory. Try this safer scanner mode first:
 
-```yaml
-environment:
-  APP_TITLE: Monochrome-Streamer
-  DATA_DIR: /data
-  SCAN_METADATA: filename
-  SCAN_DURATIONS: "false"
-  AUTO_SCAN_ON_START: "false"
+```env
+SCAN_METADATA=filename
+SCAN_DURATIONS=false
+AUTO_SCAN_ON_START=false
 ```
 
 `SCAN_METADATA=filename` skips audio tag parsing and builds the library from folder/file names only. After the site is stable, switch it back to `tags`.
 
-On first Docker/Dockge launch, the app does not scan every folder automatically. Open Settings > System > Library Folders, select one or more top-level folders from `/music`, then click `Save & Scan`. Start with one folder, confirm the app stays stable, then add more folders and scan again.
+On first Docker/Dockge launch, the app does not scan every folder automatically. Sign in with the admin account, open the Admin sidebar tab, then use System > Library Folders to select one or more top-level folders from `/music` and click `Save & Scan`. Start with one folder, confirm the app stays stable, then add more folders and scan again.
 
 Scans are incremental after the first run. The app stores the library index in `/data/library.sqlite` and reuses unchanged files by size and modified time, so future scans only parse new or changed files.
 
-After deploy, Dockge should show the container as healthy. If it is running but the site does not open, test the API directly from the server:
+After deploy, Dockge should show the container as healthy. Open `http://SERVER-IP:8888`, sign in, then use the Admin sidebar tab for server-only controls.
 
-```bash
-curl http://127.0.0.1:8888/api/config
+### Login and Admin
+
+The web app now requires a login. Put the first admin account in the `.env` file beside your compose file:
+
+```env
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=change-this-admin-password
 ```
+
+Change `ADMIN_PASSWORD` before exposing the server on your network. Docker refuses to start when `ADMIN_PASSWORD` is missing, still set to `admin`, or still set to `change-this-admin-password`.
+
+User accounts created in the Admin sidebar tab are saved in `/data/users.json`, so they survive container rebuilds and image updates.
+
+Do not hardcode `ADMIN_USERNAME` or `ADMIN_PASSWORD` directly inside `compose.yaml`. The included compose files load `.env` with `env_file`, and the Docker entrypoint checks that those credentials are present before the app starts.
+
+Use the Admin sidebar tab for:
+
+- adding and removing users
+- enabling or disabling downloads per user
+- download format and ZIP download settings
+- widget/API key settings
+- selected library folders and manual scans
 
 ## Configuration
 
@@ -339,6 +368,7 @@ You can also override values with environment variables:
 - `SCAN_METADATA` as `tags` or `filename`
 - `SCAN_DURATIONS` as `true` or `false`
 - `AUTO_SCAN_ON_START` as `true` or `false`
+- `REQUIRE_ADMIN_CREDENTIALS` as `true` or `false`, defaults to `true` in the Docker entrypoint
 - `WIDGET_API_KEY` for the external stats widget API
 - `WIDGET_CORS_ORIGIN` for widget browser access, defaults to `*`
 - `WIDGET_SETTINGS_PATH` for widget API settings saved from the app, defaults to `/data/widget-settings.json` in Docker
@@ -403,7 +433,7 @@ Lyrics saved in the app are stored in `library.sqlite` and also written as `.lrc
 
 Use `GET /api/widget/stats` when another app only needs the current album and track counts. This endpoint is protected by `WIDGET_API_KEY` and does not return the full library.
 
-You can also create, rotate, copy, and test the widget API key from Settings > Instances > Widget API. Changes made there are saved in `/data/widget-settings.json` in Docker, so they survive image updates.
+You can also create, rotate, copy, and test the widget API key from Admin > Instances. Changes made there are saved in `/data/widget-settings.json` in Docker, so they survive image updates.
 
 Header auth:
 

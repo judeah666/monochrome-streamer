@@ -1,11 +1,12 @@
 import React from 'react';
 
 const NAV_ITEMS = [
-  ['home', 'Home', '/sidebar-icons/house.svg'],
-  ['library', 'Library', '/sidebar-icons/album-collection.svg'],
-  ['favorites', 'Favorites', '/sidebar-icons/heart-pulse.svg'],
-  ['wishlist', 'Wishlist', '/sidebar-icons/bookmark.svg'],
-  ['settings', 'Settings', '/sidebar-icons/gear.svg'],
+  { id: 'home', label: 'Home', icon: '/sidebar-icons/house.svg' },
+  { id: 'library', label: 'Library', icon: '/sidebar-icons/album-collection.svg' },
+  { id: 'favorites', label: 'Favorites', icon: '/sidebar-icons/heart-pulse.svg' },
+  { id: 'wishlist', label: 'Wishlist', icon: '/sidebar-icons/bookmark.svg' },
+  { id: 'settings', label: 'Settings', icon: '/sidebar-icons/gear.svg' },
+  { id: 'admin', label: 'Admin', faIcon: 'fa-user-shield', adminOnly: true },
 ];
 const brandClassName = 'sidebar-brand tw-min-w-0';
 const sidebarTopClassName = 'sidebar-topbar tw-flex tw-items-center tw-justify-between tw-gap-2';
@@ -15,6 +16,7 @@ const navClassName = 'sidebar-nav tw-grid tw-gap-2';
 const navButtonClassName = 'nav-link tw-flex tw-items-center tw-gap-3 tw-rounded-[16px] tw-border tw-border-transparent tw-px-4 tw-py-3 tw-text-left tw-transition';
 const activeNavClassName = ' is-active tw-border-accent tw-bg-accent tw-text-[var(--accent-contrast)] tw-shadow-glow';
 const sidebarBottomClassName = 'sidebar-bottom tw-mt-auto tw-grid tw-gap-3';
+const sidebarUserClassName = 'sidebar-user-section';
 const statsClassName = 'sidebar-stats tw-grid tw-gap-3';
 const statCardClassName = 'stat-card tw-flex tw-items-center tw-gap-4';
 const statIconClassName = 'stat-icon tw-inline-flex tw-items-center tw-justify-center';
@@ -28,16 +30,18 @@ export function Sidebar({
   albumCount = 0,
   trackCount = 0,
   scan = {},
+  currentUser = null,
   mobile = false,
   onNavigate,
   onToggle,
   onThemeToggle,
 }) {
-  const isLightTheme = settings.theme === 'white'
-    || settings.theme === 'latte'
-    || (settings.theme === 'custom' && settings.customThemeBase === 'light');
+  const isLightTheme = settings.themeBase === 'light'
+    || (!settings.themeBase && (settings.theme === 'white' || settings.theme === 'latte' || settings.customThemeBase === 'light'));
   const themeMode = isLightTheme ? 'light' : 'dark';
-  const visibleItems = NAV_ITEMS.filter(([id]) => {
+  const isAdmin = currentUser?.role === 'admin';
+  const visibleItems = NAV_ITEMS.filter(({ id, adminOnly }) => {
+    if (adminOnly) return isAdmin;
     if (id === 'home') return settings.showHome !== false;
     if (id === 'library') return settings.showLibrary !== false;
     if (id === 'favorites' || id === 'wishlist') return settings.showFavorites !== false;
@@ -77,18 +81,22 @@ export function Sidebar({
         </div>
       </div>
 
+      <div className={sidebarUserClassName}>
+        <AccountBlock user={currentUser} />
+      </div>
+
       <nav className={navClassName}>
-        {visibleItems.map(([id, label, icon]) => (
+        {visibleItems.map((item) => (
           <button
-            key={id}
-            id={`nav-${id}`}
-            className={`${navButtonClassName}${activeView === id ? activeNavClassName : ''}`}
+            key={item.id}
+            id={`nav-${item.id}`}
+            className={`${navButtonClassName}${activeView === item.id ? activeNavClassName : ''}`}
             type="button"
-            title={label}
-            onClick={() => onNavigate?.(id)}
+            title={item.label}
+            onClick={() => onNavigate?.(item.id)}
           >
-            <i className="sidebar-symbol" style={{ '--sidebar-icon': `url('${icon}')` }} aria-hidden="true"></i>
-            <span>{label}</span>
+            <NavIcon item={item} />
+            <span>{item.label}</span>
           </button>
         ))}
       </nav>
@@ -101,6 +109,43 @@ export function Sidebar({
         <ScanStatus scan={scan} />
       </div>
     </>
+  );
+}
+
+function AccountBlock({ user }) {
+  const username = user?.username || 'Guest';
+  const role = user?.role === 'admin' ? 'Admin' : 'User';
+  const downloadLabel = user?.canDownload === false ? 'Downloads off' : 'Downloads on';
+  const accountTitle = `${username} • ${role} • ${downloadLabel}`;
+
+  return (
+    <div className="sidebar-account" title={accountTitle}>
+      <span className="sidebar-account-icon" aria-hidden="true">
+        <i className="fa-solid fa-user"></i>
+      </span>
+      <div className="sidebar-account-copy">
+        <strong>{username}</strong>
+      </div>
+      <div className="sidebar-account-actions">
+        <a className="sidebar-account-action" href="/logout" title="Logout" aria-label="Logout">
+          <i className="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function NavIcon({ item }) {
+  if (item.faIcon) {
+    return <i className={`fa-solid ${item.faIcon}`} aria-hidden="true"></i>;
+  }
+
+  return (
+    <i
+      className="sidebar-symbol"
+      style={{ '--sidebar-icon': `url('${item.icon}')` }}
+      aria-hidden="true"
+    ></i>
   );
 }
 

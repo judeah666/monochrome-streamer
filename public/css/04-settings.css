@@ -305,31 +305,56 @@
 }
 
 .theme-swatch {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  min-height: 42px;
-  padding: 0 12px;
+  justify-content: center;
+  min-height: 54px;
+  padding: 10px 12px;
   border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--theme-preview-accent) 44%, var(--line));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--theme-preview-surface) 86%, transparent), transparent 62%),
+    radial-gradient(circle at 18% 18%, color-mix(in srgb, var(--theme-preview-accent) 38%, transparent), transparent 42%),
+    linear-gradient(135deg, var(--theme-preview-body-top), var(--theme-preview-body-mid) 54%, var(--theme-preview-body-bottom));
   backdrop-filter: blur(12px);
-  color: var(--text);
+  color: var(--theme-preview-text);
   font-weight: 800;
+  isolation: isolate;
+  overflow: hidden;
+  text-align: center;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 18%, transparent);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
-.theme-swatch span {
-  width: 16px;
-  height: 16px;
+.theme-swatch::after {
+  content: "";
+  position: absolute;
+  inset: auto 10px 8px;
+  height: 3px;
   border-radius: 999px;
-  background: var(--swatch-color);
-  box-shadow: 0 0 0 3px var(--glass-strong);
+  background: var(--theme-preview-accent);
+  opacity: 0.9;
+  z-index: -1;
+}
+
+.theme-swatch-label {
+  color: inherit;
+  text-shadow: 0 1px 10px color-mix(in srgb, var(--theme-preview-background) 62%, transparent);
 }
 
 .theme-swatch:hover,
 .theme-swatch.is-active {
-  border-color: var(--accent);
-  background: var(--hover-surface);
+  border-color: var(--theme-preview-accent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--theme-preview-accent) 40%, transparent),
+    0 12px 28px color-mix(in srgb, var(--theme-preview-accent) 20%, transparent);
+  transform: translateY(-1px);
+}
+
+.theme-swatch.is-active::after {
+  height: 5px;
+  opacity: 1;
 }
 
 .settings-actions {

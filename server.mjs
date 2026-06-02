@@ -2,7 +2,7 @@ import { createReadStream, existsSync, promises as fs } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import yazl from 'yazl';
@@ -16,6 +16,8 @@ import {
 import {
   readAlbumOverridesDatabase,
   readArtistOverridesDatabase,
+  readCollectionFolderAlbumPage,
+  readCollectionFolders,
   readLibraryAlbumPage,
   readLibraryDatabase,
   readLibraryDatabaseSummary,
@@ -52,9 +54,12 @@ const defaultConfig = {
   libraryDatabasePath: 'library.sqlite',
   coverCachePath: 'covers',
   widgetSettingsPath: 'widget-settings.json',
+  authUsersPath: 'users.json',
   scanMetadata: 'tags',
   scanDurations: false,
   autoScanOnStart: false,
+  adminUsername: 'admin',
+  adminPassword: 'admin',
   widgetApiKey: '',
   widgetCorsOrigin: '*',
   host: '0.0.0.0',
@@ -73,6 +78,8 @@ const libraryDatabasePath = config.libraryDatabasePath ? path.resolve(__dirname,
 const legacyLibraryCachePath = config.libraryCachePath ? path.resolve(__dirname, config.libraryCachePath) : '';
 const coverCachePath = config.coverCachePath ? path.resolve(__dirname, config.coverCachePath) : '';
 const widgetSettingsPath = config.widgetSettingsPath ? path.resolve(__dirname, config.widgetSettingsPath) : '';
+const authUsersPath = config.authUsersPath ? path.resolve(__dirname, config.authUsersPath) : '';
+const NATURAL_SORTER = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 
 if (!libraryRoot || !existsSync(libraryRoot)) {
   console.error(`Music library path is missing or invalid: ${libraryRoot || '(empty)'}`);
@@ -103,6 +110,8 @@ let albumOverridesCache = null;
 let lyricsOverridesCache = null;
 let selectedLibraryFoldersCache = null;
 let widgetSettingsCache = await readWidgetSettings();
+let authStoreCache = null;
+const sessions = new Map();
 
 class HttpError extends Error {
   constructor(statusCode, message) {
@@ -147,7 +156,54 @@ const server = http.createServer(async (request, response) => {
       });
     }
 
+    const authUser = await getAuthenticatedUser(request);
+
+    if (url.pathname === '/login' || url.pathname === '/login/') {
+      if (request.method === 'POST') {
+        return handleLogin(request, response, url);
+      }
+      return respondHtml(response, 200, renderLoginPage({
+        next: url.searchParams.get('next') || '/',
+        title: config.title,
+        currentUser: authUser,
+      }));
+    }
+
+    if (url.pathname === '/logout' || url.pathname === '/logout/') {
+      const token = getSessionToken(request);
+      if (token) sessions.delete(token);
+      response.writeHead(303, {
+        Location: '/login',
+        'Set-Cookie': createSessionCookie('', { maxAge: 0 }),
+        'Cache-Control': 'no-store',
+      });
+      response.end();
+      return;
+    }
+
+    if (!authUser) {
+      return requireLogin(request, response, url);
+    }
+
+    if (url.pathname === '/api/auth/me') {
+      return respondJson(response, 200, { user: createPublicUser(authUser) });
+    }
+
+    if (url.pathname === '/admin' || url.pathname === '/admin/') {
+      return redirect(response, '/');
+    }
+
+    if (url.pathname.startsWith('/api/admin/')) {
+      if (!isAdminUser(authUser)) {
+        return respondJson(response, 403, { error: 'Admin access required.' });
+      }
+      return handleAdminApi(request, response, url);
+    }
+
     if (url.pathname === '/api/widget/settings') {
+      if (!isAdminUser(authUser)) {
+        return respondJson(response, 403, { error: 'Admin access required.' });
+      }
       if (request.method === 'GET') {
         return respondJson(response, 200, getWidgetSettingsPayload(request));
       }
@@ -168,6 +224,8 @@ const server = http.createServer(async (request, response) => {
         trackCount: librarySummary.trackCount,
         albumCount: librarySummary.albumCount,
         scan: scanState,
+        user: createPublicUser(authUser),
+        downloadSettings: await getDownloadSettings(),
       });
     }
 
@@ -197,13 +255,61 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (url.pathname === '/api/wishlist-albums' || url.pathname === '/api/wanted-albums') {
-      const wishlistAlbumIds = await getWishlistAlbumIds();
+      const search = url.searchParams.get('search');
+      const { scannedAlbumIds, manualAlbums } = await getWishlistAlbumSources();
+      const visibleManualAlbums = filterManualAlbumsBySearch(manualAlbums, search);
       const library = await readLibraryAlbumPage(libraryDatabasePath, {
         limit: url.searchParams.get('limit'),
         offset: url.searchParams.get('offset'),
-        search: url.searchParams.get('search'),
-        albumIds: wishlistAlbumIds,
+        search,
+        albumIds: scannedAlbumIds,
       });
+      if (visibleManualAlbums.length > 0) {
+        library.albums = [...visibleManualAlbums, ...library.albums];
+        library.albumCount += visibleManualAlbums.length;
+        if (library.page) {
+          library.page.total += visibleManualAlbums.length;
+        }
+      }
+      primeTrackMap(library.tracks);
+      return respondJson(response, 200, await createLibraryPayload(library));
+    }
+
+    if (url.pathname === '/api/collections-albums') {
+      const pageOptions = {
+        limit: url.searchParams.get('limit'),
+        offset: url.searchParams.get('offset'),
+        search: url.searchParams.get('search'),
+        letter: url.searchParams.get('letter'),
+      };
+      const collectionPath = url.searchParams.get('path');
+      if (!collectionPath) {
+        return respondJson(response, 200, await createCollectionFoldersPayload({
+          search: url.searchParams.get('search'),
+        }));
+      }
+      const collectionSources = await getCollectionAlbumSources(collectionPath);
+      const mediaTypeAlbumFilter = await getAlbumIdFilterForMediaTypes(url.searchParams.get('mediaTypes'));
+      if (mediaTypeAlbumFilter?.albumIds) {
+        pageOptions.albumIds = mediaTypeAlbumFilter.albumIds;
+      }
+      if (mediaTypeAlbumFilter?.excludeAlbumIds) {
+        pageOptions.excludeAlbumIds = mediaTypeAlbumFilter.excludeAlbumIds;
+      }
+      pageOptions.includeAlbumIds = collectionSources.scannedAlbumIds;
+      pageOptions.excludeAlbumIds = [
+        ...(pageOptions.excludeAlbumIds || []),
+        ...collectionSources.excludeAlbumIds,
+      ];
+      const library = await readCollectionFolderAlbumPage(libraryDatabasePath, collectionPath, pageOptions);
+      const visibleManualAlbums = filterManualAlbumsBySearch(collectionSources.manualAlbums, pageOptions.search);
+      if (visibleManualAlbums.length > 0) {
+        library.albums = [...visibleManualAlbums, ...library.albums].sort(compareAlbumsNaturally);
+        library.albumCount += visibleManualAlbums.length;
+        if (library.page) {
+          library.page.total += visibleManualAlbums.length;
+        }
+      }
       primeTrackMap(library.tracks);
       return respondJson(response, 200, await createLibraryPayload(library));
     }
@@ -284,12 +390,18 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (url.pathname === '/api/rescan' && request.method === 'POST') {
+      if (!isAdminUser(authUser)) {
+        return respondJson(response, 403, { error: 'Admin access required.' });
+      }
       const scan = await startLibraryScan();
       return respondJson(response, 202, { scan });
     }
 
     if (url.pathname === '/api/library/folders') {
       if (request.method === 'POST') {
+        if (!isAdminUser(authUser)) {
+          return respondJson(response, 403, { error: 'Admin access required.' });
+        }
         const result = await updateSelectedLibraryFolders(request);
         return respondJson(response, 200, result);
       }
@@ -322,11 +434,23 @@ const server = http.createServer(async (request, response) => {
     if (albumTagsMatch && request.method === 'POST') {
       const albumId = decodeURIComponent(albumTagsMatch[1]);
       const result = await updateAlbumTagOverride(albumId, request);
-      const library = await ensureLibrary();
+      const library = result.manual
+        ? await createManualWishlistLibrary()
+        : await ensureLibrary();
       return respondJson(response, 200, {
         ...result,
         library: await createLibraryPayload(library),
       });
+    }
+
+    if (url.pathname === '/api/albums' && request.method === 'POST') {
+      const result = await createManualAlbum(request);
+      return respondJson(response, 201, result);
+    }
+
+    if (url.pathname === '/api/tag-suggestions' && request.method === 'GET') {
+      const suggestions = await searchMusicBrainzTagSuggestions(url);
+      return respondJson(response, 200, suggestions);
     }
 
     const albumSuggestionsMatch = /^\/api\/albums\/([^/]+)\/tag-suggestions$/u.exec(url.pathname);
@@ -350,10 +474,16 @@ const server = http.createServer(async (request, response) => {
 
     const downloadMatch = /^\/api\/tracks\/([^/]+)\/download$/u.exec(url.pathname);
     if (downloadMatch) {
+      if (!canUserDownload(authUser)) {
+        return respondJson(response, 403, { error: 'Downloads are disabled for this account.' });
+      }
       return downloadTrack(response, decodeURIComponent(downloadMatch[1]), url);
     }
 
     if (url.pathname === '/api/downloads/bulk' && request.method === 'POST') {
+      if (!canUserDownload(authUser)) {
+        return respondJson(response, 403, { error: 'Downloads are disabled for this account.' });
+      }
       return downloadBulkTracks(response, request);
     }
 
@@ -399,10 +529,11 @@ const server = http.createServer(async (request, response) => {
 server.listen(config.port, config.host, () => {
   console.log(`Monochrome-Streamer ready at http://${config.host}:${config.port}`);
   console.log(`Streaming from: ${libraryRoot}`);
+  console.log(`Admin login: username "${config.adminUsername}" (${process.env.ADMIN_PASSWORD ? 'ADMIN_PASSWORD env detected' : 'ADMIN_PASSWORD env missing; using fallback'})`);
   if (config.autoScanOnStart) {
     startLibraryScan();
   } else {
-    console.log('Automatic startup scan is disabled. Select folders in Settings > System, then scan.');
+    console.log('Automatic startup scan is disabled. Open the Admin sidebar tab, then System, select folders, and scan.');
   }
 });
 
@@ -429,14 +560,361 @@ async function loadConfig() {
     libraryDatabasePath: process.env.LIBRARY_DATABASE_PATH || fileConfig.libraryDatabasePath || dataPath(defaultConfig.libraryDatabasePath),
     coverCachePath: process.env.COVER_CACHE_PATH || fileConfig.coverCachePath || dataPath(defaultConfig.coverCachePath),
     widgetSettingsPath: process.env.WIDGET_SETTINGS_PATH || fileConfig.widgetSettingsPath || dataPath(defaultConfig.widgetSettingsPath),
+    authUsersPath: process.env.AUTH_USERS_PATH || fileConfig.authUsersPath || dataPath(defaultConfig.authUsersPath),
     scanMetadata: normalizeScanMetadata(process.env.SCAN_METADATA || fileConfig.scanMetadata || defaultConfig.scanMetadata),
     scanDurations: parseBoolean(process.env.SCAN_DURATIONS ?? fileConfig.scanDurations ?? defaultConfig.scanDurations),
     autoScanOnStart: parseBoolean(process.env.AUTO_SCAN_ON_START ?? fileConfig.autoScanOnStart ?? defaultConfig.autoScanOnStart),
+    adminUsername: process.env.ADMIN_USERNAME || fileConfig.adminUsername || defaultConfig.adminUsername,
+    adminPassword: process.env.ADMIN_PASSWORD || fileConfig.adminPassword || defaultConfig.adminPassword,
     widgetApiKey: process.env.WIDGET_API_KEY || fileConfig.widgetApiKey || defaultConfig.widgetApiKey,
     widgetCorsOrigin: process.env.WIDGET_CORS_ORIGIN || fileConfig.widgetCorsOrigin || defaultConfig.widgetCorsOrigin,
     host: process.env.HOST || fileConfig.host || defaultConfig.host,
     port: Number.parseInt(process.env.PORT || fileConfig.port || defaultConfig.port, 10),
   };
+}
+
+async function getAuthenticatedUser(request) {
+  const token = getSessionToken(request);
+  if (!token) return null;
+
+  const session = sessions.get(token);
+  if (!session || session.expiresAt < Date.now()) {
+    sessions.delete(token);
+    return null;
+  }
+
+  session.expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  if (session.role === 'admin') {
+    return {
+      username: config.adminUsername,
+      role: 'admin',
+      downloadsEnabled: true,
+    };
+  }
+
+  const store = await readAuthStore();
+  const user = store.users.find((candidate) => candidate.username === session.username);
+  if (!user) {
+    sessions.delete(token);
+    return null;
+  }
+
+  return {
+    username: user.username,
+    role: 'user',
+    downloadsEnabled: user.downloadsEnabled !== false,
+  };
+}
+
+async function handleLogin(request, response, url) {
+  const body = await readRequestPayload(request, 64 * 1024);
+  const username = cleanText(body.username);
+  const password = String(body.password || '');
+  const user = await authenticateUser(username, password);
+
+  if (!user) {
+    return respondHtml(response, 401, renderLoginPage({
+      next: cleanRedirectPath(body.next || url.searchParams.get('next') || '/'),
+      title: config.title,
+      error: 'Invalid username or password.',
+    }));
+  }
+
+  const token = createSession(user);
+  const next = cleanRedirectPath(body.next || url.searchParams.get('next') || '/');
+  response.writeHead(303, {
+    Location: next,
+    'Set-Cookie': createSessionCookie(token),
+    'Cache-Control': 'no-store',
+  });
+  response.end();
+}
+
+async function authenticateUser(username, password) {
+  if (username === config.adminUsername && timingSafeTextEqual(password, config.adminPassword)) {
+    return {
+      username: config.adminUsername,
+      role: 'admin',
+      downloadsEnabled: true,
+    };
+  }
+
+  const normalizedUsername = normalizeUsername(username);
+  const store = await readAuthStore();
+  const user = store.users.find((candidate) => candidate.username === normalizedUsername);
+  if (!user || !verifyPassword(password, user.passwordHash)) return null;
+  return {
+    username: user.username,
+    role: 'user',
+    downloadsEnabled: user.downloadsEnabled !== false,
+  };
+}
+
+function createSession(user) {
+  const token = randomBytes(32).toString('hex');
+  sessions.set(token, {
+    username: user.username,
+    role: user.role,
+    expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+  });
+  return token;
+}
+
+function createPublicUser(user) {
+  return {
+    username: user.username,
+    role: user.role,
+    canDownload: canUserDownload(user),
+  };
+}
+
+function isAdminUser(user) {
+  return user?.role === 'admin';
+}
+
+function canUserDownload(user) {
+  return isAdminUser(user) || user?.downloadsEnabled !== false;
+}
+
+async function handleAdminApi(request, response, url) {
+  if (url.pathname === '/api/admin/users') {
+    if (request.method === 'GET') {
+      return respondJson(response, 200, await getAdminUsersPayload());
+    }
+    if (request.method === 'POST') {
+      return respondJson(response, 200, await createManagedUser(request));
+    }
+  }
+
+  const userMatch = /^\/api\/admin\/users\/([^/]+)$/u.exec(url.pathname);
+  if (userMatch) {
+    const username = decodeURIComponent(userMatch[1]);
+    if (request.method === 'PATCH') {
+      return respondJson(response, 200, await updateManagedUser(username, request));
+    }
+    if (request.method === 'DELETE') {
+      return respondJson(response, 200, await deleteManagedUser(username));
+    }
+  }
+
+  if (url.pathname === '/api/admin/download-settings') {
+    if (request.method === 'GET') {
+      return respondJson(response, 200, await getDownloadSettings());
+    }
+    if (request.method === 'POST') {
+      return respondJson(response, 200, await updateDownloadSettings(request));
+    }
+  }
+
+  return respondJson(response, 404, { error: 'Not found' });
+}
+
+async function getAdminUsersPayload() {
+  const store = await readAuthStore();
+  return {
+    admin: {
+      username: config.adminUsername,
+      role: 'admin',
+      downloadsEnabled: true,
+      source: 'environment',
+    },
+    users: store.users.map((user) => ({
+      username: user.username,
+      role: 'user',
+      downloadsEnabled: user.downloadsEnabled !== false,
+      createdAt: user.createdAt || '',
+    })),
+  };
+}
+
+async function createManagedUser(request) {
+  const payload = await readRequestJson(request, 64 * 1024);
+  const username = normalizeUsername(payload.username);
+  const password = String(payload.password || '');
+  if (!username) throw new HttpError(400, 'Username is required.');
+  if (username === config.adminUsername) throw new HttpError(400, 'That username is reserved for the environment admin.');
+  if (password.length < 6) throw new HttpError(400, 'Password must be at least 6 characters.');
+
+  const store = await readAuthStore();
+  const existing = store.users.find((user) => user.username === username);
+  const user = existing || {
+    username,
+    createdAt: new Date().toISOString(),
+  };
+  user.passwordHash = hashPassword(password);
+  user.downloadsEnabled = payload.downloadsEnabled !== false;
+  if (!existing) store.users.push(user);
+  await writeAuthStore(store);
+  return getAdminUsersPayload();
+}
+
+async function updateManagedUser(username, request) {
+  const normalizedUsername = normalizeUsername(username);
+  const payload = await readRequestJson(request, 64 * 1024);
+  const store = await readAuthStore();
+  const user = store.users.find((candidate) => candidate.username === normalizedUsername);
+  if (!user) throw new HttpError(404, 'User not found.');
+
+  if (typeof payload.downloadsEnabled === 'boolean') {
+    user.downloadsEnabled = payload.downloadsEnabled;
+  }
+  if (payload.password) {
+    const password = String(payload.password || '');
+    if (password.length < 6) throw new HttpError(400, 'Password must be at least 6 characters.');
+    user.passwordHash = hashPassword(password);
+  }
+  await writeAuthStore(store);
+  return getAdminUsersPayload();
+}
+
+async function deleteManagedUser(username) {
+  const normalizedUsername = normalizeUsername(username);
+  const store = await readAuthStore();
+  store.users = store.users.filter((user) => user.username !== normalizedUsername);
+  await writeAuthStore(store);
+  for (const [token, session] of sessions.entries()) {
+    if (session.username === normalizedUsername) sessions.delete(token);
+  }
+  return getAdminUsersPayload();
+}
+
+async function getDownloadSettings() {
+  const store = await readAuthStore();
+  return normalizeDownloadSettings(store.downloadSettings);
+}
+
+async function updateDownloadSettings(request) {
+  const payload = await readRequestJson(request, 64 * 1024);
+  const store = await readAuthStore();
+  store.downloadSettings = normalizeDownloadSettings(payload);
+  await writeAuthStore(store);
+  return store.downloadSettings;
+}
+
+async function readAuthStore() {
+  if (authStoreCache) return authStoreCache;
+  const fallback = {
+    users: [],
+    downloadSettings: getDefaultDownloadSettings(),
+  };
+  if (!authUsersPath || !existsSync(authUsersPath)) {
+    authStoreCache = fallback;
+    return authStoreCache;
+  }
+
+  try {
+    const raw = JSON.parse(await fs.readFile(authUsersPath, 'utf8'));
+    authStoreCache = {
+      users: Array.isArray(raw.users) ? raw.users : [],
+      downloadSettings: normalizeDownloadSettings(raw.downloadSettings),
+    };
+    return authStoreCache;
+  } catch (error) {
+    console.warn(`Unable to read ${authUsersPath}:`, error instanceof Error ? error.message : error);
+    authStoreCache = fallback;
+    return authStoreCache;
+  }
+}
+
+async function writeAuthStore(store) {
+  if (!authUsersPath) throw new HttpError(400, 'User storage is not configured.');
+  await fs.mkdir(path.dirname(authUsersPath), { recursive: true });
+  authStoreCache = {
+    users: Array.isArray(store.users) ? store.users : [],
+    downloadSettings: normalizeDownloadSettings(store.downloadSettings),
+  };
+  await fs.writeFile(authUsersPath, `${JSON.stringify(authStoreCache, null, 2)}\n`, 'utf8');
+}
+
+function getDefaultDownloadSettings() {
+  return {
+    downloadQuality: 'original',
+    bulkDownloadMethod: 'browser',
+    filenameTemplate: '{artist} - {title}',
+    folderTemplate: '{albumArtist}/{year} - {albumTitle}',
+  };
+}
+
+function normalizeDownloadSettings(settings = {}) {
+  const defaults = getDefaultDownloadSettings();
+  const downloadQuality = String(settings.downloadQuality || defaults.downloadQuality) === 'mp3' ? 'mp3' : 'original';
+  const bulkDownloadMethod = String(settings.bulkDownloadMethod || defaults.bulkDownloadMethod) === 'zip' ? 'zip' : 'browser';
+  return {
+    ...defaults,
+    downloadQuality,
+    bulkDownloadMethod,
+    filenameTemplate: cleanText(settings.filenameTemplate) || defaults.filenameTemplate,
+    folderTemplate: cleanText(settings.folderTemplate) || defaults.folderTemplate,
+  };
+}
+
+function hashPassword(password) {
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(String(password), salt, 64).toString('hex');
+  return `scrypt:${salt}:${hash}`;
+}
+
+function verifyPassword(password, passwordHash) {
+  const [algorithm, salt, expectedHash] = String(passwordHash || '').split(':');
+  if (algorithm !== 'scrypt' || !salt || !expectedHash) return false;
+  const actualHash = scryptSync(String(password), salt, 64).toString('hex');
+  return timingSafeTextEqual(actualHash, expectedHash);
+}
+
+function timingSafeTextEqual(left, right) {
+  const leftHash = createHash('sha256').update(String(left)).digest();
+  const rightHash = createHash('sha256').update(String(right)).digest();
+  return timingSafeEqual(leftHash, rightHash);
+}
+
+function normalizeUsername(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_.-]/gu, '')
+    .slice(0, 48);
+}
+
+function getSessionToken(request) {
+  return parseCookies(request.headers.cookie || '').ms_session || '';
+}
+
+function parseCookies(cookieHeader) {
+  const cookies = {};
+  for (const part of String(cookieHeader || '').split(';')) {
+    const index = part.indexOf('=');
+    if (index === -1) continue;
+    const key = part.slice(0, index).trim();
+    const value = part.slice(index + 1).trim();
+    if (key) cookies[key] = decodeURIComponent(value);
+  }
+  return cookies;
+}
+
+function createSessionCookie(token, options = {}) {
+  const maxAge = Number.isFinite(options.maxAge) ? options.maxAge : 7 * 24 * 60 * 60;
+  return [
+    `ms_session=${encodeURIComponent(token)}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    `Max-Age=${maxAge}`,
+  ].join('; ');
+}
+
+function cleanRedirectPath(value) {
+  const redirectPath = String(value || '/').trim();
+  if (!redirectPath.startsWith('/') || redirectPath.startsWith('//')) return '/';
+  if (redirectPath.startsWith('/login')) return '/';
+  if (redirectPath === '/admin' || redirectPath.startsWith('/admin/')) return '/';
+  return redirectPath;
+}
+
+function requireLogin(request, response, url) {
+  if (url.pathname.startsWith('/api/')) {
+    return respondJson(response, 401, { error: 'Login required.' });
+  }
+  return redirect(response, `/login?next=${encodeURIComponent(`${url.pathname}${url.search}` || '/')}`);
 }
 
 async function getCurrentLibrary() {
@@ -920,15 +1398,24 @@ async function createLibraryPayload(library) {
       const scannedCoverUrl = coverTrack?.cachedCoverPath || coverTrack?.coverArtPath || coverTrack?.hasEmbeddedCover
         ? `/api/tracks/${album.coverTrackId}/cover`
         : null;
+      const hasMediaOverride = override && (
+        Object.hasOwn(override, 'mediaTypes') || Object.hasOwn(override, 'mediaType')
+      );
+      const albumArtistName = override?.albumArtist || album.albumArtist || album.artist;
       return {
         ...album,
         title: override?.albumTitle || album.title,
-        artist: override?.albumArtist || album.artist,
-        albumArtist: override?.albumArtist || album.albumArtist || album.artist,
+        artist: albumArtistName,
+        albumArtist: albumArtistName,
         date: override?.date || album.date || null,
         year: override?.year || album.year || null,
         genre: override?.genre || '',
-        mediaTypes: normalizeMediaTypes(override?.mediaTypes || override?.mediaType),
+        collectionName: Object.hasOwn(override || {}, 'collectionName')
+          ? cleanText(override.collectionName)
+          : cleanText(album.collectionName),
+        mediaTypes: hasMediaOverride
+          ? normalizeMediaTypes(override.mediaTypes || override.mediaType, { fallback: [] })
+          : ['Digital Media'],
         status: override?.status || 'Collection',
         audioQuality: album.audioQuality,
         musicBrainzId: override?.musicBrainzId || '',
@@ -949,7 +1436,7 @@ async function createLibraryPayload(library) {
         albumId: album?.id || '',
         title: trackOverride?.title || track.title,
         artist: trackOverride?.artist || track.artist,
-        albumArtist: albumOverride?.albumArtist || album?.albumArtist || track.albumArtist || track.artist,
+        albumArtist: albumOverride?.albumArtist || album?.albumArtist || album?.artist || track.albumArtist || track.artist,
         album: albumOverride?.albumTitle || track.album,
         trackNumber: trackOverride?.trackNumber ?? track.trackNumber,
         discNumber: trackOverride?.discNumber ?? track.discNumber,
@@ -964,10 +1451,196 @@ async function createLibraryPayload(library) {
 }
 
 async function getWishlistAlbumIds() {
+  const { scannedAlbumIds } = await getWishlistAlbumSources();
+  return scannedAlbumIds;
+}
+
+async function getWishlistAlbumSources() {
   const overrides = await getAlbumOverrides();
-  return Object.entries(overrides.albums || {})
-    .filter(([, override]) => normalizeAlbumStatus(override?.status) === 'Wishlist')
-    .map(([albumId]) => albumId);
+  const scannedAlbumIds = [];
+  const manualAlbums = [];
+  for (const [albumId, override] of Object.entries(overrides.albums || {})) {
+    if (normalizeAlbumStatus(override?.status) !== 'Wishlist') continue;
+    if (override?.manual || albumId.startsWith('manual-')) {
+      manualAlbums.push(createManualAlbumFromOverride(albumId, override));
+    } else {
+      scannedAlbumIds.push(albumId);
+    }
+  }
+  return { scannedAlbumIds, manualAlbums };
+}
+
+function createManualAlbumFromOverride(albumId, override = {}) {
+  const albumTitle = cleanText(override.albumTitle || override.title) || 'Untitled Album';
+  const albumArtist = cleanText(override.albumArtist || override.artist) || 'Unknown Artist';
+  return {
+    id: albumId,
+    manual: true,
+    title: albumTitle,
+    artist: albumArtist,
+    albumArtist,
+    date: cleanText(override.date) || null,
+    year: normalizeYear(override.year || override.date),
+    genre: cleanText(override.genre),
+    collectionName: cleanText(override.collectionName),
+    mediaTypes: normalizeMediaTypes(override.mediaTypes || override.mediaType, { fallback: [] }),
+    status: normalizeAlbumStatus(override.status || 'Wishlist'),
+    audioQuality: null,
+    musicBrainzId: cleanText(override.musicBrainzId),
+    coverUrl: cleanText(override.coverUrl) || null,
+    customCoverUrl: cleanText(override.coverUrl) || null,
+    scannedCoverUrl: null,
+    trackIds: [],
+    coverTrackId: null,
+  };
+}
+
+async function createCollectionFoldersPayload({ search = '' } = {}) {
+  const payload = await readCollectionFolders(libraryDatabasePath, { search });
+  const normalizedSearch = cleanText(search).toLowerCase();
+  const foldersByName = new Map();
+  for (const folder of payload.folders || []) {
+    const albumIds = new Set(folder.albumIds || []);
+    foldersByName.set(normalizeCollectionName(folder.name), {
+      ...folder,
+      albumIds,
+      albumCount: albumIds.size || folder.albumCount || folder.trackCount || 0,
+      trackCount: albumIds.size || folder.albumCount || folder.trackCount || 0,
+      coverTrackId: folder.coverTrackId || '',
+      coverUrl: '',
+    });
+  }
+  const overrides = await getAlbumOverrides();
+
+  for (const [albumId, override] of Object.entries(overrides.albums || {})) {
+    if (!Object.hasOwn(override || {}, 'collectionName')) continue;
+    const collectionName = cleanText(override?.collectionName);
+    for (const folder of foldersByName.values()) {
+      folder.albumIds.delete(albumId);
+      folder.albumCount = folder.albumIds.size;
+      folder.trackCount = folder.albumIds.size;
+    }
+    if (!collectionName) continue;
+    if (normalizedSearch && !collectionName.toLowerCase().includes(normalizedSearch)) continue;
+
+    const normalizedName = normalizeCollectionName(collectionName);
+    if (!foldersByName.has(normalizedName)) {
+      foldersByName.set(normalizedName, {
+        path: collectionName,
+        name: collectionName,
+        parentPath: '',
+        albumIds: new Set(),
+        albumCount: 0,
+        trackCount: 0,
+        coverTrackId: '',
+        coverUrl: '',
+      });
+    }
+    const folder = foldersByName.get(normalizedName);
+    folder.albumIds.add(albumId);
+    folder.albumCount = folder.albumIds.size;
+    folder.trackCount = folder.albumIds.size;
+  }
+
+  const visibleFolders = [...foldersByName.values()].filter((folder) => folder.albumIds.size > 0);
+  const folders = await Promise.all(visibleFolders.map(async (folder) => {
+    return {
+      ...folder,
+      coverUrl: await getCollectionFolderCoverUrl(folder, overrides),
+    };
+  }));
+
+  return {
+    ...payload,
+    folders: folders
+      .map((folder) => ({
+        ...folder,
+        albumIds: [...folder.albumIds],
+        albumCount: folder.albumIds.size,
+        trackCount: folder.albumIds.size,
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name)),
+  };
+}
+
+async function getCollectionFolderCoverUrl(folder, overrides) {
+  const collectionName = cleanText(folder.name || folder.path);
+  const firstScannedAlbumPage = await readCollectionFolderAlbumPage(libraryDatabasePath, collectionName, {
+    limit: 1,
+    offset: 0,
+  });
+  const firstScannedAlbum = firstScannedAlbumPage.albums?.[0] || null;
+  const manualAlbums = Object.entries(overrides.albums || {})
+    .filter(([albumId, override]) => {
+      const isManual = override?.manual || albumId.startsWith('manual-');
+      return isManual && normalizeCollectionName(override?.collectionName) === normalizeCollectionName(collectionName);
+    })
+    .map(([albumId, override]) => createManualAlbumFromOverride(albumId, override));
+  const firstAlbum = [firstScannedAlbum, ...manualAlbums]
+    .filter(Boolean)
+    .sort(compareAlbumsNaturally)[0];
+
+  return firstAlbum
+    ? getAlbumCoverUrl(firstAlbum, overrides)
+    : '';
+}
+
+async function getAlbumCoverUrl(album, overrides) {
+  const overrideCoverUrl = cleanText(overrides.albums?.[album.id]?.coverUrl);
+  if (overrideCoverUrl) return overrideCoverUrl;
+  if (album.coverUrl) return album.coverUrl;
+  if (!album.coverTrackId) return '';
+  const coverTrack = await getTrackById(album.coverTrackId);
+  return coverTrack?.cachedCoverPath || coverTrack?.coverArtPath || coverTrack?.hasEmbeddedCover
+    ? `/api/tracks/${album.coverTrackId}/cover`
+    : '';
+}
+
+async function getCollectionAlbumSources(collectionName) {
+  const normalizedTarget = normalizeCollectionName(collectionName);
+  const overrides = await getAlbumOverrides();
+  const scannedAlbumIds = [];
+  const excludeAlbumIds = [];
+  const manualAlbums = [];
+
+  for (const [albumId, override] of Object.entries(overrides.albums || {})) {
+    if (!Object.hasOwn(override || {}, 'collectionName')) continue;
+    const overrideCollectionName = cleanText(override?.collectionName);
+    const matches = normalizeCollectionName(overrideCollectionName) === normalizedTarget;
+    const isManual = override?.manual || albumId.startsWith('manual-');
+
+    if (matches && isManual) {
+      manualAlbums.push(createManualAlbumFromOverride(albumId, override));
+    } else if (matches) {
+      scannedAlbumIds.push(albumId);
+    } else if (!isManual) {
+      excludeAlbumIds.push(albumId);
+    }
+  }
+
+  return { scannedAlbumIds, excludeAlbumIds, manualAlbums };
+}
+
+function normalizeCollectionName(value) {
+  return cleanText(value).toLowerCase().replace(/\s+/gu, ' ');
+}
+
+function compareAlbumsNaturally(left, right) {
+  return NATURAL_SORTER.compare(cleanText(left.artist || left.albumArtist), cleanText(right.artist || right.albumArtist))
+    || NATURAL_SORTER.compare(cleanText(left.title), cleanText(right.title))
+    || NATURAL_SORTER.compare(cleanText(left.id), cleanText(right.id));
+}
+
+function filterManualAlbumsBySearch(albums, search) {
+  const term = cleanText(search).toLowerCase();
+  if (!term) return albums;
+  return albums.filter((album) => [
+    album.title,
+    album.artist,
+    album.albumArtist,
+    album.genre,
+    album.year,
+  ].some((value) => String(value || '').toLowerCase().includes(term)));
 }
 
 async function getAlbumIdFilterForMediaTypes(value) {
@@ -978,22 +1651,26 @@ async function getAlbumIdFilterForMediaTypes(value) {
   if (selectedSet.size >= 4) return null;
 
   const overrides = await getAlbumOverrides();
-  const overrideEntries = Object.entries(overrides.albums || {})
-    .filter(([, override]) => override?.mediaTypes?.length > 0 || override?.mediaType);
+  const overrideEntries = Object.entries(overrides.albums || {});
+  const albumIds = [];
+  const excludeAlbumIds = [];
+  const includeDefaultDigital = selectedSet.has('Digital Media');
 
-  if (selectedSet.has('Digital Media')) {
-    return {
-      excludeAlbumIds: overrideEntries
-        .filter(([, override]) => !normalizeMediaTypes(override.mediaTypes || override.mediaType).some((mediaType) => selectedSet.has(mediaType)))
-        .map(([albumId]) => albumId),
-    };
+  for (const [albumId, override] of overrideEntries) {
+    const hasMediaOverride = Object.hasOwn(override || {}, 'mediaTypes') || Object.hasOwn(override || {}, 'mediaType');
+    if (!hasMediaOverride) continue;
+    const mediaTypes = normalizeMediaTypes(override.mediaTypes || override.mediaType, { fallback: [] });
+    if (mediaTypes.some((mediaType) => selectedSet.has(mediaType))) {
+      albumIds.push(albumId);
+    } else if (includeDefaultDigital) {
+      excludeAlbumIds.push(albumId);
+    }
   }
 
-  return {
-    albumIds: overrideEntries
-      .filter(([, override]) => normalizeMediaTypes(override.mediaTypes || override.mediaType).some((mediaType) => selectedSet.has(mediaType)))
-      .map(([albumId]) => albumId),
-  };
+  if (includeDefaultDigital) {
+    return { excludeAlbumIds };
+  }
+  return { albumIds };
 }
 
 async function streamTrack(response, trackId, rangeHeader) {
@@ -1429,19 +2106,23 @@ async function updateAlbumCoverOverride(albumId, request) {
 
 async function updateAlbumTagOverride(albumId, request) {
   const library = await ensureLibrary();
-  const album = library.albums.find((candidate) => candidate.id === albumId);
+  const overrides = await getAlbumOverrides();
+  overrides.albums ||= {};
+  const existingManualOverride = overrides.albums?.[albumId];
+  const album = library.albums.find((candidate) => candidate.id === albumId)
+    || (existingManualOverride?.manual || albumId.startsWith('manual-')
+      ? createManualAlbumFromOverride(albumId, existingManualOverride)
+      : null);
   if (!album) {
     throw new HttpError(404, 'Album not found');
   }
 
   const payload = await readRequestJson(request, 512 * 1024);
-  const overrides = await getAlbumOverrides();
-  overrides.albums ||= {};
 
   if (payload.reset) {
     delete overrides.albums[album.id];
     await writeAlbumOverrides(overrides);
-    return { albumId: album.id, reset: true };
+    return { albumId: album.id, reset: true, manual: Boolean(album.manual) };
   }
 
   const coverUrl = cleanText(payload.coverUrl);
@@ -1468,6 +2149,7 @@ async function updateAlbumTagOverride(albumId, request) {
   }
 
   const override = {
+    manual: Boolean(album.manual),
     title: album.title,
     artist: album.artist,
     albumTitle: cleanText(payload.albumTitle),
@@ -1475,7 +2157,8 @@ async function updateAlbumTagOverride(albumId, request) {
     date: cleanText(payload.date),
     year: normalizeYear(payload.year || payload.date),
     genre: cleanText(payload.genre),
-    mediaTypes: normalizeMediaTypes(payload.mediaTypes || payload.mediaType),
+    collectionName: cleanText(payload.collectionName),
+    mediaTypes: normalizeMediaTypes(payload.mediaTypes || payload.mediaType, { fallback: [] }),
     status: normalizeAlbumStatus(payload.status),
     coverUrl,
     musicBrainzId: cleanText(payload.musicBrainzId),
@@ -1493,6 +2176,65 @@ async function updateAlbumTagOverride(albumId, request) {
   return {
     albumId: album.id,
     reset: !hasAlbumOverrideContent(override),
+    manual: Boolean(album.manual),
+  };
+}
+
+async function createManualAlbum(request) {
+  const payload = await readRequestJson(request, 512 * 1024);
+  const coverUrl = cleanText(payload.coverUrl);
+  if (coverUrl && !isAllowedCoverUrl(coverUrl)) {
+    throw new HttpError(400, 'Cover URL must be an http, https, or local / path.');
+  }
+
+  const albumTitle = cleanText(payload.albumTitle);
+  if (!albumTitle) {
+    throw new HttpError(400, 'Album title is required.');
+  }
+
+  const albumId = `manual-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`;
+  const overrides = await getAlbumOverrides();
+  overrides.albums ||= {};
+  overrides.albums[albumId] = {
+    manual: true,
+    title: albumTitle,
+    artist: cleanText(payload.albumArtist),
+    albumTitle,
+    albumArtist: cleanText(payload.albumArtist),
+    date: cleanText(payload.date),
+    year: normalizeYear(payload.year || payload.date),
+    genre: cleanText(payload.genre),
+    collectionName: cleanText(payload.collectionName),
+    mediaTypes: normalizeMediaTypes(payload.mediaTypes || payload.mediaType, { fallback: [] }),
+    status: normalizeAlbumStatus(payload.status || 'Wishlist'),
+    coverUrl,
+    musicBrainzId: cleanText(payload.musicBrainzId),
+    tracks: {},
+    updatedAt: new Date().toISOString(),
+  };
+  await writeAlbumOverrides(overrides);
+
+  return {
+    albumId,
+    library: await createLibraryPayload(await createManualWishlistLibrary()),
+  };
+}
+
+async function createManualWishlistLibrary() {
+  const { manualAlbums } = await getWishlistAlbumSources();
+  return {
+    generatedAt: null,
+    trackCount: 0,
+    albumCount: manualAlbums.length,
+    albums: manualAlbums,
+    tracks: [],
+    page: {
+      limit: manualAlbums.length || 1,
+      offset: 0,
+      total: manualAlbums.length,
+      hasNext: false,
+      hasPrevious: false,
+    },
   };
 }
 
@@ -1631,7 +2373,7 @@ async function searchAlbumTagSuggestions(albumId, url) {
     throw new HttpError(404, 'Album not found');
   }
 
-  const query = cleanText(url.searchParams.get('q')) || `${album.artist} ${album.title}`;
+  const query = cleanText(url.searchParams.get('q')) || `${album.albumArtist || album.artist} ${album.title}`;
   const searchUrl = new URL('https://musicbrainz.org/ws/2/release');
   searchUrl.searchParams.set('fmt', 'json');
   searchUrl.searchParams.set('query', query);
@@ -1644,6 +2386,25 @@ async function searchAlbumTagSuggestions(albumId, url) {
   return {
     query,
     suggestions,
+  };
+}
+
+async function searchMusicBrainzTagSuggestions(url) {
+  const query = cleanText(url.searchParams.get('q'));
+  if (!query) {
+    return { query: '', suggestions: [] };
+  }
+
+  const searchUrl = new URL('https://musicbrainz.org/ws/2/release');
+  searchUrl.searchParams.set('fmt', 'json');
+  searchUrl.searchParams.set('query', query);
+  searchUrl.searchParams.set('limit', '8');
+
+  const searchData = await fetchMusicBrainzJson(searchUrl);
+  const releases = Array.isArray(searchData.releases) ? searchData.releases : [];
+  return {
+    query,
+    suggestions: releases.slice(0, 6).map((release) => normalizeMusicBrainzReleaseSearchResult(release)),
   };
 }
 
@@ -1744,6 +2505,7 @@ function hasAlbumOverrideContent(override) {
       || override.date
       || override.year
       || override.genre
+      || Object.hasOwn(override, 'collectionName')
       || override.mediaType
       || override.mediaTypes?.length > 0
       || override.status
@@ -1766,6 +2528,15 @@ function cleanText(value) {
   return String(value || '').trim();
 }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/gu, '&amp;')
+    .replace(/</gu, '&lt;')
+    .replace(/>/gu, '&gt;')
+    .replace(/"/gu, '&quot;')
+    .replace(/'/gu, '&#39;');
+}
+
 function cleanLyricsText(value) {
   return String(value || '').replace(/\r\n?/gu, '\n').trim();
 }
@@ -1780,11 +2551,11 @@ function normalizeYear(value) {
   return match ? match[1] : null;
 }
 
-function normalizeMediaTypes(value) {
+function normalizeMediaTypes(value, { fallback = ['Digital Media'] } = {}) {
   const allowed = new Set(['CD', 'Digital Media', 'Vinyl', 'Cassette Tape']);
   const values = Array.isArray(value) ? value : [value];
   const mediaTypes = values.map(normalizeMediaTypeName).filter((item) => allowed.has(item));
-  return mediaTypes.length > 0 ? [...new Set(mediaTypes)] : ['Digital Media'];
+  return mediaTypes.length > 0 ? [...new Set(mediaTypes)] : [...fallback];
 }
 
 function normalizeMediaTypeFilter(value) {
@@ -2068,12 +2839,21 @@ async function readRequestPayload(request, maxBytes) {
   }
 
   const contentType = String(request.headers['content-type'] || '').toLowerCase();
-  const rawPayload = contentType.includes('application/x-www-form-urlencoded')
-    ? new URLSearchParams(body).get('payload') || ''
-    : body;
+  if (contentType.includes('application/x-www-form-urlencoded')) {
+    const params = new URLSearchParams(body);
+    const payload = params.get('payload');
+    if (payload) {
+      try {
+        return JSON.parse(payload);
+      } catch {
+        throw new HttpError(400, 'Request payload must be valid JSON.');
+      }
+    }
+    return Object.fromEntries(params.entries());
+  }
 
   try {
-    return rawPayload ? JSON.parse(rawPayload) : {};
+    return body ? JSON.parse(body) : {};
   } catch {
     throw new HttpError(400, 'Request payload must be valid JSON.');
   }
@@ -2345,6 +3125,249 @@ function serveStaticAsset(requestPath, response) {
     }));
 }
 
+function renderLoginPage({ next = '/', title = 'Monochrome-Streamer', error = '', currentUser = null } = {}) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login | ${escapeHtml(title)}</title>
+  <style>
+    :root { color-scheme: dark; --accent: #eb9200; --bg: #060606; --panel: rgba(18,18,18,.86); --line: rgba(255,255,255,.14); --text: #f6f3ed; --muted: rgba(246,243,237,.68); }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif; background: radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 36%), var(--bg); color: var(--text); }
+    main { width: min(420px, 100%); border: 1px solid var(--line); border-radius: 30px; padding: 30px; background: linear-gradient(145deg, rgba(255,255,255,.08), transparent), var(--panel); box-shadow: 0 28px 90px rgba(0,0,0,.45); backdrop-filter: blur(22px); }
+    p { color: var(--muted); line-height: 1.5; }
+    h1 { margin: 0; font-size: clamp(2rem, 6vw, 3.1rem); line-height: .95; letter-spacing: -.06em; }
+    label { display: grid; gap: 8px; margin-top: 18px; color: var(--muted); font-weight: 800; font-size: .82rem; text-transform: uppercase; letter-spacing: .14em; }
+    input { width: 100%; border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; background: rgba(255,255,255,.08); color: var(--text); font: inherit; outline: none; }
+    input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
+    button { width: 100%; margin-top: 22px; border: 0; border-radius: 999px; padding: 15px 18px; background: var(--accent); color: #111; font: inherit; font-weight: 950; cursor: pointer; }
+    .error { margin: 16px 0 0; padding: 12px 14px; border-radius: 16px; background: rgba(255,80,80,.16); color: #ffd7d7; }
+    .session { margin: 16px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.06); }
+    .session a { color: var(--accent); font-weight: 900; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>${escapeHtml(title)}</h1>
+    <p>Sign in to open your local streamer.</p>
+    ${error ? `<p class="error">${escapeHtml(error)}</p>` : ''}
+    ${currentUser ? `<p class="session">Currently signed in as <strong>${escapeHtml(currentUser.username)}</strong>. Use this form to switch accounts, or <a href="/logout">logout</a>.</p>` : ''}
+    <form method="post" action="/login">
+      <input type="hidden" name="next" value="${escapeHtml(cleanRedirectPath(next))}">
+      <label>Username <input name="username" autocomplete="username" required autofocus></label>
+      <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit">Login</button>
+    </form>
+  </main>
+</body>
+</html>`;
+}
+
+function renderMessagePage(title, message) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#080808;color:#f7f4ee;font-family:"Segoe UI",sans-serif}main{max-width:520px;padding:32px;border:1px solid rgba(255,255,255,.14);border-radius:28px;background:rgba(255,255,255,.06)}a{color:#eb9200}</style></head><body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p><p><a href="/">Back to app</a></p></main></body></html>`;
+}
+
+function renderAdminPage({ title = 'Monochrome-Streamer', admin }) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin | ${escapeHtml(title)}</title>
+  <style>
+    :root { color-scheme: dark; --accent:#eb9200; --bg:#070707; --panel:rgba(20,20,20,.84); --panel2:rgba(255,255,255,.06); --line:rgba(255,255,255,.14); --text:#f7f4ee; --muted:rgba(247,244,238,.66); --danger:#ff5c5c; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; padding:28px; background:radial-gradient(circle at 8% 0%, color-mix(in srgb,var(--accent) 20%,transparent), transparent 34%), var(--bg); color:var(--text); font-family:"Plus Jakarta Sans","Segoe UI",sans-serif; }
+    header, section { width:min(1120px,100%); margin:0 auto 18px; border:1px solid var(--line); border-radius:28px; background:linear-gradient(135deg,rgba(255,255,255,.07),transparent),var(--panel); box-shadow:0 20px 70px rgba(0,0,0,.32); backdrop-filter:blur(20px); }
+    header { display:flex; justify-content:space-between; gap:18px; align-items:center; padding:24px; }
+    section { padding:24px; }
+    h1,h2 { margin:0; letter-spacing:-.055em; line-height:.95; }
+    h1 { font-size:clamp(2.2rem,5vw,4rem); }
+    h2 { font-size:1.7rem; margin-bottom:8px; }
+    p { color:var(--muted); line-height:1.55; }
+    a, button { color:inherit; }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+    button, .button { border:1px solid var(--line); border-radius:999px; padding:11px 15px; background:var(--panel2); color:var(--text); font:inherit; font-weight:850; cursor:pointer; text-decoration:none; }
+    .primary { border-color:var(--accent); background:var(--accent); color:#111; }
+    .danger { color:#ffd7d7; border-color:color-mix(in srgb,var(--danger) 44%,var(--line)); }
+    form { display:grid; gap:12px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+    label { display:grid; gap:7px; color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.12em; font-weight:850; }
+    input, select { width:100%; border:1px solid var(--line); border-radius:16px; padding:12px 14px; background:rgba(255,255,255,.06); color:var(--text); font:inherit; }
+    table { width:100%; border-collapse:collapse; margin-top:16px; overflow:hidden; border-radius:18px; }
+    th,td { padding:13px 12px; border-bottom:1px solid var(--line); text-align:left; }
+    th { color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.12em; }
+    .tabs { display:flex; gap:10px; flex-wrap:wrap; margin:0 auto 18px; width:min(1120px,100%); }
+    .tab.is-active { background:var(--accent); color:#111; border-color:var(--accent); }
+    .panel[hidden] { display:none; }
+    .status { min-height:1.4em; color:var(--accent); font-weight:850; }
+    @media (max-width:720px){ body{padding:14px} header{align-items:flex-start;flex-direction:column} table{font-size:.9rem} }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <p>Signed in as ${escapeHtml(admin.username)}</p>
+      <h1>Admin Panel</h1>
+    </div>
+    <div class="actions">
+      <a class="button" href="/">Open app</a>
+      <a class="button" href="/logout">Logout</a>
+    </div>
+  </header>
+  <nav class="tabs">
+    <button class="tab is-active" data-tab="users">Users</button>
+    <button class="tab" data-tab="downloads">Downloads</button>
+    <button class="tab" data-tab="instances">Instances</button>
+    <button class="tab" data-tab="system">System</button>
+  </nav>
+  <section id="panel-users" class="panel">
+    <h2>Users</h2>
+    <p>Add users and choose whether each account can download tracks or ZIP archives.</p>
+    <form id="user-form">
+      <div class="grid">
+        <label>Username <input name="username" required></label>
+        <label>Password <input name="password" type="password" minlength="6" required></label>
+        <label>Downloads <select name="downloadsEnabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
+      </div>
+      <div><button class="primary" type="submit">Add / Update User</button></div>
+    </form>
+    <div id="users-table"></div>
+  </section>
+  <section id="panel-downloads" class="panel" hidden>
+    <h2>Downloads</h2>
+    <p>These defaults are applied to the webapp for every logged-in user. Per-user download access is controlled in Users.</p>
+    <form id="download-settings-form">
+      <div class="grid">
+        <label>Download Quality <select name="downloadQuality"><option value="original">Original Local File</option><option value="mp3">MP3 320 kbps</option></select></label>
+        <label>Bulk Download Method <select name="bulkDownloadMethod"><option value="browser">One-by-one browser downloads</option><option value="zip">ZIP archive before downloading</option></select></label>
+        <label>Filename Template <input name="filenameTemplate"></label>
+      </div>
+      <p>Available: {discNumber}, {trackNumber}, {artist}, {title}, {album}, {albumArtist}, {year}.</p>
+      <button class="primary" type="submit">Save Download Settings</button>
+    </form>
+  </section>
+  <section id="panel-instances" class="panel" hidden>
+    <h2>Instances</h2>
+    <p>Widget API settings for external dashboards and apps.</p>
+    <form id="widget-form">
+      <div class="grid">
+        <label>Widget API <select name="enabled"><option value="false">Disabled</option><option value="true">Enabled</option></select></label>
+        <label>API Key <input name="apiKey" placeholder="Generate or paste a key"></label>
+        <label>CORS Origin <input name="widgetCorsOrigin" placeholder="*"></label>
+      </div>
+      <div class="actions"><button type="button" id="generate-widget-key">Generate Key</button><button class="primary" type="submit">Save Widget API</button></div>
+      <p id="widget-url"></p>
+    </form>
+  </section>
+  <section id="panel-system" class="panel" hidden>
+    <h2>System</h2>
+    <p>Choose top-level music folders and start scans from the admin panel.</p>
+    <div class="actions"><button id="refresh-folders">Refresh Folders</button><button class="primary" id="save-scan">Save & Scan</button></div>
+    <div id="scan-status" class="status"></div>
+    <form id="folders-form" class="grid"></form>
+  </section>
+  <section><p id="admin-status" class="status"></p></section>
+  <script>
+    const status = document.querySelector('#admin-status');
+    const setStatus = (message) => { status.textContent = message || ''; };
+    const api = async (url, options = {}) => {
+      const response = await fetch(url, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    };
+    document.querySelectorAll('.tab').forEach((button) => button.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('is-active', tab === button));
+      document.querySelectorAll('.panel').forEach((panel) => panel.hidden = panel.id !== 'panel-' + button.dataset.tab);
+    }));
+    async function loadUsers() {
+      const data = await api('/api/admin/users');
+      document.querySelector('#users-table').innerHTML = '<table><thead><tr><th>User</th><th>Role</th><th>Downloads</th><th></th></tr></thead><tbody>' +
+        '<tr><td>' + data.admin.username + '</td><td>Admin</td><td>Enabled</td><td>Environment</td></tr>' +
+        data.users.map((user) => '<tr><td>' + user.username + '</td><td>User</td><td><button data-downloads="' + user.username + '">' + (user.downloadsEnabled ? 'Enabled' : 'Disabled') + '</button></td><td><button class="danger" data-delete="' + user.username + '">Delete</button></td></tr>').join('') +
+        '</tbody></table>';
+    }
+    document.querySelector('#user-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      await api('/api/admin/users', { method: 'POST', body: JSON.stringify({ username: form.get('username'), password: form.get('password'), downloadsEnabled: form.get('downloadsEnabled') === 'true' }) });
+      event.currentTarget.reset(); setStatus('User saved.'); await loadUsers();
+    });
+    document.querySelector('#users-table').addEventListener('click', async (event) => {
+      const downloadsUser = event.target.dataset.downloads;
+      const deleteUser = event.target.dataset.delete;
+      if (downloadsUser) {
+        const users = await api('/api/admin/users');
+        const user = users.users.find((item) => item.username === downloadsUser);
+        await api('/api/admin/users/' + encodeURIComponent(downloadsUser), { method: 'PATCH', body: JSON.stringify({ downloadsEnabled: !user.downloadsEnabled }) });
+        setStatus('Download permission updated.'); await loadUsers();
+      }
+      if (deleteUser && confirm('Delete user ' + deleteUser + '?')) {
+        await api('/api/admin/users/' + encodeURIComponent(deleteUser), { method: 'DELETE' });
+        setStatus('User deleted.'); await loadUsers();
+      }
+    });
+    async function loadDownloadSettings() {
+      const data = await api('/api/admin/download-settings');
+      const form = document.querySelector('#download-settings-form');
+      form.downloadQuality.value = data.downloadQuality;
+      form.bulkDownloadMethod.value = data.bulkDownloadMethod;
+      form.filenameTemplate.value = data.filenameTemplate;
+    }
+    document.querySelector('#download-settings-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      await api('/api/admin/download-settings', { method: 'POST', body: JSON.stringify(Object.fromEntries(form.entries())) });
+      setStatus('Download settings saved.');
+    });
+    async function loadWidget() {
+      const data = await api('/api/widget/settings');
+      const form = document.querySelector('#widget-form');
+      form.enabled.value = String(Boolean(data.enabled));
+      form.apiKey.value = data.apiKey || '';
+      form.widgetCorsOrigin.value = data.widgetCorsOrigin || '*';
+      document.querySelector('#widget-url').textContent = 'Stats URL: ' + (data.statsUrl || '/api/widget/stats');
+    }
+    document.querySelector('#generate-widget-key').addEventListener('click', () => {
+      const makePart = () => globalThis.crypto?.randomUUID
+        ? crypto.randomUUID().replaceAll('-', '')
+        : Math.random().toString(36).slice(2) + Date.now().toString(36);
+      document.querySelector('#widget-form').apiKey.value = makePart() + makePart();
+    });
+    document.querySelector('#widget-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      await api('/api/widget/settings', { method: 'POST', body: JSON.stringify({ enabled: form.get('enabled') === 'true', apiKey: form.get('apiKey'), widgetCorsOrigin: form.get('widgetCorsOrigin') || '*' }) });
+      setStatus('Widget settings saved.'); await loadWidget();
+    });
+    async function loadFolders() {
+      const data = await api('/api/library/folders');
+      document.querySelector('#scan-status').textContent = (data.scan?.status || 'idle') + ' · ' + (data.scan?.percent || 0) + '%';
+      const selected = new Set(data.selected || []);
+      const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+      const folders = (data.available || [])
+        .map((folder) => typeof folder === 'string' ? folder : folder?.name)
+        .filter(Boolean);
+      document.querySelector('#folders-form').innerHTML = folders.length
+        ? folders.map((folder) => '<label><input type="checkbox" name="folders" value="' + escapeHtml(folder) + '"' + (selected.has(folder) ? ' checked' : '') + '> ' + escapeHtml(folder) + '</label>').join('')
+        : '<p>No top-level folders were found in /music.</p>';
+    }
+    document.querySelector('#refresh-folders').addEventListener('click', loadFolders);
+    document.querySelector('#save-scan').addEventListener('click', async () => {
+      const folders = [...new FormData(document.querySelector('#folders-form')).getAll('folders')];
+      await api('/api/library/folders', { method: 'POST', body: JSON.stringify({ folders }) });
+      await api('/api/rescan', { method: 'POST', body: '{}' });
+      setStatus('Scan started.'); await loadFolders();
+    });
+    Promise.all([loadUsers(), loadDownloadSettings(), loadWidget(), loadFolders()]).catch((error) => setStatus(error.message));
+  </script>
+</body>
+</html>`;
+}
+
 function guessStaticContentType(filePath) {
   switch (path.extname(filePath).toLowerCase()) {
     case '.html':
@@ -2370,6 +3393,23 @@ function respondJson(response, statusCode, body) {
     'Cache-Control': 'no-store',
   });
   response.end(payload);
+}
+
+function respondHtml(response, statusCode, html) {
+  response.writeHead(statusCode, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Content-Length': Buffer.byteLength(html),
+    'Cache-Control': 'no-store',
+  });
+  response.end(html);
+}
+
+function redirect(response, location) {
+  response.writeHead(303, {
+    Location: location,
+    'Cache-Control': 'no-store',
+  });
+  response.end();
 }
 
 function getWidgetCorsHeaders() {

@@ -11,6 +11,8 @@ import {
 import { AlbumGrid } from './AlbumGrid.jsx';
 import { AlbumCollection } from './AlbumCollection.jsx';
 import { AlbumDetail } from './AlbumDetail.jsx';
+import { CollectionBrowser } from './CollectionBrowser.jsx';
+import { CollectionDetail } from './CollectionDetail.jsx';
 import { TrackList } from './TrackList.jsx';
 import { TrackCollection } from './TrackCollection.jsx';
 import { ArtistGrid } from './ArtistGrid.jsx';
@@ -18,6 +20,7 @@ import { ArtistDetail } from './ArtistDetail.jsx';
 import { LibraryFilterBar, LibraryPager } from './LibraryControls.jsx';
 import { LibraryArtistsPanel, LibraryTracksPanel } from './LibraryPanels.jsx';
 import { SettingsPanelContainer, SettingsTabsContainer } from './SettingsContainers.jsx';
+import { AdminSettingsPanel } from './admin.jsx';
 import { LyricsEditorBody } from './LyricsEditor.jsx';
 import { AlbumTagEditorBody } from './AlbumTagEditor.jsx';
 import { FolderBrowser } from './FolderBrowser.jsx';
@@ -45,6 +48,8 @@ const persistentRenderers = {
 const rootRenderers = {
   renderQueuePanel: QueuePanelContainer,
   renderAlbumCollection: AlbumCollection,
+  renderCollectionBrowser: CollectionBrowser,
+  renderCollectionDetail: CollectionDetail,
   renderAlbumDetail: AlbumDetail,
   renderTrackCollection: TrackCollection,
   renderArtistDetail: ArtistDetail,
@@ -85,6 +90,8 @@ export function installMonochromeReactBridge(targetWindow = window) {
     renderReactRoot(container, <LyricsSuggestionResults {...props} />, { sync: true });
   bridge.renderIconHtml = (container, props) =>
     renderReactRoot(container, <IconHtml {...props} />, { sync: true });
+  bridge.renderAdminPanel = (container, props) =>
+    renderReactRoot(container, <AdminSettingsPanel embedded {...props} />);
   bridge.unmount = unmountReactRoot;
 
   targetWindow.MonochromeReact = bridge;

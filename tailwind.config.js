@@ -3,6 +3,7 @@ export default {
   content: [
     './public/index.html',
     './public/app.js',
+    './server.mjs',
     './src/react/**/*.{js,jsx}',
   ],
   safelist: [

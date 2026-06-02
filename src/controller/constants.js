@@ -56,6 +56,7 @@ export const DEFAULT_SETTINGS = {
   fontSize: 100,
   libraryPageSize: 50,
   customAccent: '#eb9200',
+  themeBase: 'dark',
   customThemeBase: 'dark',
   libraryTitle: 'Monochrome-Streamer',
   showLibraryTitle: true,
@@ -70,6 +71,7 @@ export const DEFAULT_SETTINGS = {
   showHome: true,
   showLibrary: true,
   showFavorites: true,
+  showFolderBrowser: false,
   sidebarCollapsed: false,
   closePanelsOnNavigation: true,
   nowPlayingClickAction: 'fullscreen',
@@ -112,9 +114,6 @@ export const SETTINGS_TABS = [
   ['appearance', 'Appearance'],
   ['interface', 'Interface'],
   ['audio', 'Audio'],
-  ['downloads', 'Downloads'],
-  ['instances', 'Instances'],
-  ['system', 'System'],
 ];
 
 export const FONT_PRESETS = {
@@ -124,6 +123,11 @@ export const FONT_PRESETS = {
   mono: '"IBM Plex Mono", "Cascadia Mono", Consolas, monospace',
   serif: 'Georgia, "Times New Roman", serif',
 };
+
+export const THEME_BASE_OPTIONS = [
+  ['dark', 'Dark'],
+  ['light', 'Light'],
+];
 
 export const THEME_PRESETS = {
   system: {
@@ -246,6 +250,59 @@ export const THEME_PRESETS = {
     bodyTop: '#f8f2e7',
     bodyMid: '#eff1f5',
     bodyBottom: '#dce0e8',
+  },
+};
+
+export const PALETTE_THEMES = {
+  butterGreen: {
+    label: 'Butter / Green',
+    light: '#ffefb3',
+    dark: '#013e37',
+  },
+  creamCherry: {
+    label: 'Cream / Cherry',
+    light: '#efe6dd',
+    dark: '#9a0002',
+  },
+  aureolinBistre: {
+    label: 'Aureolin / Bistre',
+    light: '#fbe311',
+    dark: '#261606',
+  },
+  limeVibrant: {
+    label: 'Lime / Vibrant',
+    light: '#d3f00a',
+    dark: '#f9100c',
+  },
+  violetImperial: {
+    label: 'Violet / Imperial',
+    light: '#f15153',
+    dark: '#321847',
+  },
+  chartreuseGunmetal: {
+    label: 'Chartreuse / Gunmetal',
+    light: '#e1ff51',
+    dark: '#00272c',
+  },
+  maroonXanthous: {
+    label: 'Maroon / Xanthous',
+    light: '#f7b638',
+    dark: '#780115',
+  },
+  buttermilkBlue: {
+    label: 'Buttermilk / Blue',
+    light: '#fff2bd',
+    dark: '#285ccc',
+  },
+  lavenderVelvet: {
+    label: 'Lavender / Velvet',
+    light: '#d3c5f6',
+    dark: '#3b2a60',
+  },
+  salmonGreen: {
+    label: 'Salmon / Green',
+    light: '#ff947a',
+    dark: '#025259',
   },
 };
 

@@ -33,6 +33,16 @@ export function normalizeSettings(settings) {
   if (normalized.theme === 'machiatto') {
     normalized.theme = 'macchiato';
   }
+  if (!['dark', 'light'].includes(normalized.themeBase)) {
+    normalized.themeBase = ['dark', 'light'].includes(normalized.customThemeBase)
+      ? normalized.customThemeBase
+      : (normalized.theme === 'white' || normalized.theme === 'latte' ? 'light' : undefined);
+  }
+  if (normalized.themeBase) {
+    normalized.customThemeBase = normalized.themeBase;
+  } else {
+    delete normalized.themeBase;
+  }
   if (normalized.nowPlayingClickAction === 'library') {
     normalized.nowPlayingClickAction = 'artist';
   }

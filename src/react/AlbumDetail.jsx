@@ -104,8 +104,8 @@ export function AlbumDetail({
               <button
                 className="icon-button album-edit-button"
                 type="button"
-                aria-label="Edit album tags"
-                title="Edit album tags"
+                aria-label="Add or edit album"
+                title="Add / edit album"
                 onClick={() => onEditAlbum?.(album.id)}
               >
                 <FontAwesomeIcon name="edit" />

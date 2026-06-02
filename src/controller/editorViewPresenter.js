@@ -74,18 +74,52 @@ export function buildTagEditorModalSnapshot(albumTitle = 'Album') {
   });
 }
 
+export function buildAddAlbumModalSnapshot() {
+  return buildEditorModalSnapshot({
+    eyebrow: 'Wishlist Album',
+    title: 'Add Album',
+    titleId: 'tag-editor-title',
+    caption: 'Create a wishlist album manually. These details are saved locally and do not rewrite audio files.',
+    closeButtonId: 'tag-editor-close-button',
+    closeLabel: 'Close tag editor',
+    bodyRootId: 'tag-editor-body-root',
+    resetButtonId: 'tag-editor-reset-button',
+    resetLabel: 'Clear form',
+    cancelButtonId: 'tag-editor-cancel-button',
+    saveButtonId: 'tag-editor-save-button',
+    saveLabel: 'Add album',
+  });
+}
+
 export function buildTagEditorBodySnapshot(album, tracks = [], { extractYear = () => '' } = {}) {
   return {
     title: album.title || '',
     albumArtist: album.albumArtist || album.artist || '',
     year: album.year || extractYear(album.date) || '',
     genre: album.genre || '',
+    collectionName: album.collectionName || '',
     mediaTypes: album.mediaTypes || album.mediaType || ['Digital Media'],
     status: album.status || 'Collection',
     coverUrl: album.customCoverUrl || album.coverUrl || '',
-    searchQuery: `${album.artist || ''} ${album.title || ''}`.trim(),
+    searchQuery: `${album.albumArtist || album.artist || ''} ${album.title || ''}`.trim(),
     scraperStatus: 'Search MusicBrainz to fill this album automatically.',
     tracks,
+  };
+}
+
+export function buildAddAlbumBodySnapshot() {
+  return {
+    title: '',
+    albumArtist: '',
+    year: '',
+    genre: '',
+    collectionName: '',
+    mediaTypes: [],
+    status: 'Wishlist',
+    coverUrl: '',
+    searchQuery: '',
+    scraperStatus: 'Search MusicBrainz to fill this wishlist album automatically.',
+    tracks: [],
   };
 }
 

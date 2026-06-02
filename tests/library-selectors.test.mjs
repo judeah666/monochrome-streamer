@@ -34,9 +34,10 @@ test('track search only matches track titles', () => {
   assert.deepEqual(getFilteredTracks([track], 'utada'), []);
 });
 
-test('media type helpers normalize cassette tape and fallback to digital media', () => {
+test('media type helpers normalize cassette tape and default scanned albums to digital', () => {
   assert.equal(normalizeMediaTypeName('cassette-tape'), 'Cassette Tape');
   assert.deepEqual(getAlbumMediaTypes({ mediaTypes: [] }), ['Digital Media']);
+  assert.deepEqual(getAlbumMediaTypes({ manual: true, mediaTypes: [] }), []);
   assert.deepEqual(getAlbumMediaTypes({ mediaTypes: ['CD', 'cassette tape'] }), ['CD', 'Cassette Tape']);
 });
 
@@ -68,12 +69,12 @@ test('folder path helpers keep common album folder', () => {
 });
 
 test('findAlbumByTrack uses album id first then artist/title fallback', () => {
-  const album = { id: 'album-1', title: 'First Love', artist: 'Utada Hikaru' };
+  const album = { id: 'album-1', title: 'First Love', artist: 'Track Artist', albumArtist: 'Utada Hikaru' };
   const albumMap = new Map([[album.id, album]]);
 
   assert.equal(findAlbumByTrack({ albumId: 'album-1' }, { albumMap, albums: [] }), album);
   assert.equal(findAlbumByTrack(
-    { album: 'First Love', artist: 'Utada Hikaru' },
+    { album: 'First Love', artist: 'Featured Artist', albumArtist: 'Utada Hikaru' },
     { albumMap: new Map(), albums: [album] },
   ), album);
 });

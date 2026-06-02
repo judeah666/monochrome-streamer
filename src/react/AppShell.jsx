@@ -130,7 +130,7 @@ function HomeView() {
       <section className="content-section">
         <div className="section-heading">
           <div>
-            <h3>Albums</h3>
+            <h3>Recommended Albums</h3>
             <p id="home-album-caption" />
           </div>
         </div>
@@ -147,22 +147,25 @@ function LibraryView() {
         <div className="section-heading">
           <div>
             <h3>Browse Library</h3>
-            <p id="library-browser-caption">Explore your server by folders, albums, artists, and playlists.</p>
+            <p id="library-browser-caption">Browse albums, collections, artists, tracks, and playlists from your scanned library.</p>
           </div>
         </div>
 
         <div className="library-browser-tabs" role="tablist" aria-label="Library browser">
           <button
             id="library-tab-folders"
-            className="library-tab is-active"
+            className="library-tab"
             type="button"
             role="tab"
-            aria-selected="true"
+            aria-selected="false"
           >
             Folders
           </button>
-          <button id="library-tab-albums" className="library-tab" type="button" role="tab" aria-selected="false">
+          <button id="library-tab-albums" className="library-tab is-active" type="button" role="tab" aria-selected="true">
             Albums
+          </button>
+          <button id="library-tab-collections" className="library-tab" type="button" role="tab" aria-selected="false">
+            Collections
           </button>
           <button id="library-tab-artists" className="library-tab" type="button" role="tab" aria-selected="false">
             Artists
@@ -175,8 +178,9 @@ function LibraryView() {
           </button>
         </div>
 
-        <div id="library-panel-folders" className="library-panel" role="tabpanel" />
-        <div id="library-panel-albums" className="library-panel" role="tabpanel" hidden />
+        <div id="library-panel-folders" className="library-panel" role="tabpanel" hidden />
+        <div id="library-panel-albums" className="library-panel" role="tabpanel" />
+        <div id="library-panel-collections" className="library-panel" role="tabpanel" hidden />
         <div id="library-panel-artists" className="library-panel" role="tabpanel" hidden />
         <div id="library-panel-tracks" className="library-panel" role="tabpanel" hidden />
         <div id="library-panel-playlists" className="library-panel" role="tabpanel" hidden />
@@ -220,6 +224,10 @@ function WishlistView() {
             <h3>Wishlist Albums</h3>
             <p id="wishlist-album-caption">Albums marked as Wishlist in your local album tags.</p>
           </div>
+          <button id="wishlist-add-album-button" className="primary-button" type="button">
+            <i className="fa-solid fa-plus" aria-hidden="true"></i>
+            <span>Add album</span>
+          </button>
         </div>
         <div id="wishlist-album-grid" className="album-grid" />
       </section>
@@ -243,6 +251,23 @@ function SettingsView() {
           <div id="settings-react-panel-host" className="settings-react-panel" />
         </div>
         <p id="settings-status" className="settings-status" aria-live="polite" />
+      </section>
+    </section>
+  );
+}
+
+function AdminView() {
+  return (
+    <section id="admin-view" className="view" hidden>
+      <section className="content-section settings-shell admin-main-shell">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Server Controls</p>
+            <h3>Admin Panel</h3>
+            <p>Admin-only controls for users, downloads, widget API, and library scanning.</p>
+          </div>
+        </div>
+        <div id="admin-panel-root" />
       </section>
     </section>
   );
@@ -376,6 +401,7 @@ function ContentShell() {
         <FavoritesView />
         <WishlistView />
         <SettingsView />
+        <AdminView />
         <ArtistView />
         <AlbumView />
       </main>
@@ -577,8 +603,8 @@ function TagEditorShell() {
         <header className="tag-editor-header">
           <div>
             <p className="eyebrow">Album Tag Editor</p>
-            <h2 id="tag-editor-title">Edit album tags</h2>
-            <p id="tag-editor-caption">Save local metadata overrides without rewriting your music files.</p>
+            <h2 id="tag-editor-title">Edit album</h2>
+            <p id="tag-editor-caption">These edits are saved as local overrides. Your original audio files are not rewritten.</p>
           </div>
           <button id="tag-editor-close-button" className="icon-button" type="button" aria-label="Close tag editor">
             <i className="fa-solid fa-xmark" aria-hidden="true" />

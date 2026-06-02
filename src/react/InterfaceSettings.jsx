@@ -68,6 +68,12 @@ export function InterfaceSettings({
           description="Close queue and editor panels when switching views."
           checked={settings.closePanelsOnNavigation}
         />
+        <SettingToggle
+          settingKey="showFolderBrowser"
+          title="Show Folder Browser"
+          description="Adds the advanced Folders tab back to Library for checking the raw server folder structure."
+          checked={settings.showFolderBrowser}
+        />
         <label className={settingsFieldClassName}>
           <span>Library Albums Per Page</span>
           <select data-setting="libraryPageSize" defaultValue={settings.libraryPageSize}>

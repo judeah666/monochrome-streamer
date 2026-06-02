@@ -57,6 +57,7 @@ export function AlbumTagEditorBody({
   albumArtist = '',
   year = '',
   genre = '',
+  collectionName = '',
   mediaTypes = ['Digital Media'],
   status = 'Collection',
   coverUrl = '',
@@ -95,6 +96,10 @@ export function AlbumTagEditorBody({
             <span>Genre</span>
             <input id="tag-album-genre" className={inputClassName} type="text" autoComplete="off" defaultValue={genre} />
           </label>
+          <label className={wideFieldClassName}>
+            <span>Collection name</span>
+            <input id="tag-album-collection-name" className={inputClassName} type="text" placeholder="Example: 80s Album Collection" autoComplete="off" defaultValue={collectionName} />
+          </label>
           <fieldset className={mediaTypePickerClassName}>
             <span>Media type</span>
             <div className={mediaTypeOptionsClassName} id="tag-album-media-types">
@@ -120,6 +125,18 @@ export function AlbumTagEditorBody({
           </label>
         </div>
       </form>
+
+      <section className={scraperPanelClassName}>
+        <div className={scraperSearchClassName}>
+          <label className={fieldClassName}>
+            <span>Online search</span>
+            <input id="tag-scraper-query" className={inputClassName} type="search" autoComplete="off" defaultValue={searchQuery} />
+          </label>
+          <button id="tag-scraper-search-button" className="secondary-button" type="button">Search MusicBrainz</button>
+        </div>
+        <p id="tag-scraper-status" className={scraperStatusClassName}>{scraperStatus}</p>
+        <div id="tag-scraper-results" className={scraperResultsClassName}></div>
+      </section>
 
       <section className={trackEditorClassName}>
         <div className="section-heading">
@@ -162,18 +179,6 @@ export function AlbumTagEditorBody({
             </article>
           ))}
         </div>
-      </section>
-
-      <section className={scraperPanelClassName}>
-        <div className={scraperSearchClassName}>
-          <label className={fieldClassName}>
-            <span>Online search</span>
-            <input id="tag-scraper-query" className={inputClassName} type="search" autoComplete="off" defaultValue={searchQuery} />
-          </label>
-          <button id="tag-scraper-search-button" className="secondary-button" type="button">Search MusicBrainz</button>
-        </div>
-        <p id="tag-scraper-status" className={scraperStatusClassName}>{scraperStatus}</p>
-        <div id="tag-scraper-results" className={scraperResultsClassName}></div>
       </section>
     </div>
   );

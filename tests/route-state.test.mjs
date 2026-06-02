@@ -4,6 +4,7 @@ import {
   createBrowseRoute,
   getAlbumHash,
   getArtistHash,
+  getCollectionHash,
   getFullscreenReturnHash,
   isValidBrowseView,
   parseRouteFromHash,
@@ -13,6 +14,7 @@ test('parseRouteFromHash returns fullscreen route', () => {
   assert.deepEqual(parseRouteFromHash('#fullscreen'), {
     route: { view: 'fullscreen', albumId: null, artistName: null },
     artistNameToLoad: null,
+    collectionNameToLoad: null,
   });
 });
 
@@ -23,6 +25,7 @@ test('parseRouteFromHash returns album route only when album exists', () => {
   }), {
     route: { view: 'album', albumId: 'album 1', artistName: null },
     artistNameToLoad: null,
+    collectionNameToLoad: null,
   });
 
   assert.deepEqual(parseRouteFromHash('#album/missing', {
@@ -31,6 +34,7 @@ test('parseRouteFromHash returns album route only when album exists', () => {
   }), {
     route: { view: 'library', albumId: null, artistName: null },
     artistNameToLoad: null,
+    collectionNameToLoad: null,
   });
 });
 
@@ -38,6 +42,15 @@ test('parseRouteFromHash returns artist route and load hint', () => {
   assert.deepEqual(parseRouteFromHash('#artist/Utada%20Hikaru'), {
     route: { view: 'artist', albumId: null, artistName: 'Utada Hikaru' },
     artistNameToLoad: 'Utada Hikaru',
+    collectionNameToLoad: null,
+  });
+});
+
+test('parseRouteFromHash returns collection route and load hint', () => {
+  assert.deepEqual(parseRouteFromHash('#collection/80s%20Albums'), {
+    route: { view: 'collection', albumId: null, artistName: null, collectionName: '80s Albums' },
+    artistNameToLoad: null,
+    collectionNameToLoad: '80s Albums',
   });
 });
 
@@ -45,6 +58,7 @@ test('route helpers encode hashes and browse routes', () => {
   assert.deepEqual(createBrowseRoute('favorites'), { view: 'favorites', albumId: null, artistName: null });
   assert.equal(getAlbumHash('album 1'), 'album/album%201');
   assert.equal(getArtistHash('A/B'), 'artist/A%2FB');
+  assert.equal(getCollectionHash('A/B'), 'collection/A%2FB');
 });
 
 test('fullscreen return hash ignores already fullscreen hash', () => {

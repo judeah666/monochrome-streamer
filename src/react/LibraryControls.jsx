@@ -83,6 +83,16 @@ export function LibraryPager({
   const offset = page.offset || 0;
   const start = total === 0 ? 0 : offset + 1;
   const end = Math.min(total, offset + limit);
+  const handlePageClick = (event, direction) => {
+    if (!onPage) return;
+    event.stopPropagation();
+    onPage(direction);
+  };
+  const handlePageSizeChange = (event) => {
+    if (!onPageSize) return;
+    event.stopPropagation();
+    onPageSize(Number(event.target.value));
+  };
 
   return (
     <div className="library-pager tw-col-span-full tw-mt-3.5 tw-flex tw-items-center tw-justify-end tw-gap-3.5 tw-rounded-[22px] tw-border tw-border-line tw-bg-[linear-gradient(135deg,color-mix(in_srgb,var(--surface)_88%,transparent),color-mix(in_srgb,var(--glass)_70%,transparent)),var(--glass)] tw-px-4 tw-py-3.5 tw-backdrop-blur-lg">
@@ -95,8 +105,9 @@ export function LibraryPager({
           <span>Per page</span>
           <select
             className="tw-min-w-[82px] tw-rounded-pill tw-border tw-border-line tw-bg-[var(--input-surface)] tw-px-3.5 tw-py-2 tw-font-extrabold tw-text-text"
+            data-library-page-size
             value={limit}
-            onChange={(event) => onPageSize?.(Number(event.target.value))}
+            onChange={handlePageSizeChange}
           >
             {pageSizeOptions.map((size) => (
               <option key={size} value={size}>{size}</option>
@@ -110,7 +121,8 @@ export function LibraryPager({
         disabled={!page.hasPrevious}
         aria-label="Previous page"
         title="Previous page"
-        onClick={() => onPage?.('previous')}
+        data-library-page-action="previous"
+        onClick={(event) => handlePageClick(event, 'previous')}
       >
         <i className="pager-symbol pager-symbol-left" aria-hidden="true"></i>
       </button>
@@ -120,7 +132,8 @@ export function LibraryPager({
         disabled={!page.hasNext}
         aria-label="Next page"
         title="Next page"
-        onClick={() => onPage?.('next')}
+        data-library-page-action="next"
+        onClick={(event) => handlePageClick(event, 'next')}
       >
         <i className="pager-symbol pager-symbol-right" aria-hidden="true"></i>
       </button>

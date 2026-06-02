@@ -100,7 +100,7 @@ export function AudioQualityBadge({ quality, includeLabel = false }) {
 function getMediaTypes(mediaTypes) {
   const values = Array.isArray(mediaTypes) ? mediaTypes : [mediaTypes];
   const normalized = values.map(normalizeMediaTypeName).filter(Boolean);
-  return normalized.length > 0 ? normalized : ['Digital Media'];
+  return normalized.length > 0 ? normalized : [];
 }
 
 function normalizeMediaTypeName(mediaType) {

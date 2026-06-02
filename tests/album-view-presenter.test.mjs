@@ -9,7 +9,8 @@ import {
 const album = {
   id: 'album-1',
   title: 'Album One',
-  artist: 'Artist One',
+  artist: 'Track Artist One',
+  albumArtist: 'Album Artist One',
   year: '2024',
   mediaTypes: ['CD'],
   status: 'Collection',
@@ -47,7 +48,8 @@ test('createAlbumCardView normalizes album card fields', () => {
   assert.deepEqual(card, {
     id: 'album-1',
     title: 'Album One',
-    artist: 'Artist One',
+    artist: 'Album Artist One',
+    albumArtist: 'Album Artist One',
     year: '2024',
     status: 'Collection',
     mediaTypes: ['CD', 'Vinyl'],
@@ -77,8 +79,8 @@ test('buildAlbumDetailSnapshot uses hero track cover, filters tracks, and create
     albumTracks: tracks,
     searchTerm: 'second',
     sameArtistAlbums: [
-      { id: 'ep-1', title: 'EP', artist: 'Artist One', trackCount: 2 },
-      { id: 'full-1', title: 'Full', artist: 'Artist One', trackCount: 10 },
+      { id: 'ep-1', title: 'EP', artist: 'Track Artist One', albumArtist: 'Album Artist One', trackCount: 2 },
+      { id: 'full-1', title: 'Full', artist: 'Track Artist One', albumArtist: 'Album Artist One', trackCount: 10 },
     ],
     relatedAlbumLimit: 1,
     favorite: true,

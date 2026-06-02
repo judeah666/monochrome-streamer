@@ -1,6 +1,7 @@
 config.json
 library-cache.json
 .env
+sample-library/
 node_modules/
 data/
 npm-debug.log*

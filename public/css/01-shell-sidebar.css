@@ -27,7 +27,7 @@
 }
 
 .sidebar-brand {
-  margin-bottom: 30px;
+  margin-bottom: 12px;
 }
 
 .sidebar-brand > div {
@@ -397,11 +397,99 @@
   margin-bottom: 24px;
 }
 
+.sidebar-user-section {
+  margin: 4px 0 16px;
+}
+
 .sidebar-bottom {
   display: grid;
   gap: 12px;
   margin-top: auto;
   padding-top: 22px;
+}
+
+.sidebar-account {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 92% 12%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 42%),
+    var(--glass);
+  color: var(--text);
+  backdrop-filter: blur(14px);
+}
+
+.sidebar-account-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
+.sidebar-account-copy {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  min-height: 38px;
+}
+
+.sidebar-account-copy strong,
+.sidebar-account-copy span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-account-copy strong {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: -0.035em;
+}
+
+.sidebar-account-copy span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.sidebar-account-actions {
+  display: flex;
+  gap: 6px;
+  grid-column: auto;
+  margin-top: 0;
+}
+
+.sidebar-account-action {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  color: var(--muted);
+  text-decoration: none;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.sidebar-account-action:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent);
 }
 
 .nav-link,
@@ -428,6 +516,7 @@
   background: transparent;
   color: var(--muted);
   text-align: left;
+  text-decoration: none;
 }
 
 .nav-link .fa-solid,
@@ -682,6 +771,7 @@ body.sidebar-collapsed .sidebar-toggle-button {
 body.sidebar-collapsed .sidebar-eyebrow-row .eyebrow,
 body.sidebar-collapsed .sidebar-brand h1,
 body.sidebar-collapsed .nav-link span,
+body.sidebar-collapsed .sidebar-account-copy,
 body.sidebar-collapsed .stat-card strong,
 body.sidebar-collapsed .sidebar-status-state,
 body.sidebar-collapsed .sidebar-status-indexed {
@@ -690,6 +780,12 @@ body.sidebar-collapsed .sidebar-status-indexed {
 
 body.sidebar-collapsed .sidebar-nav {
   justify-items: center;
+}
+
+body.sidebar-collapsed .sidebar-user-section {
+  display: grid;
+  justify-items: center;
+  margin: 10px 0 16px;
 }
 
 body.sidebar-collapsed .nav-link {
@@ -711,6 +807,34 @@ body.sidebar-collapsed .nav-link .sidebar-symbol {
 
 body.sidebar-collapsed .sidebar-bottom {
   gap: 10px;
+}
+
+body.sidebar-collapsed .sidebar-account {
+  width: 54px;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+body.sidebar-collapsed .sidebar-account-icon {
+  width: 38px;
+  height: 38px;
+}
+
+body.sidebar-collapsed .sidebar-account-actions {
+  display: grid;
+  gap: 7px;
+  grid-column: auto;
+  margin-top: 0;
+}
+
+body.sidebar-collapsed .sidebar-account-action {
+  width: 38px;
+  height: 38px;
 }
 
 body.sidebar-collapsed .sidebar-stats {

@@ -28,6 +28,7 @@ export function AppearanceSettings({
   title = '',
   themeOptions = [],
   fontOptions = [],
+  themeBaseOptions = [],
   customThemeBaseOptions = [],
   preview = {},
 }) {
@@ -40,34 +41,44 @@ export function AppearanceSettings({
               key={theme.value}
               type="button"
               className={[
-                'theme-swatch tw-inline-flex tw-min-h-[42px] tw-items-center tw-gap-2.5',
-                'tw-rounded-[14px] tw-border tw-border-line tw-bg-surface tw-px-3 tw-font-extrabold tw-text-text tw-backdrop-blur-md',
-                settings.theme === theme.value ? 'is-active tw-border-accent tw-bg-[var(--hover-surface)]' : '',
+                'theme-swatch tw-inline-flex tw-min-h-[54px] tw-items-center tw-justify-center',
+                'tw-rounded-[14px] tw-border tw-px-3 tw-font-extrabold tw-backdrop-blur-md',
+                settings.theme === theme.value ? 'is-active' : '',
               ].join(' ')}
               data-setting-value="theme"
               data-value={theme.value}
+              style={{
+                '--theme-preview-accent': theme.accent,
+                '--theme-preview-background': theme.background,
+                '--theme-preview-surface': theme.surface,
+                '--theme-preview-surface-2': theme.surface2,
+                '--theme-preview-text': theme.text,
+                '--theme-preview-muted': theme.muted,
+                '--theme-preview-body-top': theme.bodyTop,
+                '--theme-preview-body-mid': theme.bodyMid,
+                '--theme-preview-body-bottom': theme.bodyBottom,
+              }}
             >
-              <span className="tw-h-4 tw-w-4 tw-rounded-pill tw-shadow-[0_0_0_3px_var(--glass-strong)]" style={{ '--swatch-color': theme.accent }} />
-              {theme.label}
+              <span className="theme-swatch-label">{theme.label}</span>
             </button>
           ))}
         </div>
         <div className={`${settingsFieldClassName} theme-custom-field tw-items-start`}>
-          <span>Custom Theme</span>
+          <span>Theme Base</span>
           <div className="theme-custom-controls tw-grid tw-grid-cols-[minmax(120px,auto)_minmax(180px,1fr)] tw-items-end tw-gap-3 max-[720px]:tw-grid-cols-1">
             <label className="tw-grid tw-gap-1.5">
-              <span className="tw-m-0 tw-text-[0.78rem] tw-font-extrabold tw-uppercase tw-tracking-[0.08em] tw-text-muted">Accent</span>
-              <input type="color" data-setting="customAccent" defaultValue={settings.customAccent} />
-            </label>
-            <label className="tw-grid tw-gap-1.5">
               <span className="tw-m-0 tw-text-[0.78rem] tw-font-extrabold tw-uppercase tw-tracking-[0.08em] tw-text-muted">Base</span>
-              <select data-setting="customThemeBase" defaultValue={settings.customThemeBase}>
-                {customThemeBaseOptions.map(([value, label]) => (
+              <select data-setting="themeBase" defaultValue={settings.themeBase || settings.customThemeBase}>
+                {(themeBaseOptions.length ? themeBaseOptions : customThemeBaseOptions).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="tw-grid tw-gap-1.5">
+              <span className="tw-m-0 tw-text-[0.78rem] tw-font-extrabold tw-uppercase tw-tracking-[0.08em] tw-text-muted">Custom Accent</span>
+              <input type="color" data-setting="customAccent" defaultValue={settings.customAccent} />
             </label>
           </div>
         </div>

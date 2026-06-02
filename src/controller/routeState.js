@@ -1,4 +1,4 @@
-export const BROWSE_VIEWS = new Set(['home', 'library', 'favorites', 'wishlist', 'settings']);
+export const BROWSE_VIEWS = new Set(['home', 'library', 'favorites', 'wishlist', 'settings', 'admin']);
 
 export function parseRouteFromHash(hashValue, {
   browseView = 'home',
@@ -7,11 +7,13 @@ export function parseRouteFromHash(hashValue, {
   const hash = String(hashValue || '').replace(/^#/, '');
   const albumMatch = /^album\/(.+)$/u.exec(hash);
   const artistMatch = /^artist\/(.+)$/u.exec(hash);
+  const collectionMatch = /^collection\/(.+)$/u.exec(hash);
 
   if (hash === 'fullscreen') {
     return {
       route: { view: 'fullscreen', albumId: null, artistName: null },
       artistNameToLoad: null,
+      collectionNameToLoad: null,
     };
   }
 
@@ -21,6 +23,7 @@ export function parseRouteFromHash(hashValue, {
       return {
         route: { view: 'album', albumId, artistName: null },
         artistNameToLoad: null,
+        collectionNameToLoad: null,
       };
     }
   }
@@ -30,12 +33,23 @@ export function parseRouteFromHash(hashValue, {
     return {
       route: { view: 'artist', albumId: null, artistName },
       artistNameToLoad: artistName,
+      collectionNameToLoad: null,
+    };
+  }
+
+  if (collectionMatch) {
+    const collectionName = decodeURIComponent(collectionMatch[1]);
+    return {
+      route: { view: 'collection', albumId: null, artistName: null, collectionName },
+      artistNameToLoad: null,
+      collectionNameToLoad: collectionName,
     };
   }
 
   return {
     route: { view: browseView, albumId: null, artistName: null },
     artistNameToLoad: null,
+    collectionNameToLoad: null,
   };
 }
 
@@ -49,6 +63,10 @@ export function getAlbumHash(albumId) {
 
 export function getArtistHash(artistName) {
   return `artist/${encodeURIComponent(artistName)}`;
+}
+
+export function getCollectionHash(collectionName) {
+  return `collection/${encodeURIComponent(collectionName)}`;
 }
 
 export function getFullscreenReturnHash(currentHash) {

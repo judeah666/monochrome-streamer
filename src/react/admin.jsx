@@ -1,0 +1,614 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { DEFAULT_SETTINGS, FONT_PRESETS, STORAGE_KEYS } from '../controller/constants.js';
+import { isLightTheme, resolveThemePreset } from '../controller/themeResolver.js';
+
+const ADMIN_TABS = [
+  ['users', 'Users', 'fa-users'],
+  ['downloads', 'Downloads', 'fa-download'],
+  ['instances', 'Instances', 'fa-key'],
+  ['system', 'System', 'fa-server'],
+];
+
+const settingGroupClassName = [
+  'settings-group admin-settings-group tw-grid tw-grid-cols-[minmax(180px,0.35fr)_minmax(0,1fr)] tw-gap-[22px]',
+  'tw-rounded-[22px] tw-border tw-border-line tw-bg-[linear-gradient(135deg,var(--glass),transparent_58%),var(--surface)]',
+  'tw-p-5 tw-backdrop-blur-lg max-[1200px]:tw-grid-cols-1',
+].join(' ');
+const settingBodyClassName = 'settings-group-body tw-grid tw-min-w-0 tw-gap-3';
+const settingRowClassName = [
+  'setting-row tw-grid tw-grid-cols-[minmax(0,1fr)_auto] tw-items-center tw-gap-4',
+  'tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--glass)] tw-p-3.5 tw-backdrop-blur-md',
+  'max-[720px]:tw-grid-cols-1 max-[720px]:tw-items-start',
+].join(' ');
+const settingsFieldClassName = [
+  'settings-field tw-grid tw-grid-cols-[180px_minmax(0,1fr)] tw-items-center tw-gap-4',
+  'tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--glass)] tw-p-3.5 tw-backdrop-blur-md',
+  'max-[720px]:tw-grid-cols-1 max-[720px]:tw-items-start',
+].join(' ');
+const settingsActionsClassName = 'settings-actions tw-flex tw-flex-wrap tw-items-center tw-gap-2.5';
+const settingsHelpClassName = 'settings-help tw-mt-2 tw-text-muted tw-leading-relaxed';
+const scanProgressClassName = 'scan-progress tw-h-2.5 tw-overflow-hidden tw-rounded-pill tw-border tw-border-line tw-bg-[var(--background-soft)]';
+const libraryFolderListClassName = [
+  'library-folder-list tw-grid tw-max-h-[280px] tw-grid-cols-[repeat(auto-fill,minmax(190px,1fr))]',
+  'tw-gap-2.5 tw-overflow-auto tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--background-soft)] tw-p-2',
+].join(' ');
+const libraryFolderOptionClassName = [
+  'library-folder-option tw-flex tw-min-h-[42px] tw-items-center tw-gap-2.5',
+  'tw-rounded-[14px] tw-border tw-border-line tw-bg-surface tw-px-3 tw-py-2.5 tw-font-extrabold tw-text-text',
+].join(' ');
+
+export function AdminSettingsPanel({ embedded = false }) {
+  const root = document.querySelector('#admin-root');
+  const savedSettings = loadSavedSettings();
+  const adminThemeMode = isLightTheme(savedSettings) ? 'light' : 'dark';
+  const [activeTab, setActiveTab] = useState('users');
+  const [status, setStatus] = useState('');
+  const [config, setConfig] = useState(null);
+  const [users, setUsers] = useState({ admin: null, users: [] });
+  const [downloadSettings, setDownloadSettings] = useState(null);
+  const [widget, setWidget] = useState(null);
+  const [folders, setFolders] = useState({ available: [], selected: [], scan: {} });
+  const [selectedFolders, setSelectedFolders] = useState(new Set());
+
+  const appTitle = config?.title || root?.dataset.appTitle || 'Monochrome-Streamer';
+  const adminUser = users.admin?.username || root?.dataset.adminUser || 'admin';
+
+  useEffect(() => {
+    applySavedTheme();
+    loadAll().catch((error) => setStatus(error.message));
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (activeTab === 'system') {
+        loadFolders({ quiet: true }).catch(() => {});
+      }
+      if (activeTab === 'users') {
+        loadUsers().catch(() => {});
+      }
+    }, activeTab === 'system' || activeTab === 'users' ? 2500 : 5000);
+    return () => window.clearInterval(timer);
+  }, [activeTab]);
+
+  async function loadAll() {
+    const [configData] = await Promise.all([
+      api('/api/config').catch(() => null),
+      loadUsers(),
+      loadDownloadSettings(),
+      loadWidget(),
+      loadFolders({ quiet: true, syncSelection: true }),
+    ]);
+    setConfig(configData);
+  }
+
+  async function loadUsers() {
+    const data = await api('/api/admin/users');
+    setUsers(data);
+  }
+
+  async function loadDownloadSettings() {
+    const data = await api('/api/admin/download-settings');
+    setDownloadSettings(data);
+  }
+
+  async function loadWidget() {
+    const data = await api('/api/widget/settings');
+    setWidget(data);
+  }
+
+  async function loadFolders({ quiet = false, syncSelection = !quiet } = {}) {
+    const data = await api('/api/library/folders');
+    const available = normalizeAvailableFolders(data.available);
+    const selected = new Set(data.selected || []);
+    setFolders({ ...data, available });
+    if (syncSelection) setSelectedFolders(selected);
+    if (!quiet) setStatus('Folders refreshed.');
+  }
+
+  async function saveSelectedFolders({ scan = false } = {}) {
+    const chosen = [...selectedFolders];
+    await api('/api/library/folders', { method: 'POST', body: JSON.stringify({ folders: chosen }) });
+    if (scan) {
+      await api('/api/rescan', { method: 'POST', body: '{}' });
+      setStatus('Scan started.');
+    } else {
+      setStatus(`Saved ${chosen.length} selected folder${chosen.length === 1 ? '' : 's'}.`);
+    }
+    await loadFolders({ quiet: true, syncSelection: true });
+  }
+
+  const scan = normalizeScan(folders.scan);
+  const selectedLabel = selectedFolders.size ? [...selectedFolders].join(', ') : 'No folders selected yet';
+
+  if (embedded) {
+    return (
+      <div className="admin-settings-embedded tw-grid tw-gap-4">
+        <div className="admin-settings-subtabs settings-tabs" role="tablist" aria-label="Admin settings sections">
+          {ADMIN_TABS.map(([id, label, icon]) => (
+            <button
+              key={id}
+              className={`admin-subtab${activeTab === id ? ' is-active' : ''}`}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === id}
+              onClick={() => setActiveTab(id)}
+            >
+              <i className={`fa-solid ${icon}`} aria-hidden="true"></i>
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+
+        {status ? <p className="settings-status admin-status">{status}</p> : null}
+
+        {activeTab === 'users' ? (
+          <UsersPanel users={users} onUsersChanged={setUsers} setStatus={setStatus} />
+        ) : null}
+        {activeTab === 'downloads' ? (
+          <DownloadsPanel settings={downloadSettings} onSaved={loadDownloadSettings} setStatus={setStatus} />
+        ) : null}
+        {activeTab === 'instances' ? (
+          <InstancesPanel widget={widget} onReload={loadWidget} setStatus={setStatus} />
+        ) : null}
+        {activeTab === 'system' ? (
+          <SystemPanel
+            folders={folders.available}
+            selectedFolders={selectedFolders}
+            setSelectedFolders={setSelectedFolders}
+            selectedLabel={selectedLabel}
+            scan={scan}
+            onRefresh={() => loadFolders()}
+            onSave={() => saveSelectedFolders({ scan: false })}
+            onSaveScan={() => saveSelectedFolders({ scan: true })}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-app-shell app-shell">
+      <aside className="sidebar admin-sidebar">
+        <div className="sidebar-brand tw-min-w-0">
+          <div className="sidebar-topbar">
+            <a className={`sidebar-theme-toggle is-${adminThemeMode} admin-open-app`} href="/" title="Open main app">
+              <span className="sidebar-theme-knob" aria-hidden="true"><i className="fa-solid fa-music"></i></span>
+              <span className="sidebar-theme-label">App</span>
+            </a>
+          </div>
+          <h1 id="app-title">{appTitle}</h1>
+          <p className="eyebrow admin-eyebrow">Admin Panel</p>
+        </div>
+
+        <nav className="sidebar-nav">
+          {ADMIN_TABS.map(([id, label, icon]) => (
+            <button
+              key={id}
+              className={`nav-link${activeTab === id ? ' is-active' : ''}`}
+              type="button"
+              onClick={() => setActiveTab(id)}
+            >
+              <i className={`fa-solid ${icon}`} aria-hidden="true"></i>
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-bottom">
+          <div className="sidebar-account" title={`Signed in as ${adminUser}`}>
+            <span className="sidebar-account-icon" aria-hidden="true"><i className="fa-solid fa-user-shield"></i></span>
+            <div className="sidebar-account-copy">
+              <strong>{adminUser}</strong>
+              <span>Admin account</span>
+            </div>
+            <div className="sidebar-account-actions">
+              <a className="sidebar-account-action" href="/" title="Open app" aria-label="Open app"><i className="fa-solid fa-house"></i></a>
+              <a className="sidebar-account-action" href="/logout" title="Logout" aria-label="Logout"><i className="fa-solid fa-arrow-right-from-bracket"></i></a>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main className="page-shell admin-page-shell">
+        <section className="content-card admin-hero">
+          <p className="eyebrow">Server Controls</p>
+          <h2>{activeTabLabel(activeTab)}</h2>
+          <p>Admin-only settings for users, downloads, widget API, and library scanning.</p>
+          {status ? <p className="admin-status">{status}</p> : null}
+        </section>
+
+        {activeTab === 'users' ? (
+          <UsersPanel users={users} onUsersChanged={setUsers} setStatus={setStatus} />
+        ) : null}
+        {activeTab === 'downloads' ? (
+          <DownloadsPanel settings={downloadSettings} onSaved={loadDownloadSettings} setStatus={setStatus} />
+        ) : null}
+        {activeTab === 'instances' ? (
+          <InstancesPanel widget={widget} onReload={loadWidget} setStatus={setStatus} />
+        ) : null}
+        {activeTab === 'system' ? (
+          <SystemPanel
+            folders={folders.available}
+            selectedFolders={selectedFolders}
+            setSelectedFolders={setSelectedFolders}
+            selectedLabel={selectedLabel}
+            scan={scan}
+            onRefresh={() => loadFolders()}
+            onSave={() => saveSelectedFolders({ scan: false })}
+            onSaveScan={() => saveSelectedFolders({ scan: true })}
+          />
+        ) : null}
+      </main>
+    </div>
+  );
+}
+
+function UsersPanel({ users, onUsersChanged, setStatus }) {
+  async function onSubmit(event) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const updatedUsers = await api('/api/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: form.get('username'),
+        password: form.get('password'),
+        downloadsEnabled: form.get('downloadsEnabled') === 'true',
+      }),
+    });
+    formElement.reset();
+    onUsersChanged(updatedUsers);
+    setStatus('User saved.');
+  }
+
+  async function toggleDownloads(username) {
+    const user = users.users.find((item) => item.username === username);
+    if (!user) return;
+    const updatedUsers = await api(`/api/admin/users/${encodeURIComponent(username)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ downloadsEnabled: !user.downloadsEnabled }),
+    });
+    onUsersChanged(updatedUsers);
+    setStatus('Download permission updated.');
+  }
+
+  async function deleteUser(username) {
+    if (!window.confirm(`Delete user ${username}?`)) return;
+    const updatedUsers = await api(`/api/admin/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
+    onUsersChanged(updatedUsers);
+    setStatus('User deleted.');
+  }
+
+  return (
+    <PanelGroup title="Users" description="Add accounts for family or friends. Downloads can be disabled per account.">
+      <form className="admin-form" onSubmit={onSubmit}>
+        <label className={settingsFieldClassName}>
+          <span>Username</span>
+          <input name="username" required />
+        </label>
+        <label className={settingsFieldClassName}>
+          <span>Password</span>
+          <input name="password" type="password" minLength="6" required />
+        </label>
+        <label className={settingsFieldClassName}>
+          <span>Downloads</span>
+          <select name="downloadsEnabled" defaultValue="true">
+            <option value="true">Enabled</option>
+            <option value="false">Disabled</option>
+          </select>
+        </label>
+        <div className={settingsActionsClassName}>
+          <button className="primary-button" type="submit">Add / Update User</button>
+        </div>
+      </form>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead><tr><th>User</th><th>Role</th><th>Downloads</th><th>Action</th></tr></thead>
+          <tbody>
+            {users.admin ? (
+              <tr><td>{users.admin.username}</td><td>Admin</td><td>Enabled</td><td>Environment</td></tr>
+            ) : null}
+            {(users.users || []).map((user) => (
+              <tr key={user.username}>
+                <td>{user.username}</td>
+                <td>User</td>
+                <td>
+                  <button className="secondary-button" type="button" onClick={() => toggleDownloads(user.username)}>
+                    {user.downloadsEnabled ? 'Enabled' : 'Disabled'}
+                  </button>
+                </td>
+                <td><button className="secondary-button danger" type="button" onClick={() => deleteUser(user.username)}>Delete</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </PanelGroup>
+  );
+}
+
+function DownloadsPanel({ settings, onSaved, setStatus }) {
+  if (!settings) return <LoadingPanel />;
+
+  async function onSubmit(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    await api('/api/admin/download-settings', {
+      method: 'POST',
+      body: JSON.stringify(Object.fromEntries(form.entries())),
+    });
+    setStatus('Download settings saved.');
+    await onSaved();
+  }
+
+  return (
+    <PanelGroup title="Downloads" description="Download originals or convert to MP3 before the file leaves the server.">
+      <form className="admin-form" onSubmit={onSubmit}>
+        <label className={settingsFieldClassName}>
+          <span>Download Quality</span>
+          <select name="downloadQuality" defaultValue={settings.downloadQuality}>
+            <option value="original">Original Local File</option>
+            <option value="mp3">MP3 320 kbps</option>
+          </select>
+        </label>
+        <p className={settingsHelpClassName}>MP3 downloads are converted server-side with ffmpeg at 320 kbps. Playback still uses the original local file.</p>
+        <label className={settingsFieldClassName}>
+          <span>Bulk Download Method</span>
+          <select name="bulkDownloadMethod" defaultValue={settings.bulkDownloadMethod}>
+            <option value="browser">One-by-one browser downloads</option>
+            <option value="zip">ZIP archive before downloading</option>
+          </select>
+        </label>
+        <label className={settingsFieldClassName}>
+          <span>Filename Template</span>
+          <input name="filenameTemplate" defaultValue={settings.filenameTemplate} />
+        </label>
+        <p className={settingsHelpClassName}>Available: {'{discNumber}'}, {'{trackNumber}'}, {'{artist}'}, {'{title}'}, {'{album}'}, {'{albumArtist}'}, {'{year}'}.</p>
+        <div className={settingsActionsClassName}>
+          <button className="primary-button" type="submit">Save Downloads</button>
+        </div>
+      </form>
+    </PanelGroup>
+  );
+}
+
+function InstancesPanel({ widget, onReload, setStatus }) {
+  const [apiKey, setApiKey] = useState(widget?.apiKey || '');
+
+  useEffect(() => setApiKey(widget?.apiKey || ''), [widget?.apiKey]);
+
+  if (!widget) return <LoadingPanel />;
+
+  async function onSubmit(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    await api('/api/widget/settings', {
+      method: 'POST',
+      body: JSON.stringify({
+        enabled: form.get('enabled') === 'true',
+        apiKey: form.get('apiKey'),
+        widgetCorsOrigin: form.get('widgetCorsOrigin') || '*',
+      }),
+    });
+    setStatus('Widget API settings saved.');
+    await onReload();
+  }
+
+  function generateKey() {
+    const makePart = () => globalThis.crypto?.randomUUID
+      ? crypto.randomUUID().replaceAll('-', '')
+      : `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+    setApiKey(`${makePart()}${makePart()}`);
+  }
+
+  return (
+    <PanelGroup title="Instances" description="Create a small API endpoint for dashboards and apps that only need library counts.">
+      <form className="admin-form" onSubmit={onSubmit}>
+        <label className={settingsFieldClassName}>
+          <span>Widget API</span>
+          <select name="enabled" defaultValue={String(Boolean(widget.enabled))}>
+            <option value="false">Disabled</option>
+            <option value="true">Enabled</option>
+          </select>
+        </label>
+        <label className={settingsFieldClassName}>
+          <span>API Key</span>
+          <input name="apiKey" value={apiKey} onChange={(event) => setApiKey(event.target.value)} spellCheck="false" />
+        </label>
+        <label className={settingsFieldClassName}>
+          <span>CORS Origin</span>
+          <input name="widgetCorsOrigin" defaultValue={widget.widgetCorsOrigin || '*'} spellCheck="false" />
+        </label>
+        <div className={`${settingRowClassName} widget-api-url-row`}>
+          <div>
+            <strong>Widget URL</strong>
+            <span>{widget.exampleUrl || '/api/widget/stats?apiKey=YOUR_KEY'}</span>
+          </div>
+          <div className={settingsActionsClassName}>
+            <button type="button" className="secondary-button" onClick={generateKey}>Generate API Key</button>
+            <button type="submit" className="primary-button">Save Widget API</button>
+          </div>
+        </div>
+      </form>
+    </PanelGroup>
+  );
+}
+
+function SystemPanel({ folders, selectedFolders, setSelectedFolders, selectedLabel, scan, onRefresh, onSave, onSaveScan }) {
+  const stats = useMemo(() => ({
+    tracks: scan.tracks || 0,
+    albums: scan.albums || 0,
+  }), [scan]);
+  const scanDetail = `${scan.currentFolder ? `Scanning ${scan.currentFolder}` : selectedLabel} · ${scan.processed}/${scan.total} files · ${scan.reused} cached · ${scan.parsed} parsed · ${stats.tracks} tracks · ${stats.albums} albums`;
+
+  function toggleFolder(folder) {
+    setSelectedFolders((current) => {
+      const next = new Set(current);
+      if (next.has(folder)) next.delete(folder);
+      else next.add(folder);
+      return next;
+    });
+  }
+
+  return (
+    <>
+      <PanelGroup title="Scan Status" description="Watch the current scan and choose which folders are included.">
+        <div className={`${settingRowClassName} scan-status-row`}>
+          <div>
+            <strong>{scan.statusLabel} · {scan.percent}%</strong>
+            <span>{scanDetail}</span>
+          </div>
+          <button type="button" className="secondary-button" onClick={onRefresh}>Refresh Folders</button>
+        </div>
+        <div className={scanProgressClassName} aria-label="Scan progress">
+          <span className="tw-block tw-h-full tw-rounded-pill tw-bg-[linear-gradient(90deg,var(--accent),color-mix(in_srgb,var(--accent)_55%,#fff))] tw-transition-[width]" style={{ width: `${scan.percent}%` }} />
+        </div>
+        <p className={settingsHelpClassName}>Selected folders: {selectedLabel}</p>
+      </PanelGroup>
+
+      <PanelGroup title="Library Folders" description="Choose which top-level folders inside your mounted music folder should be indexed.">
+        <div className={libraryFolderListClassName}>
+          {folders.length ? folders.map((folder) => (
+            <label key={folder} className={libraryFolderOptionClassName}>
+              <input type="checkbox" checked={selectedFolders.has(folder)} onChange={() => toggleFolder(folder)} />
+              <span>{folder}</span>
+            </label>
+          )) : <p className={settingsHelpClassName}>No top-level folders were found in the mounted music folder.</p>}
+        </div>
+        <div className={settingsActionsClassName}>
+          <button type="button" className="secondary-button" onClick={onSave}>Save Selected Folders</button>
+          <button type="button" className="primary-button" onClick={onSaveScan}>Save & Scan</button>
+        </div>
+        <p className={settingsHelpClassName}>Tip: start with one artist folder, scan, then add more folders after the app is stable.</p>
+      </PanelGroup>
+    </>
+  );
+}
+
+function PanelGroup({ title, description, children }) {
+  return (
+    <section className={settingGroupClassName}>
+      <div className="settings-group-heading">
+        <h4>{title}</h4>
+        <p>{description}</p>
+      </div>
+      <div className={settingBodyClassName}>{children}</div>
+    </section>
+  );
+}
+
+function LoadingPanel() {
+  return (
+    <PanelGroup title="Loading" description="Fetching admin settings from the server.">
+      <p className={settingsHelpClassName}>One moment.</p>
+    </PanelGroup>
+  );
+}
+
+async function api(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+function normalizeAvailableFolders(folders) {
+  return (Array.isArray(folders) ? folders : [])
+    .map((folder) => typeof folder === 'string' ? folder : folder?.name)
+    .filter(Boolean);
+}
+
+function normalizeScan(scan = {}) {
+  scan = scan && typeof scan === 'object' ? scan : {};
+  const status = scan.status || 'idle';
+  return {
+    statusLabel: toTitleCase(status),
+    percent: Math.max(0, Math.min(100, Math.round(scan.percent || 0))),
+    currentFolder: scan.currentFolder || '',
+    processed: scan.processedFiles || 0,
+    total: scan.totalFiles || 0,
+    reused: scan.reusedFiles || 0,
+    parsed: scan.parsedFiles || 0,
+    tracks: scan.trackCount || 0,
+    albums: scan.albumCount || 0,
+  };
+}
+
+function activeTabLabel(tab) {
+  return ADMIN_TABS.find(([id]) => id === tab)?.[1] || 'Admin';
+}
+
+function toTitleCase(value) {
+  return String(value || '').replace(/[-_]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) || 'Idle';
+}
+
+function applySavedTheme() {
+  const settings = loadSavedSettings();
+  const theme = resolveThemePreset(settings.theme, settings);
+  const accent = theme.accent;
+  const isLight = isLightTheme(settings);
+  const root = document.documentElement;
+  const softInk = isLight ? 'rgba(23, 19, 15, 0.06)' : 'rgba(255, 255, 255, 0.06)';
+  const strongInk = isLight ? 'rgba(23, 19, 15, 0.11)' : 'rgba(255, 255, 255, 0.11)';
+  root.style.setProperty('--font-body', FONT_PRESETS[settings.fontPreset] || FONT_PRESETS.jakarta);
+  root.style.setProperty('--app-font-size', `${settings.fontSize || 100}%`);
+  root.style.setProperty('--background', theme.background);
+  root.style.setProperty('--surface', theme.surface);
+  root.style.setProperty('--surface-2', theme.surface2);
+  root.style.setProperty('--background-soft', softInk);
+  root.style.setProperty('--background-strong', strongInk);
+  root.style.setProperty('--glass', softInk);
+  root.style.setProperty('--glass-strong', strongInk);
+  root.style.setProperty('--glass-heavy', isLight ? 'rgba(255, 255, 255, 0.58)' : 'rgba(10, 10, 10, 0.76)');
+  root.style.setProperty('--input-surface', isLight ? 'rgba(255, 255, 255, 0.58)' : 'rgba(255, 255, 255, 0.055)');
+  root.style.setProperty('--hover-surface', isLight ? 'rgba(23, 19, 15, 0.1)' : 'rgba(255, 255, 255, 0.12)');
+  root.style.setProperty('--placeholder-surface', isLight ? 'rgba(255, 255, 255, 0.62)' : '#101010');
+  root.style.setProperty('--active-control-text', isLight ? '#ffffff' : '#111111');
+  root.style.setProperty('--line', isLight ? 'rgba(23, 19, 15, 0.12)' : 'rgba(255, 255, 255, 0.09)');
+  root.style.setProperty('--line-strong', isLight ? 'rgba(23, 19, 15, 0.22)' : 'rgba(255, 255, 255, 0.18)');
+  root.style.setProperty('--text', theme.text);
+  root.style.setProperty('--muted', theme.muted);
+  root.style.setProperty('--accent', accent);
+  root.style.setProperty('--accent-contrast', getReadableTextColor(accent));
+  root.style.setProperty('--body-top', theme.bodyTop);
+  root.style.setProperty('--body-mid', theme.bodyMid);
+  root.style.setProperty('--body-bottom', theme.bodyBottom);
+  document.body.classList.toggle('light-ui', isLight);
+}
+
+function getReadableTextColor(hexColor) {
+  const hex = String(hexColor || '').replace('#', '').trim();
+  const expanded = hex.length === 3 ? hex.split('').map((char) => char + char).join('') : hex;
+  if (!/^[0-9a-f]{6}$/iu.test(expanded)) return '#111111';
+  const red = parseInt(expanded.slice(0, 2), 16);
+  const green = parseInt(expanded.slice(2, 4), 16);
+  const blue = parseInt(expanded.slice(4, 6), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+  return luminance > 0.58 ? '#111111' : '#ffffff';
+}
+
+function loadSavedSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || '{}');
+    return { ...DEFAULT_SETTINGS, ...(saved && typeof saved === 'object' ? saved : {}) };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+const root = document.querySelector('#admin-root');
+if (root) {
+  createRoot(root).render(
+    <React.StrictMode>
+      <AdminSettingsPanel />
+    </React.StrictMode>,
+  );
+}

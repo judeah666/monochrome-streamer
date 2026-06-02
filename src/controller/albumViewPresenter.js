@@ -2,10 +2,12 @@ export function createAlbumCardView(album, {
   getAlbumMediaTypes = () => [],
   isWishlistAlbum = () => false,
 } = {}) {
+  const albumArtist = album.albumArtist || album.artist || 'Unknown artist';
   return {
     id: album.id,
     title: album.title || 'Untitled album',
-    artist: album.artist || 'Unknown artist',
+    artist: albumArtist,
+    albumArtist,
     year: album.year || 'Unknown year',
     status: album.status || 'Collection',
     mediaTypes: getAlbumMediaTypes(album),
@@ -74,7 +76,8 @@ export function buildAlbumDetailSnapshot({
     album: {
       id: album.id,
       title: album.title,
-      artist: album.artist,
+      artist: album.albumArtist || album.artist,
+      albumArtist: album.albumArtist || album.artist,
       coverUrl: album.coverUrl || heroTrack?.coverUrl || '',
       coverBackdrop: album.coverUrl || heroTrack?.coverUrl || '',
       folder: getAlbumFolderPath(albumTracks),

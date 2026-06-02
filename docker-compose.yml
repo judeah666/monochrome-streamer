@@ -1,23 +1,12 @@
 services:
   monochrome-streamer:
-    build: .
-    image: judeah666/monochrome-streamer:${IMAGE_TAG:-0.2.0}
+    image: judeah666/monochrome-streamer:${IMAGE_TAG:-0.2.1}
     container_name: monochrome-streamer
     restart: unless-stopped
     ports:
       - "8888:8888"
-    environment:
-      APP_TITLE: ${APP_TITLE:-Monochrome-Streamer}
-      DATA_DIR: /data
-      LIBRARY_DATABASE_PATH: /data/library.sqlite
-      COVER_CACHE_PATH: /data/covers
-      WIDGET_SETTINGS_PATH: /data/widget-settings.json
-      WIDGET_API_KEY: ${WIDGET_API_KEY:-}
-      WIDGET_CORS_ORIGIN: ${WIDGET_CORS_ORIGIN:-*}
-      PUID: ${PUID:-1000}
-      PGID: ${PGID:-1000}
-      UMASK: ${UMASK:-022}
-      CHOWN_DATA: ${CHOWN_DATA:-true}
+    env_file:
+      - .env
     volumes:
       - ${MUSIC_DIR:-./sample-library}:/music
       - ${APP_DATA_DIR:-./data}:/data

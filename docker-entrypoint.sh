@@ -10,6 +10,18 @@ LYRICS_SIDECAR_PATH="${LYRICS_SIDECAR_PATH:-${DATA_DIR}/lyrics}"
 
 umask "$UMASK"
 
+if [ "${REQUIRE_ADMIN_CREDENTIALS:-true}" != "false" ]; then
+  if [ -z "${ADMIN_USERNAME:-}" ] || [ -z "${ADMIN_PASSWORD:-}" ]; then
+    echo "ADMIN_USERNAME and ADMIN_PASSWORD must be set in .env before starting Monochrome-Streamer." >&2
+    exit 1
+  fi
+
+  if [ "${ADMIN_PASSWORD}" = "admin" ] || [ "${ADMIN_PASSWORD}" = "change-this-admin-password" ]; then
+    echo "Change ADMIN_PASSWORD in .env before starting Monochrome-Streamer." >&2
+    exit 1
+  fi
+fi
+
 if [ "$(id -u)" = "0" ]; then
   mkdir -p "$DATA_DIR" "$COVER_CACHE_PATH" "$LYRICS_SIDECAR_PATH"
 

@@ -84,7 +84,10 @@ export function writeStoredIdSet(key, values) {
 }
 
 export async function fetchJson(url, options = {}) {
-  const response = await fetch(url, options);
+  const response = await fetch(url, {
+    cache: 'no-store',
+    ...options,
+  });
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);
   }

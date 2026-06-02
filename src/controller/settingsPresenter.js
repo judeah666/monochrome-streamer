@@ -1,15 +1,20 @@
 import {
   DEFAULT_SETTINGS,
-  THEME_PRESETS,
+  PALETTE_THEMES,
+  THEME_BASE_OPTIONS,
 } from './constants.js';
+import { getThemePreview as resolveThemePreview } from './themeResolver.js';
 
 export function toTitleCase(value) {
   return String(value).replace(/(^|\s|-)\w/gu, (match) => match.toUpperCase());
 }
 
 export function getThemeAccent(themeName, settings = DEFAULT_SETTINGS) {
-  if (themeName === 'custom') return settings.customAccent;
-  return THEME_PRESETS[themeName]?.accent || THEME_PRESETS.black.accent;
+  return resolveThemePreview(themeName, settings).accent;
+}
+
+export function getThemePreview(themeName, settings = DEFAULT_SETTINGS) {
+  return resolveThemePreview(themeName, settings);
 }
 
 export function createDefaultWidgetSettings(origin = '') {
@@ -65,14 +70,25 @@ export function buildSettingsPanelSnapshot({
   };
 
   if (tab === 'appearance') {
+    const builtInThemes = ['system', 'black', 'white', 'dark', 'ocean', 'purple', 'forest', 'mocha', 'macchiato', 'frappe', 'latte', 'custom'];
+    const paletteThemes = Object.entries(PALETTE_THEMES).map(([value, theme]) => ({
+      value,
+      label: theme.label,
+    }));
     return {
       ...base,
       title,
-      themeOptions: ['system', 'black', 'white', 'dark', 'ocean', 'purple', 'forest', 'mocha', 'macchiato', 'frappe', 'latte', 'custom'].map((theme) => ({
-        value: theme,
-        label: toTitleCase(theme),
-        accent: getThemeAccent(theme, settings),
+      themeOptions: [
+        ...builtInThemes.map((theme) => ({
+          value: theme,
+          label: toTitleCase(theme),
+        })),
+        ...paletteThemes,
+      ].map((theme) => ({
+        ...theme,
+        ...getThemePreview(theme.value, settings),
       })),
+      themeBaseOptions: THEME_BASE_OPTIONS,
       fontOptions: [
         ['jakarta', 'Plus Jakarta Sans'],
         ['inter', 'Inter'],
@@ -80,10 +96,7 @@ export function buildSettingsPanelSnapshot({
         ['mono', 'Monospace'],
         ['serif', 'Serif'],
       ],
-      customThemeBaseOptions: [
-        ['dark', 'Dark'],
-        ['light', 'Light'],
-      ],
+      customThemeBaseOptions: THEME_BASE_OPTIONS,
       preview: getAlbumCardSizePreviewData(displayTitle),
     };
   }

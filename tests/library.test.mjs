@@ -1,6 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildByteRange, createTrackId, inferTrackMetadata } from '../lib/library.mjs';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import {
+  buildByteRange,
+  createTrackId,
+  inferCollectionNameFromFolderPath,
+  inferTrackMetadata,
+  scanMusicLibrary,
+} from '../lib/library.mjs';
+import {
+  readCollectionFolderAlbumPage,
+  writeLibraryDatabase,
+} from '../lib/library-db.mjs';
 
 test('inferTrackMetadata uses folder structure and track number', () => {
   const metadata = inferTrackMetadata('Massive Attack\\Mezzanine\\03 - Teardrop.flac');
@@ -10,6 +23,61 @@ test('inferTrackMetadata uses folder structure and track number', () => {
   assert.equal(metadata.title, 'Teardrop');
   assert.equal(metadata.trackNumber, 3);
 });
+
+test('inferCollectionNameFromFolderPath uses the parent collection folder for multi-volume albums', () => {
+  const collectionName = inferCollectionNameFromFolderPath(
+    "Cruisin' Collection/Cruisin' Verse II (1998) (Bootleg)/CD 2",
+    'Cruisin Verse II',
+  );
+
+  assert.equal(collectionName, "Cruisin' Collection");
+});
+
+test('scanMusicLibrary groups every album under a collection parent folder', async () => {
+  const library = await scanMusicLibrary('./sample-library', { scanMetadata: 'filename', scanDurations: false });
+  const cruisinAlbums = library.albums.filter((album) => album.collectionName === "Cruisin' Collection");
+
+  assert.ok(cruisinAlbums.length > 1);
+  assert.ok(cruisinAlbums.some((album) => album.artist.includes('Cruisin')));
+});
+
+test('readCollectionFolderAlbumPage sorts collection volumes naturally', async () => {
+  const databasePath = path.join(tmpdir(), `monochrome-natural-sort-${Date.now()}.sqlite`);
+  try {
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: new Date().toISOString(),
+      trackCount: 0,
+      albumCount: 3,
+      tracks: [],
+      albums: [
+        createCollectionAlbum('album-10', 'Vol 10'),
+        createCollectionAlbum('album-1', 'Vol 1'),
+        createCollectionAlbum('album-2', 'Vol 2'),
+      ],
+    });
+
+    const page = await readCollectionFolderAlbumPage(databasePath, 'Mega Collection', { limit: 50, offset: 0 });
+
+    assert.deepEqual(page.albums.map((album) => album.title), ['Vol 1', 'Vol 2', 'Vol 10']);
+  } finally {
+    rmSync(databasePath, { force: true });
+  }
+});
+
+function createCollectionAlbum(id, title) {
+  return {
+    id,
+    title,
+    artist: 'Various Artists',
+    albumArtist: 'Various Artists',
+    date: '',
+    year: null,
+    collectionName: 'Mega Collection',
+    coverTrackId: '',
+    trackIds: [],
+    audioQuality: null,
+  };
+}
 
 test('createTrackId is deterministic', () => {
   const left = createTrackId('Artist/Album/01 - Song.mp3');

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildAddAlbumBodySnapshot,
+  buildAddAlbumModalSnapshot,
   buildArtistEditorBodySnapshot,
   buildArtistEditorModalSnapshot,
   buildLyricsEditorBodySnapshot,
@@ -30,7 +32,8 @@ test('buildArtistEditor snapshots prepare modal shell and body data', () => {
 test('buildTagEditor snapshots normalize album tag defaults', () => {
   const album = {
     title: 'Album One',
-    artist: 'Artist One',
+    artist: 'Track Artist One',
+    albumArtist: 'Album Artist One',
     date: '1999-01-01',
     mediaType: 'CD',
     coverUrl: '/cover.jpg',
@@ -42,11 +45,29 @@ test('buildTagEditor snapshots normalize album tag defaults', () => {
 
   assert.equal(modal.title, 'Edit Album One');
   assert.equal(modal.bodyRootId, 'tag-editor-body-root');
-  assert.equal(body.albumArtist, 'Artist One');
+  assert.equal(modal.saveLabel, 'Save tags');
+  assert.equal(body.albumArtist, 'Album Artist One');
   assert.equal(body.year, '1999');
   assert.equal(body.mediaTypes, 'CD');
-  assert.equal(body.searchQuery, 'Artist One Album One');
+  assert.equal(body.searchQuery, 'Album Artist One Album One');
   assert.deepEqual(body.tracks, [{ id: 'track-1' }]);
+});
+
+test('buildTagEditor snapshots default scanned album metadata to collection digital', () => {
+  const body = buildTagEditorBodySnapshot({ title: 'Untyped Album' }, []);
+
+  assert.deepEqual(body.mediaTypes, ['Digital Media']);
+  assert.equal(body.status, 'Collection');
+});
+
+test('buildAddAlbum snapshots default manual albums to wishlist with no media type', () => {
+  const modal = buildAddAlbumModalSnapshot();
+  const body = buildAddAlbumBodySnapshot();
+
+  assert.equal(modal.title, 'Add Album');
+  assert.equal(modal.saveLabel, 'Add album');
+  assert.deepEqual(body.mediaTypes, []);
+  assert.equal(body.status, 'Wishlist');
 });
 
 test('buildLyricsEditor snapshots include track context and cached lyrics', () => {

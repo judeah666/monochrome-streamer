@@ -20,6 +20,7 @@ const artistAlbumGridClassName = 'library-album-grid';
 
 export function ArtistDetail({
   name = 'Artist',
+  eyebrow = 'Artist',
   meta = '',
   bio = '',
   imageUrl = '',
@@ -30,6 +31,7 @@ export function ArtistDetail({
   albumsTitle = 'Albums',
   albumsCaption = 'Albums from this artist in your local library.',
   loading = false,
+  showEdit = true,
   onEdit,
   onOpenAlbum,
   onPlayAlbum,
@@ -50,7 +52,7 @@ export function ArtistDetail({
         </div>
 
         <div className={artistCopyClassName}>
-          <p className="eyebrow">Artist</p>
+          <p className="eyebrow">{eyebrow}</p>
           <h2 id="artist-detail-name" className={artistTitleClassName}>{name}</h2>
           <p id="artist-detail-meta" className={artistMetaClassName}>{meta}</p>
           <p id="artist-detail-bio" className={artistBioClassName}>{bio}</p>
@@ -60,17 +62,19 @@ export function ArtistDetail({
                 {sourceLabel}
               </a>
             ) : null}
-            <button
-              id="edit-artist-button"
-              className="icon-button artist-edit-button"
-              type="button"
-              title={editLabel}
-              aria-label={editLabel}
-              disabled={loading}
-              onClick={() => onEdit?.()}
-            >
-              <FontAwesomeIcon name="edit" />
-            </button>
+            {showEdit ? (
+              <button
+                id="edit-artist-button"
+                className="icon-button artist-edit-button"
+                type="button"
+                title={editLabel}
+                aria-label={editLabel}
+                disabled={loading}
+                onClick={() => onEdit?.()}
+              >
+                <FontAwesomeIcon name="edit" />
+              </button>
+            ) : null}
           </div>
         </div>
       </section>

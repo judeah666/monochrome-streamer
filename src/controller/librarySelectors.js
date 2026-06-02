@@ -183,7 +183,8 @@ export function filterAlbumsByMediaType(albums, mediaTypeFilters) {
 export function getAlbumMediaTypes(album) {
   const mediaTypes = Array.isArray(album.mediaTypes) ? album.mediaTypes : [album.mediaType];
   const normalized = mediaTypes.map(normalizeMediaTypeName).filter(Boolean);
-  return normalized.length > 0 ? normalized : ['Digital Media'];
+  if (normalized.length > 0) return normalized;
+  return album?.manual ? [] : ['Digital Media'];
 }
 
 export function normalizeMediaTypeName(mediaType) {

@@ -1,25 +1,12 @@
 services:
   monochrome-streamer:
-    image: judeah666/monochrome-streamer:0.2.0
+    image: judeah666/monochrome-streamer:0.2.1
     container_name: monochrome-streamer
     restart: unless-stopped
     ports:
       - "8888:8888"
-    environment:
-      APP_TITLE: Monochrome-Streamer
-      DATA_DIR: /data
-      LIBRARY_DATABASE_PATH: /data/library.sqlite
-      COVER_CACHE_PATH: /data/covers
-      WIDGET_SETTINGS_PATH: /data/widget-settings.json
-      SCAN_METADATA: tags
-      SCAN_DURATIONS: "false"
-      AUTO_SCAN_ON_START: "false"
-      WIDGET_API_KEY: change-this-widget-key
-      WIDGET_CORS_ORIGIN: "*"
-      PUID: "1000"
-      PGID: "1000"
-      UMASK: "022"
-      CHOWN_DATA: "true"
+    env_file:
+      - .env
     volumes:
       - /path/to/your/music:/music
       - /opt/monochrome-streamer/data:/data
