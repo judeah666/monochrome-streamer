@@ -12,21 +12,15 @@ export function LibraryFilterBar({
   const activeMediaSet = new Set(activeMediaTypes);
 
   return (
-    <div className="library-filter-bar tw-col-span-full tw-mb-3.5 tw-flex tw-items-center tw-gap-2.5 tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--glass)] tw-p-2.5 tw-backdrop-blur-md">
-      <div className="alphabet-index tw-flex tw-min-w-0 tw-flex-wrap tw-gap-1.5" aria-label="Alphabet filter">
+    <div className="library-filter-bar tw-col-span-full tw-mb-3.5 tw-flex tw-items-center tw-gap-2.5 tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--glass)] tw-p-2.5 tw-backdrop-blur-md max-[720px]:tw-flex-col max-[720px]:tw-items-start">
+      <div className="alphabet-index tw-flex tw-min-w-0 tw-flex-wrap tw-gap-1.5 max-[720px]:tw-w-full" aria-label="Alphabet filter">
         {alphabetFilters.map((letter) => {
           const active = letter === activeLetter;
           return (
             <button
               key={letter}
               type="button"
-              className={[
-                'tw-min-h-[34px] tw-min-w-[34px] tw-rounded-pill tw-border tw-border-transparent tw-bg-transparent',
-                'tw-px-2 tw-font-extrabold tw-transition tw-duration-150',
-                active
-                  ? 'is-active tw-bg-accent tw-text-[var(--accent-contrast)] tw-shadow-[0_10px_24px_color-mix(in_srgb,var(--accent)_22%,transparent)]'
-                  : 'tw-text-muted hover:tw-bg-[var(--hover-surface)] hover:tw-text-text',
-              ].join(' ')}
+              className={`library-filter-button${active ? ' is-active' : ''}`}
               aria-pressed={active}
               onClick={() => onLetter?.(letter)}
             >
@@ -37,27 +31,21 @@ export function LibraryFilterBar({
       </div>
 
       {showMediaType ? (
-        <div className="media-type-filter tw-ml-auto tw-inline-flex tw-min-h-[34px] tw-items-center tw-gap-2.5 tw-text-muted" aria-label="Filter albums by media type">
+        <div className="media-type-filter tw-ml-auto tw-inline-flex tw-min-h-[34px] tw-items-center tw-gap-2.5 tw-text-muted max-[720px]:tw-ml-0 max-[720px]:tw-w-full max-[720px]:tw-justify-start max-[720px]:tw-border-t max-[720px]:tw-border-line max-[720px]:tw-pt-1" aria-label="Filter albums by media type">
           {mediaTypes.map((mediaType) => {
             const active = activeMediaSet.has(mediaType.value);
             return (
               <button
                 key={mediaType.value}
                 type="button"
-                className={[
-                  'tw-inline-flex tw-h-[34px] tw-w-[34px] tw-items-center tw-justify-center',
-                  'tw-border-0 tw-bg-transparent tw-p-0 tw-text-muted tw-shadow-none tw-transition tw-duration-150',
-                  active
-                    ? 'is-active tw-text-accent tw-drop-shadow-[0_8px_14px_color-mix(in_srgb,var(--accent)_28%,transparent)]'
-                    : 'hover:-tw-translate-y-px hover:tw-text-accent',
-                ].join(' ')}
+                className={`media-type-filter-button${active ? ' is-active' : ''}`}
                 aria-label={`${active ? 'Disable' : 'Enable'} ${mediaType.value} filter`}
                 aria-pressed={active}
                 title={mediaType.value}
                 onClick={() => onMediaType?.(mediaType.value)}
               >
                 <i
-                  className="media-type-symbol"
+                  className="media-type-symbol tw-h-[1.85rem] tw-w-[1.85rem] max-[720px]:tw-h-[2.15rem] max-[720px]:tw-w-[2.15rem]"
                   style={{ '--media-type-icon': `url('${mediaType.icon}')` }}
                   aria-hidden="true"
                 />

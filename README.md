@@ -253,6 +253,7 @@ npm run dev
 npm run dev:frontend
 npm run dev:tailwind
 npm test
+npm run verify
 ```
 
 The frontend uses React, Vite, and Tailwind with a `tw-` prefix. Preflight is disabled so Tailwind can coexist with the existing app styling.

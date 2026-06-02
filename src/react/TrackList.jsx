@@ -7,29 +7,25 @@ const albumDiscHeaderClassName = [
   'tw-px-5 tw-py-3 tw-text-text tw-uppercase tw-tracking-[0.16em]',
 ].join(' ');
 const trackRowBaseClassName = [
-  'track-row tw-grid tw-grid-cols-[76px_minmax(0,1fr)_auto] tw-items-center tw-gap-4',
-  'tw-rounded-[20px] tw-border tw-border-line tw-bg-surface tw-p-3.5 tw-shadow-panel',
-  'tw-backdrop-blur-md tw-cursor-pointer tw-transition hover:tw-border-[var(--line-strong)] hover:tw-bg-surface2',
+  'track-row track-row-shell',
 ].join(' ');
-const trackRowActiveClassName = ' is-active tw-border-[color-mix(in_srgb,var(--accent)_42%,transparent)] tw-bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]';
+const trackRowActiveClassName = ' is-active';
 const trackImageClassName = 'tw-h-[76px] tw-w-[76px] tw-rounded-[16px] tw-object-cover';
 const trackPlaceholderClassName = 'track-placeholder-host tw-block tw-h-[76px] tw-w-[76px]';
 const trackCopyClassName = 'track-copy tw-min-w-0';
-const trackTitleClassName = 'tw-m-0 tw-mb-1 tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap tw-font-display tw-leading-[1.12] tw-tracking-[-0.035em]';
-const trackMetaClassName = 'tw-m-0 tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap tw-leading-[1.35] tw-text-muted';
+const trackTitleClassName = 'track-copy-title';
+const trackMetaClassName = 'track-copy-meta';
 const trackFolderClassName = 'track-folder-path tw-m-0 tw-mt-1 tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap tw-text-[0.78rem] tw-text-muted tw-opacity-80';
 const albumTrackRowBaseClassName = [
-  'album-track-row tw-grid tw-grid-cols-[56px_minmax(0,1fr)_minmax(120px,180px)_156px]',
-  'tw-items-center tw-gap-[18px] tw-border-b tw-border-line tw-bg-surface tw-px-5 tw-py-4',
-  'tw-backdrop-blur-md tw-cursor-pointer tw-transition hover:tw-border-[var(--line-strong)] hover:tw-bg-surface2',
+  'album-track-row album-track-row-shell',
 ].join(' ');
 const trackIndexClassName = 'track-index tw-text-muted';
 const trackTitleGroupClassName = 'track-title-group tw-grid tw-min-w-0 tw-gap-1';
 const inlineButtonClassName = 'tw-min-w-0 tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap tw-border-0 tw-bg-transparent tw-p-0 tw-text-left tw-text-inherit tw-cursor-pointer hover:tw-text-accent';
 const albumInlineButtonClassName = `album-inline-link ${inlineButtonClassName}`;
 const artistInlineButtonClassName = `artist-inline-link ${inlineButtonClassName}`;
-const rowActionsClassName = 'row-actions tw-flex tw-items-center tw-gap-2';
-const rowIconButtonClassName = 'tw-inline-flex tw-h-[42px] tw-w-[42px] tw-items-center tw-justify-center tw-rounded-pill tw-border tw-border-line tw-bg-[var(--glass)] tw-p-0 tw-backdrop-blur-md';
+const rowActionsClassName = 'row-actions track-action-row';
+const rowIconButtonClassName = 'track-action-button';
 
 export function TrackList({
   tracks = [],

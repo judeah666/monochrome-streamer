@@ -8,19 +8,27 @@ const NAV_ITEMS = [
   { id: 'settings', label: 'Settings', icon: '/sidebar-icons/gear.svg' },
   { id: 'admin', label: 'Admin', faIcon: 'fa-user-shield', adminOnly: true },
 ];
-const brandClassName = 'sidebar-brand tw-min-w-0';
-const sidebarTopClassName = 'sidebar-topbar tw-flex tw-items-center tw-justify-between tw-gap-2';
+const brandClassName = 'sidebar-brand tw-mb-3 tw-min-w-0';
+const sidebarTopClassName = 'sidebar-topbar tw-mb-3 tw-flex tw-min-w-0 tw-items-center tw-justify-between tw-gap-2.5';
 const sidebarToggleClassName = 'sidebar-toggle-button tw-inline-flex tw-h-9 tw-w-9 tw-items-center tw-justify-center tw-rounded-pill tw-border tw-border-line tw-bg-[var(--glass)] tw-p-0 tw-text-accent';
 const titleClassName = 'tw-m-0 tw-min-w-0 tw-break-words tw-font-display tw-text-[clamp(1.45rem,2vw,2rem)] tw-leading-[1.05] tw-tracking-[-0.05em]';
-const navClassName = 'sidebar-nav tw-grid tw-gap-2';
-const navButtonClassName = 'nav-link tw-flex tw-items-center tw-gap-3 tw-rounded-[16px] tw-border tw-border-transparent tw-px-4 tw-py-3 tw-text-left tw-transition';
+const navClassName = 'sidebar-nav tw-mb-6 tw-grid tw-gap-2';
+const navButtonClassName = 'nav-link tw-flex tw-items-center tw-gap-3 tw-rounded-[16px] tw-border tw-border-transparent tw-px-4 tw-py-3 tw-text-left tw-text-muted tw-transition hover:tw-bg-[var(--glass-strong)] hover:tw-text-text';
 const activeNavClassName = ' is-active tw-border-accent tw-bg-accent tw-text-[var(--accent-contrast)] tw-shadow-glow';
-const sidebarBottomClassName = 'sidebar-bottom tw-mt-auto tw-grid tw-gap-3';
-const sidebarUserClassName = 'sidebar-user-section';
+const sidebarBottomClassName = 'sidebar-bottom tw-mt-auto tw-grid tw-gap-3 tw-pt-[22px]';
+const sidebarUserClassName = 'sidebar-user-section tw-my-4';
 const statsClassName = 'sidebar-stats tw-grid tw-gap-3';
-const statCardClassName = 'stat-card tw-flex tw-items-center tw-gap-4';
-const statIconClassName = 'stat-icon tw-inline-flex tw-items-center tw-justify-center';
-const statusClassName = 'sidebar-status tw-grid tw-justify-items-center tw-gap-2';
+const statCardClassName = 'stat-card tw-grid tw-min-h-[50px] tw-grid-cols-[42px_minmax(0,1fr)] tw-items-center tw-gap-3';
+const statIconClassName = 'stat-icon tw-inline-flex tw-h-[42px] tw-w-[42px] tw-items-center tw-justify-center tw-text-accent';
+const statusClassName = 'sidebar-status tw-grid tw-min-w-0 tw-justify-items-center tw-gap-1.5 tw-overflow-hidden tw-pt-2 tw-text-center tw-text-[0.78rem] tw-leading-[1.35] tw-text-muted';
+const accountClassName = [
+  'sidebar-account tw-grid tw-min-w-0 tw-grid-cols-[38px_minmax(0,1fr)_auto] tw-items-center tw-gap-2',
+  'tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--glass)] tw-p-2 tw-text-text tw-backdrop-blur-md',
+].join(' ');
+const accountIconClassName = 'sidebar-account-icon tw-inline-grid tw-h-[38px] tw-w-[38px] tw-place-items-center tw-rounded-pill tw-bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] tw-text-accent';
+const accountCopyClassName = 'sidebar-account-copy tw-grid tw-min-w-0 tw-content-center';
+const accountActionsClassName = 'sidebar-account-actions tw-flex tw-gap-1.5';
+const accountActionClassName = 'sidebar-account-action tw-inline-grid tw-h-8 tw-w-8 tw-place-items-center tw-rounded-pill tw-border tw-border-line tw-bg-[color-mix(in_srgb,var(--surface)_70%,transparent)] tw-text-muted';
 
 export function Sidebar({
   title = 'Monochrome-Streamer',
@@ -119,15 +127,15 @@ function AccountBlock({ user }) {
   const accountTitle = `${username} • ${role} • ${downloadLabel}`;
 
   return (
-    <div className="sidebar-account" title={accountTitle}>
-      <span className="sidebar-account-icon" aria-hidden="true">
+    <div className={accountClassName} title={accountTitle}>
+      <span className={accountIconClassName} aria-hidden="true">
         <i className="fa-solid fa-user"></i>
       </span>
-      <div className="sidebar-account-copy">
+      <div className={accountCopyClassName}>
         <strong>{username}</strong>
       </div>
-      <div className="sidebar-account-actions">
-        <a className="sidebar-account-action" href="/logout" title="Logout" aria-label="Logout">
+      <div className={accountActionsClassName}>
+        <a className={accountActionClassName} href="/logout" title="Logout" aria-label="Logout">
           <i className="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
         </a>
       </div>

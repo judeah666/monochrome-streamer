@@ -2,8 +2,8 @@ import React from 'react';
 import { AlbumGrid } from './AlbumGrid.jsx';
 import { LibraryFilterBar, LibraryPager } from './LibraryControls.jsx';
 
-const albumGridClassName = 'album-grid tw-grid tw-gap-4';
-const libraryAlbumGridClassName = 'library-album-grid tw-grid tw-gap-4';
+const albumGridClassName = 'album-grid tw-grid tw-grid-cols-[repeat(auto-fill,minmax(var(--album-card-size),1fr))] tw-gap-4';
+const libraryAlbumGridClassName = 'library-album-grid tw-grid tw-grid-cols-[repeat(auto-fill,minmax(var(--album-card-size),1fr))] tw-gap-3.5';
 
 export function AlbumCollection({
   albums = [],
@@ -11,13 +11,16 @@ export function AlbumCollection({
   compact = false,
   showFilter = false,
   showPager = false,
-  pager = {},
+  pager = null,
+  page = {},
+  total,
   itemLabel = 'album',
   showPageSize = false,
   alphabetFilters = [],
   activeLetter = 'all',
   mediaTypes = [],
   activeMediaTypes = [],
+  showMediaType = true,
   onLetter,
   onMediaType,
   onOpen,
@@ -26,6 +29,10 @@ export function AlbumCollection({
   onPageSize,
   wrapGrid = false,
 }) {
+  const pagerPage = pager?.page || page || {};
+  const pagerTotalValue = total ?? pager?.total ?? 0;
+  const pagerTotal = Number.isFinite(Number(pagerTotalValue)) ? Number(pagerTotalValue) : 0;
+
   return (
     <>
       {showFilter ? (
@@ -34,6 +41,7 @@ export function AlbumCollection({
           activeLetter={activeLetter}
           mediaTypes={mediaTypes}
           activeMediaTypes={activeMediaTypes}
+          showMediaType={showMediaType}
           onLetter={onLetter}
           onMediaType={onMediaType}
         />
@@ -51,8 +59,8 @@ export function AlbumCollection({
 
       {showPager ? (
         <LibraryPager
-          page={pager}
-          total={pager.total || 0}
+          page={pagerPage}
+          total={pagerTotal}
           itemLabel={itemLabel}
           showPageSize={showPageSize}
           onPage={onPage}

@@ -17,6 +17,7 @@ export function normalizeAudioQualityForReact(quality, qualityIcons = {}) {
     label: quality.label || 'Audio quality unknown',
     labelTop: quality.labelTop || quality.label || 'Audio quality unknown',
     labelBottom: quality.labelBottom || '',
+    iconType: quality.iconType || '',
     iconUrl: quality.iconType ? qualityIcons[quality.iconType] : '',
     iconAlt: getAudioQualityIconAlt(quality.iconType),
   };

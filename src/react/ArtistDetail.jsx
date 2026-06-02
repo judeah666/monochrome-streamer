@@ -16,7 +16,7 @@ const artistMetaClassName = 'artist-detail-meta tw-m-0 tw-mt-2.5 tw-text-[1.02re
 const artistBioClassName = 'artist-detail-bio tw-m-0 tw-mt-3 tw-max-w-[72ch] tw-text-text';
 const artistActionsClassName = 'artist-actions tw-mt-5 tw-flex tw-flex-wrap tw-items-center tw-gap-3';
 const artistAlbumsSectionClassName = 'content-section';
-const artistAlbumGridClassName = 'library-album-grid';
+const artistAlbumGridClassName = 'library-album-grid tw-grid tw-grid-cols-[repeat(auto-fill,minmax(var(--album-card-size),1fr))] tw-gap-3.5';
 
 export function ArtistDetail({
   name = 'Artist',

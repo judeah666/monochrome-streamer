@@ -31,6 +31,7 @@ test('normalizeAudioQualityForReact maps quality labels and icons', () => {
     label: 'Hi-Res 24-Bit / up to 96 KHz',
     labelTop: 'Hi-Res 24-Bit',
     labelBottom: '96 KHz',
+    iconType: 'hires',
     iconUrl: '/hires.png',
     iconAlt: 'Hi-Res Audio',
   });

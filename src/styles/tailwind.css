@@ -1,18 +1,203 @@
 @tailwind components;
 @tailwind utilities;
 
-.tw-ms-panel {
-  @apply tw-rounded-card tw-border tw-border-line tw-bg-surface tw-shadow-panel tw-backdrop-blur-xl;
-}
+@layer components {
+  .tw-ms-panel {
+    @apply tw-rounded-card tw-border tw-border-line tw-bg-surface tw-shadow-panel tw-backdrop-blur-xl;
+  }
 
-.tw-ms-control {
-  @apply tw-rounded-pill tw-border tw-border-line tw-bg-surface2 tw-px-4 tw-py-2 tw-font-bold tw-text-text tw-transition;
-}
+  .tw-ms-control {
+    @apply tw-rounded-pill tw-border tw-border-line tw-bg-surface2 tw-px-4 tw-py-2 tw-font-bold tw-text-text tw-transition;
+  }
 
-.tw-ms-control:hover {
-  @apply tw-border-accent tw-text-accent;
-}
+  .tw-ms-control:hover {
+    @apply tw-border-accent tw-text-accent;
+  }
 
-.tw-ms-control-primary {
-  @apply tw-rounded-pill tw-border tw-border-accent tw-bg-accent tw-px-4 tw-py-2 tw-font-extrabold tw-text-background tw-shadow-glow tw-transition;
+  .tw-ms-control-primary {
+    @apply tw-rounded-pill tw-border tw-border-accent tw-bg-accent tw-px-4 tw-py-2 tw-font-extrabold tw-text-background tw-shadow-glow tw-transition;
+  }
+
+  .library-filter-button {
+    @apply tw-min-h-[34px] tw-min-w-[34px] tw-rounded-pill tw-border tw-border-transparent tw-bg-transparent tw-px-2 tw-font-extrabold tw-text-muted tw-transition tw-duration-150;
+  }
+
+  .library-filter-button:hover {
+    background: var(--hover-surface);
+    color: var(--text);
+  }
+
+  .library-filter-button.is-active,
+  .library-filter-button.is-active:hover {
+    background: var(--accent);
+    color: var(--accent-contrast);
+    box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  .media-type-filter-button {
+    @apply tw-inline-flex tw-h-[34px] tw-w-[34px] tw-items-center tw-justify-center tw-border-0 tw-bg-transparent tw-p-0 tw-text-muted tw-shadow-none tw-transition tw-duration-150 max-[720px]:tw-h-[42px] max-[720px]:tw-w-[42px];
+  }
+
+  .media-type-filter-button:hover {
+    color: var(--accent);
+    transform: translateY(-1px);
+  }
+
+  .media-type-filter-button.is-active,
+  .media-type-filter-button.is-active:hover {
+    color: var(--accent);
+    filter: drop-shadow(0 8px 14px color-mix(in srgb, var(--accent) 28%, transparent));
+  }
+
+  .album-card-shell {
+    @apply tw-grid tw-grid-rows-[auto_1fr] tw-overflow-hidden tw-border tw-border-line tw-bg-surface tw-p-0 tw-text-left tw-shadow-panel tw-backdrop-blur-[18px] tw-cursor-pointer tw-transition tw-duration-200;
+    border-radius: var(--radius);
+  }
+
+  .album-card-shell:hover {
+    transform: translateY(-2px);
+    border-color: var(--line-strong);
+    background: var(--surface-2);
+  }
+
+  .album-card-shell.compact {
+    border-radius: 20px;
+  }
+
+  .library-album-grid .album-card-shell {
+    border-radius: 12px;
+    box-shadow: none;
+  }
+
+  .album-card-play-button {
+    @apply tw-absolute tw-left-1/2 tw-top-1/2 tw-inline-flex tw-h-14 tw-w-14 tw-items-center tw-justify-center tw-rounded-pill tw-border tw-opacity-0 tw-pointer-events-none tw-shadow-panel tw-transition tw-duration-200;
+    transform: translate(-50%, -50%) scale(0.9);
+    border-color: color-mix(in srgb, var(--accent) 72%, var(--text) 28%);
+    background: color-mix(in srgb, var(--accent) 92%, transparent);
+    color: var(--accent-contrast);
+  }
+
+  .album-card-shell:hover .album-card-play-button,
+  .album-card-shell:focus-within .album-card-play-button {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .album-card-play-button .fa-solid {
+    font-size: 24px;
+  }
+
+  .album-card-play-button .fa-play {
+    transform: none;
+  }
+
+  .album-card-meta {
+    @apply tw-grid tw-grid-rows-[auto_auto_auto_1fr] tw-p-3.5 tw-text-center;
+  }
+
+  .library-album-grid .album-card-meta {
+    padding: 10px;
+  }
+
+  .album-card-title {
+    @apply tw-m-0 tw-mb-1 tw-font-display tw-leading-[1.12] tw-tracking-[-0.035em];
+  }
+
+  .library-album-grid .album-card-title {
+    font-size: 0.92rem;
+  }
+
+  .album-card-text {
+    @apply tw-m-0 tw-leading-[1.35] tw-text-muted;
+  }
+
+  .library-album-grid .album-card-text {
+    font-size: 0.82rem;
+  }
+
+  .album-card-year-text {
+    @apply tw-m-0 tw-mt-1 tw-text-[0.84rem] tw-leading-[1.35] tw-text-muted;
+  }
+
+  .album-card-footer-row {
+    @apply tw-mt-3 tw-inline-flex tw-flex-wrap tw-items-center tw-justify-center tw-gap-2.5 tw-self-end tw-text-muted;
+  }
+
+  .album-card-footer-row.is-wishlist,
+  .album-card-footer-row.is-wishlist .album-card-format-row,
+  .album-card-footer-row.is-wishlist .media-type-icon,
+  .album-card-footer-row.is-wishlist .fa-solid,
+  .album-card-footer-row.is-wishlist .media-type-symbol {
+    color: var(--wishlist-text);
+  }
+
+  .album-card-format-row {
+    @apply tw-m-0 tw-inline-flex tw-flex-wrap tw-items-center tw-justify-center tw-gap-2.5 tw-leading-none tw-text-inherit;
+  }
+
+  .track-list-shell {
+    @apply tw-grid tw-gap-2.5;
+  }
+
+  .track-row-shell {
+    @apply tw-grid tw-grid-cols-[76px_minmax(0,1fr)_auto] tw-items-center tw-gap-4 tw-rounded-[20px] tw-border tw-border-line tw-bg-surface tw-p-3.5 tw-shadow-panel tw-backdrop-blur-md tw-cursor-pointer tw-transition;
+  }
+
+  .track-row-shell:hover,
+  .album-track-row-shell:hover {
+    border-color: var(--line-strong);
+    background: var(--surface-2);
+  }
+
+  .track-row-shell.is-active,
+  .album-track-row-shell.is-active {
+    border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+
+  .album-track-row-shell {
+    @apply tw-grid tw-grid-cols-[56px_minmax(0,1fr)_minmax(120px,180px)_156px] tw-items-center tw-gap-[18px] tw-border-b tw-border-line tw-bg-surface tw-px-5 tw-py-4 tw-backdrop-blur-md tw-cursor-pointer tw-transition;
+  }
+
+  .album-track-row-shell:nth-child(even) {
+    background: color-mix(in srgb, var(--surface) 78%, transparent);
+  }
+
+  .album-track-row-shell:last-child {
+    border-bottom: 0;
+  }
+
+  .track-copy-title {
+    @apply tw-m-0 tw-mb-1 tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap tw-font-display tw-leading-[1.12] tw-tracking-[-0.035em];
+  }
+
+  .track-copy-meta {
+    @apply tw-m-0 tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap tw-leading-[1.35] tw-text-muted;
+  }
+
+  .track-action-row {
+    @apply tw-flex tw-items-center tw-gap-2;
+  }
+
+  .track-action-button {
+    @apply tw-inline-flex tw-h-[42px] tw-w-[42px] tw-items-center tw-justify-center tw-rounded-pill tw-border tw-border-line tw-bg-[var(--glass)] tw-p-0 tw-backdrop-blur-md;
+  }
+
+  .track-action-button:hover {
+    color: var(--text);
+    border-color: var(--line-strong);
+    background: var(--hover-surface);
+  }
+
+  .track-action-button.active,
+  #favorite-track-button.active {
+    color: #ffffff;
+    border-color: rgba(255, 55, 76, 0.72);
+    background: var(--favorite-red);
+  }
+
+  .track-action-button .fa-solid {
+    font-size: 20px;
+  }
 }

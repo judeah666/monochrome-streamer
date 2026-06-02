@@ -168,24 +168,24 @@ export function AdminSettingsPanel({ embedded = false }) {
   }
 
   return (
-    <div className="admin-app-shell app-shell">
-      <aside className="sidebar admin-sidebar">
-        <div className="sidebar-brand tw-min-w-0">
-          <div className="sidebar-topbar">
+    <div className="admin-app-shell app-shell tw-grid tw-min-h-screen tw-grid-cols-[var(--sidebar-width)_minmax(0,1fr)]">
+      <aside className="sidebar admin-sidebar tw-sticky tw-top-0 tw-flex tw-h-screen tw-min-w-0 tw-flex-col tw-overflow-x-hidden tw-overflow-y-auto tw-border-r tw-border-line tw-bg-[var(--glass-heavy)] tw-px-[18px] tw-pb-[22px] tw-pt-[18px] tw-backdrop-blur-[18px]">
+        <div className="sidebar-brand tw-mb-3 tw-min-w-0">
+          <div className="sidebar-topbar tw-mb-3 tw-flex tw-min-w-0 tw-items-center tw-justify-between tw-gap-2.5">
             <a className={`sidebar-theme-toggle is-${adminThemeMode} admin-open-app`} href="/" title="Open main app">
               <span className="sidebar-theme-knob" aria-hidden="true"><i className="fa-solid fa-music"></i></span>
               <span className="sidebar-theme-label">App</span>
             </a>
           </div>
-          <h1 id="app-title">{appTitle}</h1>
+          <h1 id="app-title" className="tw-m-0 tw-min-w-0 tw-break-words tw-font-display tw-text-[clamp(1.45rem,2vw,2rem)] tw-leading-[1.05] tw-tracking-[-0.05em]">{appTitle}</h1>
           <p className="eyebrow admin-eyebrow">Admin Panel</p>
         </div>
 
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav tw-mb-6 tw-grid tw-gap-2">
           {ADMIN_TABS.map(([id, label, icon]) => (
             <button
               key={id}
-              className={`nav-link${activeTab === id ? ' is-active' : ''}`}
+              className={`nav-link tw-flex tw-items-center tw-gap-3 tw-rounded-[16px] tw-border tw-border-transparent tw-px-4 tw-py-3 tw-text-left tw-text-muted tw-transition hover:tw-bg-[var(--glass-strong)] hover:tw-text-text${activeTab === id ? ' is-active tw-border-accent tw-bg-accent tw-text-[var(--accent-contrast)] tw-shadow-glow' : ''}`}
               type="button"
               onClick={() => setActiveTab(id)}
             >
@@ -195,16 +195,16 @@ export function AdminSettingsPanel({ embedded = false }) {
           ))}
         </nav>
 
-        <div className="sidebar-bottom">
-          <div className="sidebar-account" title={`Signed in as ${adminUser}`}>
-            <span className="sidebar-account-icon" aria-hidden="true"><i className="fa-solid fa-user-shield"></i></span>
-            <div className="sidebar-account-copy">
+        <div className="sidebar-bottom tw-mt-auto tw-grid tw-gap-3 tw-pt-[22px]">
+          <div className="sidebar-account tw-grid tw-min-w-0 tw-grid-cols-[38px_minmax(0,1fr)_auto] tw-items-center tw-gap-2 tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--glass)] tw-p-2 tw-text-text tw-backdrop-blur-md" title={`Signed in as ${adminUser}`}>
+            <span className="sidebar-account-icon tw-inline-grid tw-h-[38px] tw-w-[38px] tw-place-items-center tw-rounded-pill tw-bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] tw-text-accent" aria-hidden="true"><i className="fa-solid fa-user-shield"></i></span>
+            <div className="sidebar-account-copy tw-grid tw-min-w-0 tw-content-center">
               <strong>{adminUser}</strong>
               <span>Admin account</span>
             </div>
-            <div className="sidebar-account-actions">
-              <a className="sidebar-account-action" href="/" title="Open app" aria-label="Open app"><i className="fa-solid fa-house"></i></a>
-              <a className="sidebar-account-action" href="/logout" title="Logout" aria-label="Logout"><i className="fa-solid fa-arrow-right-from-bracket"></i></a>
+            <div className="sidebar-account-actions tw-flex tw-gap-1.5">
+              <a className="sidebar-account-action tw-inline-grid tw-h-8 tw-w-8 tw-place-items-center tw-rounded-pill tw-border tw-border-line tw-bg-[color-mix(in_srgb,var(--surface)_70%,transparent)] tw-text-muted" href="/" title="Open app" aria-label="Open app"><i className="fa-solid fa-house"></i></a>
+              <a className="sidebar-account-action tw-inline-grid tw-h-8 tw-w-8 tw-place-items-center tw-rounded-pill tw-border tw-border-line tw-bg-[color-mix(in_srgb,var(--surface)_70%,transparent)] tw-text-muted" href="/logout" title="Logout" aria-label="Logout"><i className="fa-solid fa-arrow-right-from-bracket"></i></a>
             </div>
           </div>
         </div>

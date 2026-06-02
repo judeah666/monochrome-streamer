@@ -13,6 +13,7 @@ export function createInitialState() {
     artistGroupMap: new Map(),
     libraryFolders: { available: [], selected: [], scan: null },
     libraryPage: { limit: 50, offset: 0, total: 0, hasNext: false, hasPrevious: false },
+    collectionFoldersPage: { limit: 50, offset: 0, total: 0, hasNext: false, hasPrevious: false },
     collectionPage: { limit: 50, offset: 0, total: 0, hasNext: false, hasPrevious: false },
     wishlistPage: { limit: 50, offset: 0, total: 0, hasNext: false, hasPrevious: false },
     artistPage: { limit: 50, offset: 0, total: 0, hasNext: false, hasPrevious: false },

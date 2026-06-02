@@ -11,6 +11,7 @@ const coverFrameClassName = 'collection-detail-cover tw-aspect-square tw-w-full 
 const coverImageClassName = 'tw-h-full tw-w-full tw-object-cover';
 const copyClassName = 'tw-min-w-0';
 const titleClassName = 'tw-m-0 tw-text-[clamp(2.4rem,4vw,4rem)] tw-leading-[0.94] tw-tracking-[-0.05em]';
+const albumGridClassName = 'library-album-grid tw-grid tw-grid-cols-[repeat(auto-fill,minmax(var(--album-card-size),1fr))] tw-gap-3.5';
 
 export function CollectionDetail({
   name = 'Collection',
@@ -49,7 +50,7 @@ export function CollectionDetail({
             <p>{albumsCaption}</p>
           </div>
         </div>
-        <div className="library-album-grid">
+        <div className={albumGridClassName}>
           {loading ? (
             <p className="empty-state">Loading collection albums...</p>
           ) : albums.length ? (

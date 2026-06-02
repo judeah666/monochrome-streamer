@@ -9,7 +9,8 @@ const playlistDetailClassName = 'playlist-detail tw-min-w-0';
 const playlistHeaderClassName = 'playlist-detail-header';
 const playlistTitleClassName = 'tw-m-0 tw-text-[1.2rem]';
 const playlistDescriptionClassName = 'tw-m-0 tw-mt-1 tw-text-muted';
-const playlistTrackListClassName = 'track-list tw-mt-4 tw-grid tw-gap-2.5';
+const playlistTrackListClassName = 'track-list track-list-shell tw-mt-4';
+const renderLimitNoticeClassName = 'render-limit-notice tw-col-span-full tw-m-0 tw-mt-2.5 tw-rounded-[16px] tw-border tw-border-line tw-bg-[var(--background-soft)] tw-px-3.5 tw-py-3 tw-text-[0.9rem] tw-font-bold tw-text-muted';
 
 export function PlaylistBrowser({
   playlists = [],
@@ -69,7 +70,7 @@ export function PlaylistBrowser({
                     onArtistClick={onArtistClick}
                   />
                   {activePlaylist.tracks.length > limit ? (
-                    <p className="render-limit-notice">Showing {limit} of {activePlaylist.tracks.length} tracks. Use search or select fewer folders to narrow this view.</p>
+                    <p className={renderLimitNoticeClassName}>Showing {limit} of {activePlaylist.tracks.length} tracks. Use search or select fewer folders to narrow this view.</p>
                   ) : null}
                 </>
               )}

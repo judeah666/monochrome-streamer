@@ -59,6 +59,7 @@ export function getDomRefs() {
     settingsStatus: query('#settings-status'),
     appFavicon: query('#app-favicon'),
     audioPlayer: query('#audio-player'),
+    nowPlayingBar: query('.now-playing-bar'),
     playerTrackInfoRoot: query('#player-track-info-root'),
     playerTransportControls: query('#player-transport-controls'),
     currentTimeElement: query('#current-time'),

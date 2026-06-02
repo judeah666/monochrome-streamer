@@ -11,10 +11,13 @@ function SidebarIcon({ icon }) {
 function SidebarShell() {
   return (
     <>
-      <aside id="app-sidebar" className="sidebar">
-        <div className="sidebar-brand">
-          <div>
-            <div className="sidebar-topbar">
+      <aside
+        id="app-sidebar"
+        className="sidebar"
+      >
+        <div className="sidebar-brand tw-mb-3 tw-min-w-0">
+          <div className="tw-min-w-0">
+            <div className="sidebar-topbar tw-mb-3 tw-flex tw-min-w-0 tw-items-center tw-justify-between tw-gap-2.5">
               <button className="sidebar-theme-toggle is-dark" type="button" aria-label="Switch theme">
                 <span className="sidebar-theme-knob" aria-hidden="true">
                   <i className="fa-solid fa-moon" />
@@ -23,7 +26,7 @@ function SidebarShell() {
               </button>
               <button
                 id="sidebar-toggle-button"
-                className="sidebar-toggle-button"
+                className="sidebar-toggle-button tw-inline-flex tw-h-9 tw-w-9 tw-items-center tw-justify-center tw-rounded-pill tw-border tw-border-line tw-bg-[var(--glass)] tw-p-0 tw-text-accent"
                 type="button"
                 aria-label="Collapse sidebar"
                 aria-expanded="true"
@@ -31,50 +34,52 @@ function SidebarShell() {
                 <i className="fa-solid fa-chevron-left" aria-hidden="true" />
               </button>
             </div>
-            <h1 id="app-title">Monochrome-Streamer</h1>
+            <h1 id="app-title" className="tw-m-0 tw-min-w-0 tw-break-words tw-font-display tw-text-[clamp(1.45rem,2vw,2rem)] tw-leading-[1.05] tw-tracking-[-0.05em]">
+              Monochrome-Streamer
+            </h1>
           </div>
         </div>
 
-        <nav className="sidebar-nav">
-          <button id="nav-home" className="nav-link is-active" type="button" title="Home">
+        <nav className="sidebar-nav tw-mb-6 tw-grid tw-gap-2">
+          <button id="nav-home" className="nav-link is-active tw-flex tw-items-center tw-gap-3 tw-rounded-[16px] tw-border tw-border-transparent tw-px-4 tw-py-3 tw-text-left tw-transition" type="button" title="Home">
             <SidebarIcon icon="house" />
             <span>Home</span>
           </button>
-          <button id="nav-library" className="nav-link" type="button" title="Library">
+          <button id="nav-library" className="nav-link tw-flex tw-items-center tw-gap-3 tw-rounded-[16px] tw-border tw-border-transparent tw-px-4 tw-py-3 tw-text-left tw-transition" type="button" title="Library">
             <SidebarIcon icon="album-collection" />
             <span>Library</span>
           </button>
-          <button id="nav-favorites" className="nav-link" type="button" title="Favorites">
+          <button id="nav-favorites" className="nav-link tw-flex tw-items-center tw-gap-3 tw-rounded-[16px] tw-border tw-border-transparent tw-px-4 tw-py-3 tw-text-left tw-transition" type="button" title="Favorites">
             <SidebarIcon icon="heart-pulse" />
             <span>Favorites</span>
           </button>
-          <button id="nav-wishlist" className="nav-link" type="button" title="Wishlist">
+          <button id="nav-wishlist" className="nav-link tw-flex tw-items-center tw-gap-3 tw-rounded-[16px] tw-border tw-border-transparent tw-px-4 tw-py-3 tw-text-left tw-transition" type="button" title="Wishlist">
             <SidebarIcon icon="bookmark" />
             <span>Wishlist</span>
           </button>
-          <button id="nav-settings" className="nav-link" type="button" title="Settings">
+          <button id="nav-settings" className="nav-link tw-flex tw-items-center tw-gap-3 tw-rounded-[16px] tw-border tw-border-transparent tw-px-4 tw-py-3 tw-text-left tw-transition" type="button" title="Settings">
             <SidebarIcon icon="gear" />
             <span>Settings</span>
           </button>
         </nav>
 
-        <div className="sidebar-bottom">
-          <div className="sidebar-stats">
-            <div className="stat-card stat-card-albums" title="Albums">
-              <span className="stat-icon">
+        <div className="sidebar-bottom tw-mt-auto tw-grid tw-gap-3 tw-pt-[22px]">
+          <div className="sidebar-stats tw-grid tw-gap-3">
+            <div className="stat-card stat-card-albums tw-grid tw-min-h-[50px] tw-grid-cols-[42px_minmax(0,1fr)] tw-items-center tw-gap-3" title="Albums">
+              <span className="stat-icon tw-inline-flex tw-h-[42px] tw-w-[42px] tw-items-center tw-justify-center tw-text-accent">
                 <SidebarIcon icon="album" />
               </span>
               <strong id="album-count">0</strong>
             </div>
-            <div className="stat-card stat-card-tracks" title="Tracks">
-              <span className="stat-icon">
+            <div className="stat-card stat-card-tracks tw-grid tw-min-h-[50px] tw-grid-cols-[42px_minmax(0,1fr)] tw-items-center tw-gap-3" title="Tracks">
+              <span className="stat-icon tw-inline-flex tw-h-[42px] tw-w-[42px] tw-items-center tw-justify-center tw-text-accent">
                 <SidebarIcon icon="list-music" />
               </span>
               <strong id="track-count">0</strong>
             </div>
           </div>
 
-          <div id="library-status" className="sidebar-status">
+          <div id="library-status" className="sidebar-status tw-grid tw-min-w-0 tw-justify-items-center tw-gap-1.5 tw-overflow-hidden tw-pt-2 tw-text-center tw-text-[0.78rem] tw-leading-[1.35] tw-text-muted">
             Scan idle · 0%
           </div>
         </div>
@@ -209,7 +214,7 @@ function FavoritesView() {
             <p id="favorite-track-caption">Tracks you marked for quick access.</p>
           </div>
         </div>
-        <div id="favorite-track-list" className="track-list" />
+        <div id="favorite-track-list" className="track-list track-list-shell" />
       </section>
     </section>
   );

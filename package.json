@@ -11,7 +11,8 @@
     "build:tailwind": "tailwindcss -i ./src/styles/tailwind.css -o ./public/tailwind.css --minify",
     "dev:tailwind": "tailwindcss -i ./src/styles/tailwind.css -o ./public/tailwind.css --watch",
     "dev:frontend": "vite --host 0.0.0.0",
-    "test": "node --test"
+    "test": "node --test",
+    "verify": "npm test && npm run build"
   },
   "dependencies": {
     "music-metadata": "^11.12.3",

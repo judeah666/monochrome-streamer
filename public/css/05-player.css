@@ -360,12 +360,12 @@ body:not(.player-layout-qobuz) .queue-status {
 
 .audio-quality-info {
   order: 20;
-  flex: 0 1 150px;
-  min-width: 128px;
-  max-width: 170px;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: none;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   color: var(--muted);
   font-size: 0.76rem;
   line-height: 1.15;
@@ -375,8 +375,16 @@ body:not(.player-layout-qobuz) .queue-status {
   width: 30px;
   height: 30px;
   object-fit: contain;
-  border-radius: 5px;
-  background: var(--glass-strong);
+  border-radius: 0;
+  background: transparent;
+}
+
+body:not(.light-ui) .audio-quality-info.is-mp3 img {
+  filter: invert(1) brightness(1.25);
+}
+
+body.light-ui .audio-quality-info.is-mp3 img {
+  filter: none;
 }
 
 .audio-quality-info .fa-solid {
@@ -385,13 +393,13 @@ body:not(.player-layout-qobuz) .queue-status {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 5px;
-  background: var(--glass-strong);
+  border-radius: 0;
+  background: transparent;
   color: var(--text);
 }
 
 #audio-quality-label {
-  display: grid;
+  display: none;
   gap: 2px;
 }
 
@@ -418,7 +426,7 @@ body.player-layout-qobuz .sidebar {
 }
 
 body.player-layout-qobuz .page-shell {
-  padding-bottom: calc(var(--player-height) + 18px);
+  padding-bottom: var(--measured-player-reserve);
 }
 
 body.player-layout-qobuz .now-playing-bar {
@@ -571,8 +579,8 @@ body.player-layout-qobuz .volume-fill {
 }
 
 body.player-layout-qobuz .audio-quality-info {
-  min-width: 146px;
-  max-width: 190px;
+  min-width: 0;
+  max-width: none;
   color: var(--muted);
 }
 

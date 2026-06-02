@@ -4,7 +4,7 @@ import { LibraryFilterBar, LibraryPager } from './LibraryControls.jsx';
 import { TrackList } from './TrackList.jsx';
 
 const artistGridClassName = 'artist-card-grid';
-const trackListClassName = 'track-list library-track-search-list';
+const trackListClassName = 'track-list track-list-shell library-track-search-list';
 
 function EmptyState({ children }) {
   return <p className="empty-state">{children}</p>;

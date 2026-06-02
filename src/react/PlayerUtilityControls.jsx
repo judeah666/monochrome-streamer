@@ -9,7 +9,7 @@ const PLAYER_ICONS = {
   volumeMuted: '/player-icons/volume-xmark.svg',
 };
 const playerIconControlClassName = 'icon-button player-icon-control tw-inline-flex tw-items-center tw-justify-center tw-border-0 tw-bg-transparent tw-p-0 tw-text-inherit tw-cursor-pointer tw-transition hover:tw-text-accent';
-const audioQualityClassName = 'audio-quality-info tw-inline-flex tw-items-center tw-gap-2 tw-text-text';
+const audioQualityClassName = 'audio-quality-info tw-inline-flex tw-items-center tw-text-text';
 const qualityLabelClassName = 'tw-grid tw-leading-tight';
 
 export function PlayerUtilityControls({
@@ -92,9 +92,14 @@ function AudioQualityInfo({ quality }) {
   const labelBottom = quality?.labelBottom || '';
   const iconUrl = quality?.iconUrl || '';
   const iconAlt = quality?.iconAlt || '';
+  const iconType = quality?.iconType || '';
+  const qualityClassName = [
+    audioQualityClassName,
+    iconType ? `is-${iconType}` : '',
+  ].filter(Boolean).join(' ');
 
   return (
-    <div id="audio-quality-info" className={audioQualityClassName} title={label}>
+    <div id="audio-quality-info" className={qualityClassName} title={label} aria-label={label}>
       {iconUrl ? (
         <img id="audio-quality-icon" src={iconUrl} alt={iconAlt} />
       ) : (

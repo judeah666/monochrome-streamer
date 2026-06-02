@@ -207,26 +207,26 @@ function SettingToggle({ settingKey, title, description, checked }) {
 function AlbumCardSizePreview({ preview }) {
   return (
     <div className="album-card-size-preview tw-mt-[18px] tw-grid tw-justify-items-center tw-gap-2.5 tw-rounded-[22px] tw-border tw-border-line tw-bg-[radial-gradient(circle_at_top_left,color-mix(in_srgb,var(--accent)_14%,transparent),transparent_42%),var(--glass)] tw-p-4 tw-backdrop-blur-md" aria-label="Album card size preview">
-      <article className="album-card compact album-card-sample" aria-hidden="true">
+      <article className="album-card album-card-shell compact album-card-sample" aria-hidden="true">
         <div className="album-card-media">
           <span className="album-card-placeholder-host">
             <CoverPlaceholder />
           </span>
           <button
             type="button"
-            className="album-card-play"
+            className="album-card-play album-card-play-button"
             tabIndex={-1}
             aria-label="Preview play button"
           >
             <FontAwesomeIcon name="play" />
           </button>
         </div>
-        <div className="meta">
-          <h4>{preview.title || 'Sampler Album'}</h4>
-          <p>{preview.artist || ''}</p>
-          <p className="album-card-year">{preview.year || '2026'}</p>
-          <div className="album-card-footer">
-            <p className="album-card-format">
+        <div className="meta album-card-meta">
+          <h4 className="album-card-title">{preview.title || 'Sampler Album'}</h4>
+          <p className="album-card-text">{preview.artist || ''}</p>
+          <p className="album-card-year album-card-year-text">{preview.year || '2026'}</p>
+          <div className="album-card-footer album-card-footer-row">
+            <p className="album-card-format album-card-format-row">
               <MediaTypeIcons mediaTypes={preview.mediaTypes} />
             </p>
           </div>

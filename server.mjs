@@ -284,9 +284,7 @@ const server = http.createServer(async (request, response) => {
       };
       const collectionPath = url.searchParams.get('path');
       if (!collectionPath) {
-        return respondJson(response, 200, await createCollectionFoldersPayload({
-          search: url.searchParams.get('search'),
-        }));
+        return respondJson(response, 200, await createCollectionFoldersPayload(pageOptions));
       }
       const collectionSources = await getCollectionAlbumSources(collectionPath);
       const mediaTypeAlbumFilter = await getAlbumIdFilterForMediaTypes(url.searchParams.get('mediaTypes'));
@@ -529,7 +527,6 @@ const server = http.createServer(async (request, response) => {
 server.listen(config.port, config.host, () => {
   console.log(`Monochrome-Streamer ready at http://${config.host}:${config.port}`);
   console.log(`Streaming from: ${libraryRoot}`);
-  console.log(`Admin login: username "${config.adminUsername}" (${process.env.ADMIN_PASSWORD ? 'ADMIN_PASSWORD env detected' : 'ADMIN_PASSWORD env missing; using fallback'})`);
   if (config.autoScanOnStart) {
     startLibraryScan();
   } else {
@@ -964,11 +961,30 @@ function createEmptyLibrary() {
   };
 }
 
+function normalizePageLimit(value) {
+  const parsed = Number.parseInt(value || 50, 10);
+  return [25, 50, 100, 200, 500].includes(parsed) ? parsed : 50;
+}
+
+function normalizePageOffset(value) {
+  return Math.max(0, Number.parseInt(value || 0, 10) || 0);
+}
+
+function createPageInfo(options = {}, total = 0) {
+  const limit = normalizePageLimit(options.limit);
+  const offset = normalizePageOffset(options.offset);
+  return {
+    limit,
+    offset,
+    total,
+    hasNext: offset + limit < total,
+    hasPrevious: offset > 0,
+  };
+}
+
 function createPagedLibrary(library, options = {}) {
-  const limit = [25, 50, 100, 200, 500].includes(Number.parseInt(options.limit || 50, 10))
-    ? Number.parseInt(options.limit || 50, 10)
-    : 50;
-  const offset = Math.max(0, Number.parseInt(options.offset || 0, 10) || 0);
+  const limit = normalizePageLimit(options.limit);
+  const offset = normalizePageOffset(options.offset);
   const search = String(options.search || '').trim().toLowerCase();
   const restrictAlbumIds = Array.isArray(options.albumIds);
   const albumIds = restrictAlbumIds ? new Set(options.albumIds.filter(Boolean)) : null;
@@ -1495,13 +1511,29 @@ function createManualAlbumFromOverride(albumId, override = {}) {
   };
 }
 
-async function createCollectionFoldersPayload({ search = '' } = {}) {
+function normalizeAlphabetFilter(letter) {
+  const normalized = String(letter || 'all').trim().toUpperCase();
+  if (normalized === '#' || /^[A-Z]$/u.test(normalized)) return normalized;
+  return 'all';
+}
+
+function matchesAlphabetFilter(value, letter) {
+  if (!letter || letter === 'all') return true;
+  const first = cleanText(value).charAt(0).toUpperCase();
+  if (letter === '#') return !/^[A-Z]$/u.test(first);
+  return first === letter;
+}
+
+async function createCollectionFoldersPayload({ search = '', letter = 'all', limit, offset } = {}) {
   const payload = await readCollectionFolders(libraryDatabasePath, { search });
   const normalizedSearch = cleanText(search).toLowerCase();
+  const normalizedLetter = normalizeAlphabetFilter(letter);
   const foldersByName = new Map();
+  const albumFolderKeys = new Map();
   for (const folder of payload.folders || []) {
     const albumIds = new Set(folder.albumIds || []);
-    foldersByName.set(normalizeCollectionName(folder.name), {
+    const folderKey = normalizeCollectionName(folder.name);
+    foldersByName.set(folderKey, {
       ...folder,
       albumIds,
       albumCount: albumIds.size || folder.albumCount || folder.trackCount || 0,
@@ -1509,16 +1541,22 @@ async function createCollectionFoldersPayload({ search = '' } = {}) {
       coverTrackId: folder.coverTrackId || '',
       coverUrl: '',
     });
+    for (const albumId of albumIds) {
+      albumFolderKeys.set(albumId, folderKey);
+    }
   }
   const overrides = await getAlbumOverrides();
 
   for (const [albumId, override] of Object.entries(overrides.albums || {})) {
     if (!Object.hasOwn(override || {}, 'collectionName')) continue;
     const collectionName = cleanText(override?.collectionName);
-    for (const folder of foldersByName.values()) {
-      folder.albumIds.delete(albumId);
-      folder.albumCount = folder.albumIds.size;
-      folder.trackCount = folder.albumIds.size;
+    const previousFolderKey = albumFolderKeys.get(albumId);
+    if (previousFolderKey && foldersByName.has(previousFolderKey)) {
+      const previousFolder = foldersByName.get(previousFolderKey);
+      previousFolder.albumIds.delete(albumId);
+      previousFolder.albumCount = previousFolder.albumIds.size;
+      previousFolder.trackCount = previousFolder.albumIds.size;
+      albumFolderKeys.delete(albumId);
     }
     if (!collectionName) continue;
     if (normalizedSearch && !collectionName.toLowerCase().includes(normalizedSearch)) continue;
@@ -1538,12 +1576,18 @@ async function createCollectionFoldersPayload({ search = '' } = {}) {
     }
     const folder = foldersByName.get(normalizedName);
     folder.albumIds.add(albumId);
+    albumFolderKeys.set(albumId, normalizedName);
     folder.albumCount = folder.albumIds.size;
     folder.trackCount = folder.albumIds.size;
   }
 
-  const visibleFolders = [...foldersByName.values()].filter((folder) => folder.albumIds.size > 0);
-  const folders = await Promise.all(visibleFolders.map(async (folder) => {
+  const visibleFolders = [...foldersByName.values()]
+    .filter((folder) => folder.albumIds.size > 0)
+    .filter((folder) => matchesAlphabetFilter(folder.name, normalizedLetter))
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const page = createPageInfo({ limit, offset }, visibleFolders.length);
+  const pagedFolders = visibleFolders.slice(page.offset, page.offset + page.limit);
+  const folders = await Promise.all(pagedFolders.map(async (folder) => {
     return {
       ...folder,
       coverUrl: await getCollectionFolderCoverUrl(folder, overrides),
@@ -1552,37 +1596,32 @@ async function createCollectionFoldersPayload({ search = '' } = {}) {
 
   return {
     ...payload,
+    page,
     folders: folders
       .map((folder) => ({
         ...folder,
         albumIds: [...folder.albumIds],
         albumCount: folder.albumIds.size,
         trackCount: folder.albumIds.size,
-      }))
-      .sort((left, right) => left.name.localeCompare(right.name)),
+      })),
   };
 }
 
 async function getCollectionFolderCoverUrl(folder, overrides) {
   const collectionName = cleanText(folder.name || folder.path);
-  const firstScannedAlbumPage = await readCollectionFolderAlbumPage(libraryDatabasePath, collectionName, {
-    limit: 1,
-    offset: 0,
-  });
-  const firstScannedAlbum = firstScannedAlbumPage.albums?.[0] || null;
-  const manualAlbums = Object.entries(overrides.albums || {})
+  if (folder.coverTrackId) {
+    return `/api/tracks/${folder.coverTrackId}/cover`;
+  }
+  const manualAlbum = Object.entries(overrides.albums || {})
     .filter(([albumId, override]) => {
       const isManual = override?.manual || albumId.startsWith('manual-');
       return isManual && normalizeCollectionName(override?.collectionName) === normalizeCollectionName(collectionName);
     })
-    .map(([albumId, override]) => createManualAlbumFromOverride(albumId, override));
-  const firstAlbum = [firstScannedAlbum, ...manualAlbums]
-    .filter(Boolean)
+    .map(([albumId, override]) => createManualAlbumFromOverride(albumId, override))
+    .filter((album) => album.coverUrl)
     .sort(compareAlbumsNaturally)[0];
 
-  return firstAlbum
-    ? getAlbumCoverUrl(firstAlbum, overrides)
-    : '';
+  return cleanText(manualAlbum?.coverUrl);
 }
 
 async function getAlbumCoverUrl(album, overrides) {
