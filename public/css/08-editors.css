@@ -123,23 +123,58 @@
   gap: 10px;
 }
 
-.media-type-options label {
+.media-type-options label,
+.media-type-options button {
   min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  padding: 0 14px;
   border-radius: 16px;
   border: 1px solid var(--line);
   background: var(--glass);
   color: var(--muted);
   cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
+.media-type-options button:hover,
+.media-type-options label:hover {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  color: var(--text);
+}
+
+.media-type-options button:focus-visible,
+.media-type-options label:has(input:focus-visible) {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 68%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.media-type-options button.is-active,
+.media-type-options button[aria-pressed="true"],
 .media-type-options label:has(input:checked) {
   border-color: color-mix(in srgb, var(--accent) 78%, transparent);
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--text);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.media-type-options button.is-active .media-type-symbol,
+.media-type-options button[aria-pressed="true"] .media-type-symbol,
+.media-type-options label:has(input:checked) .media-type-symbol {
+  opacity: 1;
+}
+
+.media-type-options button:not(.is-active):not([aria-pressed="true"]) .media-type-symbol,
+.media-type-options label:not(:has(input:checked)) .media-type-symbol {
+  opacity: 0.82;
 }
 
 .media-type-options input {

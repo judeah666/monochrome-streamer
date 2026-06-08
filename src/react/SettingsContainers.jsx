@@ -8,9 +8,9 @@ function useSettingsSnapshots(store) {
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }
 
-export function SettingsTabsContainer({ store }) {
+export function SettingsTabsContainer({ store, onSelect }) {
   const { tabs } = useSettingsSnapshots(store);
-  return <SettingsTabs {...tabs} />;
+  return <SettingsTabs {...tabs} onSelect={onSelect} />;
 }
 
 export function SettingsPanelContainer({ store }) {

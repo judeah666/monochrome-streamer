@@ -135,8 +135,17 @@ export function bindVolumeControl(bar, {
   });
   bar.addEventListener('wheel', (event) => {
     event.preventDefault();
+    event.stopPropagation();
     const direction = event.deltaY < 0 ? 1 : -1;
     setVolume(getVolume() + (direction * 0.04));
+  }, { passive: false });
+}
+
+export function bindWheelScrollLock(element) {
+  if (!element) return;
+  element.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
   }, { passive: false });
 }
 

@@ -4,13 +4,28 @@ body[data-view='fullscreen'] {
   overflow: hidden;
 }
 
+body[data-view='fullscreen'] .sidebar,
+body[data-view='fullscreen'] .topbar,
+body[data-view='fullscreen'] .now-playing-bar {
+  display: none !important;
+}
+
 .fullscreen-cover-overlay {
   position: fixed;
   inset: 0;
   z-index: 80;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   color: #f7f7f3;
   background: #06080d;
+}
+
+.app-react-shell > .fullscreen-cover-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
 }
 
 .fullscreen-cover-overlay[hidden] {
@@ -102,6 +117,7 @@ body[data-view='fullscreen'] {
 .fullscreen-shell {
   position: relative;
   z-index: 2;
+  min-height: 100vh;
   height: 100%;
   display: grid;
   place-items: center;
@@ -109,6 +125,7 @@ body[data-view='fullscreen'] {
 
 .fullscreen-main-view {
   width: min(1480px, 100%);
+  min-height: 100vh;
   height: 100%;
   display: grid;
   grid-template-columns: minmax(330px, 430px) minmax(480px, 760px);
@@ -473,6 +490,7 @@ body[data-view='fullscreen'] {
 
 @media (max-width: 720px) {
   .fullscreen-cover-overlay {
+    --fullscreen-mobile-lyrics-height: min(46vw, 214px);
     overflow: auto;
   }
 
@@ -491,6 +509,10 @@ body[data-view='fullscreen'] {
     padding: 86px 22px calc(28px + env(safe-area-inset-bottom, 0px));
   }
 
+  .fullscreen-cover-overlay:not(.lyrics-hidden) .fullscreen-main-view {
+    padding-top: calc(94px + env(safe-area-inset-top, 0px) + var(--fullscreen-mobile-lyrics-height) + 16px);
+  }
+
   .fullscreen-media-column {
     width: min(100%, 420px);
     justify-items: center;
@@ -498,7 +520,7 @@ body[data-view='fullscreen'] {
   }
 
   .fullscreen-artwork-card {
-    width: min(82vw, 390px);
+    width: min(70vw, 320px);
   }
 
   .fullscreen-cover-overlay:not(.lyrics-hidden) .fullscreen-media-column {
@@ -512,7 +534,7 @@ body[data-view='fullscreen'] {
     right: 16px;
     bottom: auto;
     z-index: 8;
-    height: min(82vw, 390px);
+    height: var(--fullscreen-mobile-lyrics-height);
     min-width: 0;
     padding: 14px 16px 12px;
     border: 1px solid rgba(255, 255, 255, 0.18);
@@ -532,7 +554,7 @@ body[data-view='fullscreen'] {
   }
 
   .fullscreen-lyrics-content[data-mode='synced'] {
-    padding-block: min(28vw, 132px);
+    padding-block: min(12vw, 56px);
   }
 
   .fullscreen-lyric-line {

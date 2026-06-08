@@ -14,12 +14,31 @@ export function clampAlbumCardSize(value) {
 
 export function persistSettings(settings) {
   localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings));
+  persistThemeCookie(settings);
 }
 
 export function readStoredSettings() {
+  const storedSettings = readStoredObject(STORAGE_KEYS.settings);
+  const hadLegacyZipFolderKey = Boolean(
+    storedSettings
+    && typeof storedSettings === 'object'
+    && !Array.isArray(storedSettings)
+    && Object.prototype.hasOwnProperty.call(storedSettings, 'folderTemplate')
+  );
+  const normalizedSettings = normalizeSettings(storedSettings);
+  persistThemeCookie({
+    ...DEFAULT_SETTINGS,
+    ...normalizedSettings,
+  });
+  if (hadLegacyZipFolderKey) {
+    persistSettings({
+      ...DEFAULT_SETTINGS,
+      ...normalizedSettings,
+    });
+  }
   return {
     ...DEFAULT_SETTINGS,
-    ...normalizeSettings(readStoredObject(STORAGE_KEYS.settings)),
+    ...normalizedSettings,
   };
 }
 
@@ -29,6 +48,7 @@ export function normalizeSettings(settings) {
     : {};
 
   removeLegacySettings(normalized);
+  migrateLegacyDownloadTemplateKeys(normalized);
 
   if (normalized.theme === 'machiatto') {
     normalized.theme = 'macchiato';
@@ -68,5 +88,34 @@ export function normalizeSettings(settings) {
 function removeLegacySettings(settings) {
   for (const key of LEGACY_SETTING_KEYS) {
     delete settings[key];
+  }
+}
+
+function migrateLegacyDownloadTemplateKeys(settings) {
+  if (!settings || typeof settings !== 'object') return;
+  const legacyFolderTemplate = typeof settings.folderTemplate === 'string'
+    ? settings.folderTemplate.trim()
+    : '';
+  const currentZipEntryTemplate = typeof settings.zipEntryFolderTemplate === 'string'
+    ? settings.zipEntryFolderTemplate.trim()
+    : '';
+  if (legacyFolderTemplate && !currentZipEntryTemplate) {
+    settings.zipEntryFolderTemplate = settings.folderTemplate;
+  }
+  delete settings.folderTemplate;
+}
+
+function persistThemeCookie(settings) {
+  if (typeof document === 'undefined') return;
+  try {
+    const themePayload = encodeURIComponent(JSON.stringify({
+      theme: settings?.theme || DEFAULT_SETTINGS.theme,
+      themeBase: settings?.themeBase || settings?.customThemeBase || DEFAULT_SETTINGS.themeBase,
+      customThemeBase: settings?.customThemeBase || settings?.themeBase || DEFAULT_SETTINGS.customThemeBase,
+      customAccent: settings?.customAccent || DEFAULT_SETTINGS.customAccent,
+    }));
+    document.cookie = `${STORAGE_KEYS.themeCookie}=${themePayload}; Path=/; Max-Age=31536000; SameSite=Lax`;
+  } catch (error) {
+    // Ignore cookie sync issues and keep localStorage as the primary source of truth.
   }
 }

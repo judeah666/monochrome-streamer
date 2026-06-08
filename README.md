@@ -71,6 +71,8 @@ APP_DATA_DIR=D:\Monochrome-Streamer\data
 APP_TITLE=Monochrome-Streamer
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=change-this-admin-password
+NOAUTH=false
+DOWNLOADS=true
 PUID=1000
 PGID=1000
 UMASK=022
@@ -151,6 +153,15 @@ ADMIN_PASSWORD=change-this-admin-password
 
 Change the password before exposing the app on your network. The Docker entrypoint refuses unsafe default passwords.
 
+Optional anonymous mode:
+
+```env
+NOAUTH=true
+DOWNLOADS=true
+```
+
+When `NOAUTH=true`, the main app opens without a login wall. Guests can still visit `/login` manually if you want to sign in as admin or as a managed user. `DOWNLOADS` only affects guest access in this mode.
+
 Admin users can:
 
 - add or update users
@@ -199,6 +210,8 @@ Common variables:
 | `APP_TITLE` | Browser/app/sidebar title |
 | `ADMIN_USERNAME` | First admin username |
 | `ADMIN_PASSWORD` | First admin password |
+| `NOAUTH` | `true` lets guests open the app without the login wall |
+| `DOWNLOADS` | Guest download access when `NOAUTH=true` |
 | `PUID` / `PGID` | Linux owner for Docker-created files |
 | `UMASK` | File permission mask |
 | `CHOWN_DATA` | Fix `/data` ownership on startup |

@@ -48,6 +48,8 @@ export const STORAGE_KEYS = {
   favoriteAlbums: 'Monochrome-Streamer-favorite-album-ids',
   settings: 'Monochrome-Streamer-settings',
   playback: 'Monochrome-Streamer-playback-state',
+  downloadSettingsSync: 'Monochrome-Streamer-download-settings-sync',
+  themeCookie: 'Monochrome-Streamer-theme',
 };
 
 export const DEFAULT_SETTINGS = {
@@ -82,7 +84,8 @@ export const DEFAULT_SETTINGS = {
   gaplessPlayback: true,
   downloadQuality: 'original',
   filenameTemplate: '{artist} - {title}',
-  folderTemplate: '{albumArtist}/{year} - {albumTitle}',
+  archiveFilenameTemplate: '{name}',
+  zipEntryFolderTemplate: '{albumArtist}/{year} - {albumTitle}',
   bulkDownloadMethod: 'browser',
   includeCoverFile: false,
   generateM3u: false,

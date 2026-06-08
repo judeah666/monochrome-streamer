@@ -7,6 +7,9 @@ services:
       - "8888:8888"
     env_file:
       - .env
+    environment:
+      NOAUTH: ${NOAUTH:-false}
+      DOWNLOADS: ${DOWNLOADS:-true}
     volumes:
       - ${MUSIC_DIR:-./sample-library}:/music
       - ${APP_DATA_DIR:-./data}:/data

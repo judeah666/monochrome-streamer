@@ -1,10 +1,10 @@
-export const BROWSE_VIEWS = new Set(['home', 'library', 'favorites', 'wishlist', 'settings', 'admin']);
+export const BROWSE_VIEWS = new Set(['home', 'library', 'favorites', 'wishlist', 'settings', 'admin', 'login']);
 
 export function parseRouteFromHash(hashValue, {
   browseView = 'home',
   hasAlbum = () => false,
 } = {}) {
-  const hash = String(hashValue || '').replace(/^#/, '');
+  const hash = String(hashValue || '').replace(/^#\/?/, '');
   const albumMatch = /^album\/(.+)$/u.exec(hash);
   const artistMatch = /^artist\/(.+)$/u.exec(hash);
   const collectionMatch = /^collection\/(.+)$/u.exec(hash);
@@ -12,6 +12,14 @@ export function parseRouteFromHash(hashValue, {
   if (hash === 'fullscreen') {
     return {
       route: { view: 'fullscreen', albumId: null, artistName: null },
+      artistNameToLoad: null,
+      collectionNameToLoad: null,
+    };
+  }
+
+  if (hash === 'login') {
+    return {
+      route: { view: 'login', albumId: null, artistName: null },
       artistNameToLoad: null,
       collectionNameToLoad: null,
     };
@@ -70,7 +78,7 @@ export function getCollectionHash(collectionName) {
 }
 
 export function getFullscreenReturnHash(currentHash) {
-  return currentHash && currentHash !== '#fullscreen' ? currentHash : '';
+  return currentHash && currentHash !== '#fullscreen' && currentHash !== '#/fullscreen' ? currentHash : '';
 }
 
 export function isValidBrowseView(view) {

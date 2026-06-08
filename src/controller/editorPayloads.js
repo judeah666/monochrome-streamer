@@ -6,16 +6,6 @@ export function buildArtistInfoPayload({ imageUrl = '', bio = '', sourceUrl = ''
   };
 }
 
-export function collectTagTrackRows(rows) {
-  return [...rows].map((row) => ({
-    id: row.dataset.trackId,
-    title: row.querySelector('.tag-track-title').value.trim(),
-    artist: row.querySelector('.tag-track-artist').value.trim(),
-    trackNumber: row.querySelector('.tag-track-number').value.trim(),
-    discNumber: row.dataset.discNumber || '1',
-  }));
-}
-
 export function buildTagEditorPayload({
   albumTitle = '',
   albumArtist = '',
@@ -26,10 +16,10 @@ export function buildTagEditorPayload({
   status = 'Collection',
   coverUrl = '',
   musicBrainzId = '',
-  tracks = [],
+  tracks,
 } = {}) {
   const normalizedDate = String(date || '').trim();
-  return {
+  const payload = {
     albumTitle: String(albumTitle || '').trim(),
     albumArtist: String(albumArtist || '').trim(),
     date: normalizedDate,
@@ -40,8 +30,11 @@ export function buildTagEditorPayload({
     status: status || 'Collection',
     coverUrl: String(coverUrl || '').trim(),
     musicBrainzId,
-    tracks,
   };
+  if (Array.isArray(tracks)) {
+    payload.tracks = tracks;
+  }
+  return payload;
 }
 
 export function buildLyricsPayload({ syncedInput = '', plainInput = '', parseSyncedLyrics }) {

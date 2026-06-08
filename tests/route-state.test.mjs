@@ -16,6 +16,12 @@ test('parseRouteFromHash returns fullscreen route', () => {
     artistNameToLoad: null,
     collectionNameToLoad: null,
   });
+
+  assert.deepEqual(parseRouteFromHash('#/fullscreen'), {
+    route: { view: 'fullscreen', albumId: null, artistName: null },
+    artistNameToLoad: null,
+    collectionNameToLoad: null,
+  });
 });
 
 test('parseRouteFromHash returns album route only when album exists', () => {
@@ -44,10 +50,22 @@ test('parseRouteFromHash returns artist route and load hint', () => {
     artistNameToLoad: 'Utada Hikaru',
     collectionNameToLoad: null,
   });
+
+  assert.deepEqual(parseRouteFromHash('#/artist/Utada%20Hikaru'), {
+    route: { view: 'artist', albumId: null, artistName: 'Utada Hikaru' },
+    artistNameToLoad: 'Utada Hikaru',
+    collectionNameToLoad: null,
+  });
 });
 
 test('parseRouteFromHash returns collection route and load hint', () => {
   assert.deepEqual(parseRouteFromHash('#collection/80s%20Albums'), {
+    route: { view: 'collection', albumId: null, artistName: null, collectionName: '80s Albums' },
+    artistNameToLoad: null,
+    collectionNameToLoad: '80s Albums',
+  });
+
+  assert.deepEqual(parseRouteFromHash('#/collection/80s%20Albums'), {
     route: { view: 'collection', albumId: null, artistName: null, collectionName: '80s Albums' },
     artistNameToLoad: null,
     collectionNameToLoad: '80s Albums',
@@ -64,6 +82,7 @@ test('route helpers encode hashes and browse routes', () => {
 test('fullscreen return hash ignores already fullscreen hash', () => {
   assert.equal(getFullscreenReturnHash('#album/1'), '#album/1');
   assert.equal(getFullscreenReturnHash('#fullscreen'), '');
+  assert.equal(getFullscreenReturnHash('#/fullscreen'), '');
   assert.equal(getFullscreenReturnHash(''), '');
 });
 

@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function SettingsTabs({ tabs = [], activeTab = 'appearance' }) {
+export function SettingsTabs({ tabs = [], activeTab = 'appearance', onSelect }) {
   return (
     <>
       {tabs.map(([id, label]) => {
@@ -17,6 +17,7 @@ export function SettingsTabs({ tabs = [], activeTab = 'appearance' }) {
             role="tab"
             aria-selected={active}
             data-settings-tab={id}
+            onClick={() => onSelect?.(id)}
           >
             {label}
             <span

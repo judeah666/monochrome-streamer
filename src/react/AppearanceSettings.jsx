@@ -1,5 +1,5 @@
 import React from 'react';
-import { CoverPlaceholder, FontAwesomeIcon, MediaTypeIcons } from './VisualBits.jsx';
+import { CoverPlaceholder, MediaTypeIcons } from './VisualBits.jsx';
 
 const settingsGroupClassName = [
   'settings-group tw-grid tw-grid-cols-[minmax(180px,0.35fr)_minmax(0,1fr)] tw-gap-[22px]',
@@ -212,14 +212,6 @@ function AlbumCardSizePreview({ preview }) {
           <span className="album-card-placeholder-host">
             <CoverPlaceholder />
           </span>
-          <button
-            type="button"
-            className="album-card-play album-card-play-button"
-            tabIndex={-1}
-            aria-label="Preview play button"
-          >
-            <FontAwesomeIcon name="play" />
-          </button>
         </div>
         <div className="meta album-card-meta">
           <h4 className="album-card-title">{preview.title || 'Sampler Album'}</h4>

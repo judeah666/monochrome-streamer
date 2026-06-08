@@ -122,9 +122,13 @@ export function Sidebar({
 
 function AccountBlock({ user }) {
   const username = user?.username || 'Guest';
-  const role = user?.role === 'admin' ? 'Admin' : 'User';
+  const role = user?.role === 'admin' ? 'Admin' : (user?.role === 'guest' ? 'Guest' : 'User');
   const downloadLabel = user?.canDownload === false ? 'Downloads off' : 'Downloads on';
   const accountTitle = `${username} • ${role} • ${downloadLabel}`;
+  const authDisabled = user?.authDisabled === true;
+  const actionHref = authDisabled ? '/login' : '/logout';
+  const actionLabel = authDisabled ? 'Login' : 'Logout';
+  const actionIcon = authDisabled ? 'fa-arrow-right-to-bracket' : 'fa-arrow-right-from-bracket';
 
   return (
     <div className={accountClassName} title={accountTitle}>
@@ -135,8 +139,8 @@ function AccountBlock({ user }) {
         <strong>{username}</strong>
       </div>
       <div className={accountActionsClassName}>
-        <a className={accountActionClassName} href="/logout" title="Logout" aria-label="Logout">
-          <i className="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
+        <a className={accountActionClassName} href={actionHref} title={actionLabel} aria-label={actionLabel}>
+          <i className={`fa-solid ${actionIcon}`} aria-hidden="true"></i>
         </a>
       </div>
     </div>

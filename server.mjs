@@ -34,6 +34,14 @@ import {
   writeLibraryDatabase,
   writeLyricsOverridesDatabase,
 } from './lib/library-db.mjs';
+import {
+  DEFAULT_SETTINGS,
+  PALETTE_THEMES,
+  STORAGE_KEYS,
+  THEME_PRESETS,
+} from './src/controller/constants.js';
+import { normalizeSettings } from './src/controller/settingsStore.js';
+import { getThemeBase, resolveThemePreset } from './src/controller/themeResolver.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,6 +66,8 @@ const defaultConfig = {
   scanMetadata: 'tags',
   scanDurations: false,
   autoScanOnStart: false,
+  noAuth: false,
+  anonymousDownloadsEnabled: true,
   adminUsername: 'admin',
   adminPassword: 'admin',
   widgetApiKey: '',
@@ -156,24 +166,28 @@ const server = http.createServer(async (request, response) => {
       });
     }
 
+    if (url.pathname === '/api/public/bootstrap') {
+      if (request.method !== 'GET') {
+        return respondJson(response, 405, { error: 'Method Not Allowed' });
+      }
+      return respondJson(response, 200, await getPublicBootstrapPayload());
+    }
+
+    const isPublicLoginShellRequest = isLoginShellRequest(url);
     const authUser = await getAuthenticatedUser(request);
 
     if (url.pathname === '/login' || url.pathname === '/login/') {
       if (request.method === 'POST') {
         return handleLogin(request, response, url);
       }
-      return respondHtml(response, 200, renderLoginPage({
-        next: url.searchParams.get('next') || '/',
-        title: config.title,
-        currentUser: authUser,
-      }));
+      return serveStaticAsset('/', response);
     }
 
     if (url.pathname === '/logout' || url.pathname === '/logout/') {
       const token = getSessionToken(request);
       if (token) sessions.delete(token);
       response.writeHead(303, {
-        Location: '/login',
+        Location: config.noAuth ? '/' : getLoginAppRedirectPath('/'),
         'Set-Cookie': createSessionCookie('', { maxAge: 0 }),
         'Cache-Control': 'no-store',
       });
@@ -181,7 +195,7 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
-    if (!authUser) {
+    if (!authUser && !isPublicLoginShellRequest) {
       return requireLogin(request, response, url);
     }
 
@@ -561,6 +575,8 @@ async function loadConfig() {
     scanMetadata: normalizeScanMetadata(process.env.SCAN_METADATA || fileConfig.scanMetadata || defaultConfig.scanMetadata),
     scanDurations: parseBoolean(process.env.SCAN_DURATIONS ?? fileConfig.scanDurations ?? defaultConfig.scanDurations),
     autoScanOnStart: parseBoolean(process.env.AUTO_SCAN_ON_START ?? fileConfig.autoScanOnStart ?? defaultConfig.autoScanOnStart),
+    noAuth: parseBoolean(process.env.NOAUTH ?? fileConfig.noAuth ?? defaultConfig.noAuth),
+    anonymousDownloadsEnabled: parseBoolean(process.env.DOWNLOADS ?? fileConfig.anonymousDownloadsEnabled ?? defaultConfig.anonymousDownloadsEnabled),
     adminUsername: process.env.ADMIN_USERNAME || fileConfig.adminUsername || defaultConfig.adminUsername,
     adminPassword: process.env.ADMIN_PASSWORD || fileConfig.adminPassword || defaultConfig.adminPassword,
     widgetApiKey: process.env.WIDGET_API_KEY || fileConfig.widgetApiKey || defaultConfig.widgetApiKey,
@@ -570,7 +586,16 @@ async function loadConfig() {
   };
 }
 
-async function getAuthenticatedUser(request) {
+function createGuestUser() {
+  return {
+    username: 'Guest',
+    role: 'guest',
+    downloadsEnabled: config.anonymousDownloadsEnabled,
+    authDisabled: true,
+  };
+}
+
+async function getSessionUser(request) {
   const token = getSessionToken(request);
   if (!token) return null;
 
@@ -603,22 +628,25 @@ async function getAuthenticatedUser(request) {
   };
 }
 
+async function getAuthenticatedUser(request) {
+  const sessionUser = await getSessionUser(request);
+  if (sessionUser) return sessionUser;
+  if (config.noAuth) return createGuestUser();
+  return null;
+}
+
 async function handleLogin(request, response, url) {
   const body = await readRequestPayload(request, 64 * 1024);
   const username = cleanText(body.username);
   const password = String(body.password || '');
   const user = await authenticateUser(username, password);
+  const next = cleanRedirectPath(body.next || url.searchParams.get('next') || '/');
 
   if (!user) {
-    return respondHtml(response, 401, renderLoginPage({
-      next: cleanRedirectPath(body.next || url.searchParams.get('next') || '/'),
-      title: config.title,
-      error: 'Invalid username or password.',
-    }));
+    return redirect(response, getLoginAppRedirectPath(next, { error: 'invalid' }), 303);
   }
 
   const token = createSession(user);
-  const next = cleanRedirectPath(body.next || url.searchParams.get('next') || '/');
   response.writeHead(303, {
     Location: next,
     'Set-Cookie': createSessionCookie(token),
@@ -662,6 +690,7 @@ function createPublicUser(user) {
     username: user.username,
     role: user.role,
     canDownload: canUserDownload(user),
+    authDisabled: user.authDisabled === true,
   };
 }
 
@@ -670,6 +699,7 @@ function isAdminUser(user) {
 }
 
 function canUserDownload(user) {
+  if (user?.role === 'guest') return config.anonymousDownloadsEnabled;
   return isAdminUser(user) || user?.downloadsEnabled !== false;
 }
 
@@ -801,10 +831,14 @@ async function readAuthStore() {
 
   try {
     const raw = JSON.parse(await fs.readFile(authUsersPath, 'utf8'));
+    const legacyDownloadSettingsMigrated = migrateLegacyDownloadSettingsObject(raw.downloadSettings);
     authStoreCache = {
       users: Array.isArray(raw.users) ? raw.users : [],
       downloadSettings: normalizeDownloadSettings(raw.downloadSettings),
     };
+    if (legacyDownloadSettingsMigrated) {
+      await fs.writeFile(authUsersPath, `${JSON.stringify(authStoreCache, null, 2)}\n`, 'utf8');
+    }
     return authStoreCache;
   } catch (error) {
     console.warn(`Unable to read ${authUsersPath}:`, error instanceof Error ? error.message : error);
@@ -828,7 +862,8 @@ function getDefaultDownloadSettings() {
     downloadQuality: 'original',
     bulkDownloadMethod: 'browser',
     filenameTemplate: '{artist} - {title}',
-    folderTemplate: '{albumArtist}/{year} - {albumTitle}',
+    archiveFilenameTemplate: '{name}',
+    zipEntryFolderTemplate: '{albumArtist}/{year} - {albumTitle}',
   };
 }
 
@@ -836,13 +871,30 @@ function normalizeDownloadSettings(settings = {}) {
   const defaults = getDefaultDownloadSettings();
   const downloadQuality = String(settings.downloadQuality || defaults.downloadQuality) === 'mp3' ? 'mp3' : 'original';
   const bulkDownloadMethod = String(settings.bulkDownloadMethod || defaults.bulkDownloadMethod) === 'zip' ? 'zip' : 'browser';
-  return {
-    ...defaults,
-    downloadQuality,
-    bulkDownloadMethod,
-    filenameTemplate: cleanText(settings.filenameTemplate) || defaults.filenameTemplate,
-    folderTemplate: cleanText(settings.folderTemplate) || defaults.folderTemplate,
-  };
+    return {
+      ...defaults,
+      downloadQuality,
+      bulkDownloadMethod,
+      filenameTemplate: cleanText(settings.filenameTemplate) || defaults.filenameTemplate,
+      archiveFilenameTemplate: cleanText(settings.archiveFilenameTemplate) || defaults.archiveFilenameTemplate,
+      zipEntryFolderTemplate: cleanText(settings.zipEntryFolderTemplate) || defaults.zipEntryFolderTemplate,
+    };
+  }
+
+function migrateLegacyDownloadSettingsObject(settings = {}) {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return false;
+  const legacyFolderTemplate = cleanText(settings.folderTemplate);
+  const currentZipEntryFolderTemplate = cleanText(settings.zipEntryFolderTemplate);
+  let changed = false;
+  if (legacyFolderTemplate && !currentZipEntryFolderTemplate) {
+    settings.zipEntryFolderTemplate = legacyFolderTemplate;
+    changed = true;
+  }
+  if (Object.prototype.hasOwnProperty.call(settings, 'folderTemplate')) {
+    delete settings.folderTemplate;
+    changed = true;
+  }
+  return changed;
 }
 
 function hashPassword(password) {
@@ -911,7 +963,25 @@ function requireLogin(request, response, url) {
   if (url.pathname.startsWith('/api/')) {
     return respondJson(response, 401, { error: 'Login required.' });
   }
-  return redirect(response, `/login?next=${encodeURIComponent(`${url.pathname}${url.search}` || '/')}`);
+  return redirect(response, getLoginAppRedirectPath(`${url.pathname}${url.search}` || '/'));
+}
+
+function isLoginShellRequest(url) {
+  return url.pathname === '/login'
+    || url.pathname === '/login/'
+    || (
+      (url.pathname === '/' || url.pathname === '/index.html')
+      && url.searchParams.get('login') === '1'
+    );
+}
+
+function getLoginAppRedirectPath(next = '/', extraParams = {}) {
+  const params = new URLSearchParams({ next: cleanRedirectPath(next) });
+  for (const [key, value] of Object.entries(extraParams || {})) {
+    if (value == null || value === '') continue;
+    params.set(key, String(value));
+  }
+  return `/login?${params.toString()}`;
 }
 
 async function getCurrentLibrary() {
@@ -1466,6 +1536,34 @@ async function createLibraryPayload(library) {
   };
 }
 
+async function getPublicBootstrapPayload() {
+  const randomLibrary = await readRandomAlbumPage(libraryDatabasePath, {
+    limit: 32,
+    offset: 0,
+  });
+  primeTrackMap(randomLibrary.tracks);
+  const payload = await createLibraryPayload(randomLibrary);
+  const coverAlbums = (payload.albums || []).filter((album) => album.coverUrl);
+  const ambientAlbums = coverAlbums
+    .map((album) => ({ album, sort: Math.random() }))
+    .sort((left, right) => left.sort - right.sort)
+    .slice(0, 6)
+    .map(({ album }) => album);
+  const ambientAlbum = ambientAlbums[0] || null;
+
+  return {
+    title: config.title,
+    ambientCoverUrl: ambientAlbum?.coverUrl || '',
+    ambientTitle: ambientAlbum?.title || '',
+    ambientArtist: ambientAlbum?.albumArtist || ambientAlbum?.artist || '',
+    ambientCovers: ambientAlbums.map((album) => ({
+      coverUrl: album.coverUrl || '',
+      title: album.title || '',
+      artist: album.albumArtist || album.artist || '',
+    })),
+  };
+}
+
 async function getWishlistAlbumIds() {
   const { scannedAlbumIds } = await getWishlistAlbumSources();
   return scannedAlbumIds;
@@ -1489,6 +1587,7 @@ async function getWishlistAlbumSources() {
 function createManualAlbumFromOverride(albumId, override = {}) {
   const albumTitle = cleanText(override.albumTitle || override.title) || 'Untitled Album';
   const albumArtist = cleanText(override.albumArtist || override.artist) || 'Unknown Artist';
+  const manualTracks = getManualAlbumTracksFromOverride(albumId, override, { albumTitle, albumArtist });
   return {
     id: albumId,
     manual: true,
@@ -1506,7 +1605,7 @@ function createManualAlbumFromOverride(albumId, override = {}) {
     coverUrl: cleanText(override.coverUrl) || null,
     customCoverUrl: cleanText(override.coverUrl) || null,
     scannedCoverUrl: null,
-    trackIds: [],
+    trackIds: manualTracks.map((track) => track.id),
     coverTrackId: null,
   };
 }
@@ -2169,21 +2268,27 @@ async function updateAlbumTagOverride(albumId, request) {
     throw new HttpError(400, 'Cover URL must be an http, https, or local / path.');
   }
 
-  const allowedTrackIds = new Set(album.trackIds);
-  const trackOverrides = {};
-  for (const track of Array.isArray(payload.tracks) ? payload.tracks : []) {
-    const trackId = cleanText(track.id);
-    if (!allowedTrackIds.has(trackId)) continue;
+  let trackOverrides = existingManualOverride?.tracks && typeof existingManualOverride.tracks === 'object'
+    ? { ...existingManualOverride.tracks }
+    : {};
+  if (Array.isArray(payload.tracks)) {
+    const allowedTrackIds = new Set(album.trackIds);
+    trackOverrides = {};
+    for (const track of payload.tracks) {
+      const trackId = cleanText(track.id);
+      if (!album.manual && !allowedTrackIds.has(trackId)) continue;
+      if (album.manual && !trackId) continue;
 
-    const override = {
-      title: cleanText(track.title),
-      artist: cleanText(track.artist),
-      trackNumber: normalizePositiveInteger(track.trackNumber),
-      discNumber: normalizePositiveInteger(track.discNumber),
-    };
+      const override = {
+        title: cleanText(track.title),
+        artist: cleanText(track.artist),
+        trackNumber: normalizePositiveInteger(track.trackNumber),
+        discNumber: normalizePositiveInteger(track.discNumber),
+      };
 
-    if (hasTrackOverrideContent(override)) {
-      trackOverrides[trackId] = override;
+      if (hasTrackOverrideContent(override)) {
+        trackOverrides[trackId] = override;
+      }
     }
   }
 
@@ -2248,7 +2353,7 @@ async function createManualAlbum(request) {
     status: normalizeAlbumStatus(payload.status || 'Wishlist'),
     coverUrl,
     musicBrainzId: cleanText(payload.musicBrainzId),
-    tracks: {},
+    tracks: normalizeManualTrackOverrides(payload.tracks, albumId, cleanText(payload.albumArtist)),
     updatedAt: new Date().toISOString(),
   };
   await writeAlbumOverrides(overrides);
@@ -2261,12 +2366,20 @@ async function createManualAlbum(request) {
 
 async function createManualWishlistLibrary() {
   const { manualAlbums } = await getWishlistAlbumSources();
+  const overrides = await getAlbumOverrides();
+  const tracks = manualAlbums.flatMap((album) =>
+    getManualAlbumTracksFromOverride(album.id, overrides.albums?.[album.id], {
+      albumTitle: album.title,
+      albumArtist: album.albumArtist || album.artist,
+      coverUrl: album.coverUrl || '',
+    }),
+  );
   return {
     generatedAt: null,
-    trackCount: 0,
+    trackCount: tracks.length,
     albumCount: manualAlbums.length,
     albums: manualAlbums,
-    tracks: [],
+    tracks,
     page: {
       limit: manualAlbums.length || 1,
       offset: 0,
@@ -2275,6 +2388,48 @@ async function createManualWishlistLibrary() {
       hasPrevious: false,
     },
   };
+}
+
+function normalizeManualTrackOverrides(tracks, albumId, fallbackArtist = '') {
+  if (!Array.isArray(tracks)) return {};
+  const normalized = {};
+  tracks.forEach((track, index) => {
+    const trackId = cleanText(track.id) || `${albumId}-track-${index + 1}`;
+    const override = {
+      title: cleanText(track.title),
+      artist: cleanText(track.artist) || fallbackArtist,
+      trackNumber: normalizePositiveInteger(track.trackNumber) || index + 1,
+      discNumber: normalizePositiveInteger(track.discNumber) || 1,
+    };
+    if (hasTrackOverrideContent(override)) {
+      normalized[trackId] = override;
+    }
+  });
+  return normalized;
+}
+
+function getManualAlbumTracksFromOverride(albumId, override = {}, { albumTitle = '', albumArtist = '', coverUrl = '' } = {}) {
+  const entries = Object.entries(override?.tracks || {});
+  return entries
+    .map(([trackId, trackOverride], index) => ({
+      id: trackId,
+      manual: true,
+      albumId,
+      title: cleanText(trackOverride?.title) || `Track ${index + 1}`,
+      artist: cleanText(trackOverride?.artist) || albumArtist || 'Unknown Artist',
+      albumArtist: albumArtist || 'Unknown Artist',
+      album: albumTitle || 'Untitled Album',
+      trackNumber: normalizePositiveInteger(trackOverride?.trackNumber) || index + 1,
+      discNumber: normalizePositiveInteger(trackOverride?.discNumber) || 1,
+      relativePath: '',
+      coverUrl: cleanText(coverUrl) || null,
+      duration: 0,
+      audioQuality: null,
+    }))
+    .sort((left, right) =>
+      NATURAL_SORTER.compare(String(left.discNumber || 1), String(right.discNumber || 1))
+      || NATURAL_SORTER.compare(String(left.trackNumber || 0), String(right.trackNumber || 0))
+      || NATURAL_SORTER.compare(cleanText(left.title), cleanText(right.title)));
 }
 
 async function getTrackLyrics(trackId) {
@@ -3164,24 +3319,50 @@ function serveStaticAsset(requestPath, response) {
     }));
 }
 
-function renderLoginPage({ next = '/', title = 'Monochrome-Streamer', error = '', currentUser = null } = {}) {
+function renderLoginPage({ next = '/', title = 'Monochrome-Streamer', error = '', currentUser = null, noAuth = false, themeSettings = DEFAULT_SETTINGS } = {}) {
+  const loginTheme = resolveLoginTheme(themeSettings);
+  const loginThemeScript = renderLoginThemeScript();
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Login | ${escapeHtml(title)}</title>
+  <script>${loginThemeScript}</script>
   <style>
-    :root { color-scheme: dark; --accent: #eb9200; --bg: #060606; --panel: rgba(18,18,18,.86); --line: rgba(255,255,255,.14); --text: #f6f3ed; --muted: rgba(246,243,237,.68); }
+    :root {
+      color-scheme: ${escapeHtml(loginTheme.colorScheme)};
+      --accent: ${escapeHtml(loginTheme.accent)};
+      --accent-contrast: ${escapeHtml(loginTheme.accentContrast)};
+      --bg: ${escapeHtml(loginTheme.background)};
+      --panel: ${escapeHtml(loginTheme.surface)};
+      --line: ${escapeHtml(loginTheme.line)};
+      --text: ${escapeHtml(loginTheme.text)};
+      --muted: ${escapeHtml(loginTheme.muted)};
+      --body-top: ${escapeHtml(loginTheme.bodyTop)};
+      --body-mid: ${escapeHtml(loginTheme.bodyMid)};
+      --body-bottom: ${escapeHtml(loginTheme.bodyBottom)};
+    }
     * { box-sizing: border-box; }
-    body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif; background: radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 36%), var(--bg); color: var(--text); }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 36%),
+        linear-gradient(180deg, var(--body-top), var(--body-mid) 48%, var(--body-bottom));
+      color: var(--text);
+    }
     main { width: min(420px, 100%); border: 1px solid var(--line); border-radius: 30px; padding: 30px; background: linear-gradient(145deg, rgba(255,255,255,.08), transparent), var(--panel); box-shadow: 0 28px 90px rgba(0,0,0,.45); backdrop-filter: blur(22px); }
     p { color: var(--muted); line-height: 1.5; }
     h1 { margin: 0; font-size: clamp(2rem, 6vw, 3.1rem); line-height: .95; letter-spacing: -.06em; }
     label { display: grid; gap: 8px; margin-top: 18px; color: var(--muted); font-weight: 800; font-size: .82rem; text-transform: uppercase; letter-spacing: .14em; }
     input { width: 100%; border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; background: rgba(255,255,255,.08); color: var(--text); font: inherit; outline: none; }
     input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
-    button { width: 100%; margin-top: 22px; border: 0; border-radius: 999px; padding: 15px 18px; background: var(--accent); color: #111; font: inherit; font-weight: 950; cursor: pointer; }
+    button { width: 100%; margin-top: 22px; border: 0; border-radius: 999px; padding: 15px 18px; background: var(--accent); color: var(--accent-contrast); font: inherit; font-weight: 950; cursor: pointer; }
     .error { margin: 16px 0 0; padding: 12px 14px; border-radius: 16px; background: rgba(255,80,80,.16); color: #ffd7d7; }
     .session { margin: 16px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.06); }
     .session a { color: var(--accent); font-weight: 900; }
@@ -3191,6 +3372,7 @@ function renderLoginPage({ next = '/', title = 'Monochrome-Streamer', error = ''
   <main>
     <h1>${escapeHtml(title)}</h1>
     <p>Sign in to open your local streamer.</p>
+    ${noAuth ? '<p class="session">Anonymous browsing is enabled. Sign in here only if you need a user or admin session.</p>' : ''}
     ${error ? `<p class="error">${escapeHtml(error)}</p>` : ''}
     ${currentUser ? `<p class="session">Currently signed in as <strong>${escapeHtml(currentUser.username)}</strong>. Use this form to switch accounts, or <a href="/logout">logout</a>.</p>` : ''}
     <form method="post" action="/login">
@@ -3202,6 +3384,226 @@ function renderLoginPage({ next = '/', title = 'Monochrome-Streamer', error = ''
   </main>
 </body>
 </html>`;
+}
+
+function renderLoginThemeScript() {
+  const payload = JSON.stringify({
+    defaultSettings: DEFAULT_SETTINGS,
+    paletteThemes: PALETTE_THEMES,
+    themePresets: THEME_PRESETS,
+    settingsStorageKey: STORAGE_KEYS.settings,
+  });
+  return `
+(() => {
+  const themePayload = ${payload};
+
+  function parseSettings() {
+    try {
+      const raw = window.localStorage.getItem(themePayload.settingsStorageKey);
+      if (!raw) return { ...themePayload.defaultSettings };
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return { ...themePayload.defaultSettings };
+      }
+      return { ...themePayload.defaultSettings, ...parsed };
+    } catch (error) {
+      return { ...themePayload.defaultSettings };
+    }
+  }
+
+  function parseHex(hexColor) {
+    const normalized = String(hexColor || '').trim().replace('#', '');
+    const expanded = /^[0-9a-f]{3}$/iu.test(normalized)
+      ? normalized.split('').map((char) => char + char).join('')
+      : normalized;
+    if (!/^[0-9a-f]{6}$/iu.test(expanded)) {
+      return { red: 17, green: 17, blue: 17 };
+    }
+    return {
+      red: Number.parseInt(expanded.slice(0, 2), 16),
+      green: Number.parseInt(expanded.slice(2, 4), 16),
+      blue: Number.parseInt(expanded.slice(4, 6), 16),
+    };
+  }
+
+  function toHex(color) {
+    return '#' + [color.red, color.green, color.blue].map((value) => value.toString(16).padStart(2, '0')).join('');
+  }
+
+  function mix(baseColor, overlayColor, amount) {
+    const base = parseHex(baseColor);
+    const overlay = parseHex(overlayColor);
+    const clamped = Math.max(0, Math.min(1, amount));
+    return toHex({
+      red: Math.round(base.red * (1 - clamped) + overlay.red * clamped),
+      green: Math.round(base.green * (1 - clamped) + overlay.green * clamped),
+      blue: Math.round(base.blue * (1 - clamped) + overlay.blue * clamped),
+    });
+  }
+
+  function rgba(hexColor, alpha) {
+    const color = parseHex(hexColor);
+    return 'rgba(' + color.red + ', ' + color.green + ', ' + color.blue + ', ' + alpha + ')';
+  }
+
+  function getReadableTextColor(hexColor) {
+    const { red, green, blue } = parseHex(hexColor);
+    const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+    return luminance > 0.58 ? '#111111' : '#ffffff';
+  }
+
+  function createPairedTheme(palette, base) {
+    const light = palette.light;
+    const dark = palette.dark;
+    if (base === 'light') {
+      return {
+        background: light,
+        surface: rgba(mix(light, '#ffffff', 0.42), 0.82),
+        surface2: rgba(mix(light, '#ffffff', 0.22), 0.96),
+        text: dark,
+        muted: rgba(dark, 0.68),
+        accent: dark,
+        bodyTop: mix(light, '#ffffff', 0.22),
+        bodyMid: light,
+        bodyBottom: mix(light, dark, 0.14),
+      };
+    }
+    return {
+      background: dark,
+      surface: rgba(mix(dark, '#ffffff', 0.07), 0.84),
+      surface2: rgba(mix(dark, '#ffffff', 0.11), 0.96),
+      text: light,
+      muted: rgba(light, 0.68),
+      accent: light,
+      bodyTop: mix(dark, light, 0.14),
+      bodyMid: dark,
+      bodyBottom: mix(dark, '#000000', 0.45),
+    };
+  }
+
+  function createLightTheme(accent, preferredText, seedBackground) {
+    const background = mix(seedBackground || '#f8f2e7', '#ffffff', 0.7);
+    const surfaceBase = mix(background, '#ffffff', 0.62);
+    const surface2Base = mix(background, '#ffffff', 0.34);
+    const text = getReadableTextColor(background) === '#111111'
+      ? '#17130f'
+      : mix(preferredText || '#17130f', '#111111', 0.82);
+    return {
+      background,
+      surface: rgba(surfaceBase, 0.82),
+      surface2: rgba(surface2Base, 0.96),
+      text,
+      muted: rgba(text, 0.64),
+      accent,
+      bodyTop: mix(background, '#ffffff', 0.3),
+      bodyMid: background,
+      bodyBottom: mix(background, accent, 0.12),
+    };
+  }
+
+  function createDarkTheme(accent, preferredText, seedBackground) {
+    const background = mix(seedBackground || '#090909', '#000000', 0.5);
+    const surfaceBase = mix(background, '#ffffff', 0.06);
+    const surface2Base = mix(background, '#ffffff', 0.1);
+    const text = getReadableTextColor(background) === '#ffffff'
+      ? mix(preferredText || '#f7f7f2', '#ffffff', 0.7)
+      : '#f7f7f2';
+    return {
+      background,
+      surface: rgba(surfaceBase, 0.84),
+      surface2: rgba(surface2Base, 0.96),
+      text,
+      muted: rgba(text, 0.66),
+      accent,
+      bodyTop: mix(background, accent, 0.16),
+      bodyMid: background,
+      bodyBottom: mix(background, '#000000', 0.6),
+    };
+  }
+
+  function getThemeBase(settings) {
+    if (settings.themeBase === 'light' || settings.themeBase === 'dark') {
+      return settings.themeBase;
+    }
+    if (settings.customThemeBase === 'light' || settings.customThemeBase === 'dark') {
+      return settings.customThemeBase;
+    }
+    return settings.theme === 'white' || settings.theme === 'latte' ? 'light' : 'dark';
+  }
+
+  function resolveThemePreset(themeName, settings) {
+    const base = getThemeBase(settings);
+    const palette = themePayload.paletteThemes[themeName];
+    if (palette) {
+      return createPairedTheme(palette, base);
+    }
+    const fallbackThemeName = themeName === 'custom'
+      ? (base === 'light' ? 'latte' : 'black')
+      : themeName;
+    const preset = themePayload.themePresets[fallbackThemeName] || themePayload.themePresets.black;
+    const accent = themeName === 'custom'
+      ? (settings.customAccent || themePayload.defaultSettings.customAccent)
+      : preset.accent;
+    return base === 'light'
+      ? createLightTheme(accent, preset.text, preset.background)
+      : createDarkTheme(accent, preset.text, preset.background);
+  }
+
+  const settings = parseSettings();
+  const theme = resolveThemePreset(settings.theme || themePayload.defaultSettings.theme, settings);
+  const root = document.documentElement;
+  root.style.setProperty('--accent', theme.accent);
+  root.style.setProperty('--accent-contrast', getReadableTextColor(theme.accent));
+  root.style.setProperty('--bg', theme.background);
+  root.style.setProperty('--panel', theme.surface);
+  root.style.setProperty('--line', 'color-mix(in srgb, ' + theme.text + ' 14%, transparent)');
+  root.style.setProperty('--text', theme.text);
+  root.style.setProperty('--muted', theme.muted);
+  root.style.setProperty('--body-top', theme.bodyTop);
+  root.style.setProperty('--body-mid', theme.bodyMid);
+  root.style.setProperty('--body-bottom', theme.bodyBottom);
+  root.style.setProperty('--login-color-scheme', getThemeBase(settings) === 'light' ? 'light' : 'dark');
+  root.dataset.loginTheme = settings.theme || themePayload.defaultSettings.theme;
+  root.dataset.loginThemeBase = getThemeBase(settings);
+})();
+`.trim();
+}
+
+function getThemeSettingsFromRequest(request) {
+  const cookies = parseCookies(request?.headers?.cookie || '');
+  const raw = cookies[STORAGE_KEYS.themeCookie];
+  if (!raw) return { ...DEFAULT_SETTINGS };
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULT_SETTINGS,
+      ...normalizeSettings(parsed),
+    };
+  } catch (error) {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+function resolveLoginTheme(settings = DEFAULT_SETTINGS) {
+  const resolvedSettings = {
+    ...DEFAULT_SETTINGS,
+    ...normalizeSettings(settings),
+  };
+  const theme = resolveThemePreset(resolvedSettings.theme || DEFAULT_SETTINGS.theme, resolvedSettings);
+  const lineAlpha = getThemeBase(resolvedSettings) === 'light' ? 0.18 : 0.14;
+  return {
+    colorScheme: getThemeBase(resolvedSettings) === 'light' ? 'light' : 'dark',
+    accent: theme.accent,
+    accentContrast: getReadableTextColor(theme.accent),
+    background: theme.background,
+    surface: theme.surface,
+    line: rgba(theme.text, lineAlpha),
+    text: theme.text,
+    muted: theme.muted,
+    bodyTop: theme.bodyTop,
+    bodyMid: theme.bodyMid,
+    bodyBottom: theme.bodyBottom,
+  };
 }
 
 function renderMessagePage(title, message) {

@@ -1,13 +1,8 @@
 /* Bottom player and player skins */
 
 .now-playing-bar {
-  position: fixed;
-  left: calc(var(--sidebar-width) + 18px);
-  right: 18px;
-  bottom: 16px;
   z-index: 30;
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(340px, 520px) minmax(360px, 0.9fr);
   gap: 16px;
   align-items: center;
   min-height: var(--player-height);
@@ -17,6 +12,16 @@
   background: var(--glass-heavy);
   box-shadow: var(--shadow);
   backdrop-filter: blur(18px);
+}
+
+body.player-layout-floating .now-playing-bar {
+  position: fixed;
+  left: calc(var(--sidebar-width) + ((100vw - var(--sidebar-width)) / 2));
+  bottom: max(22px, env(safe-area-inset-bottom, 0px));
+  width: min(1440px, calc(100vw - var(--sidebar-width) - 64px));
+  grid-template-columns: minmax(260px, 0.95fr) minmax(360px, 520px) minmax(300px, 0.85fr);
+  border-radius: 24px;
+  transform: translateX(-50%);
 }
 
 .track-info {
@@ -332,7 +337,7 @@ body.player-layout-qobuz .repeat-one-badge {
   min-width: 48px;
 }
 
-body:not(.player-layout-qobuz) .queue-status {
+body.player-layout-floating .queue-status {
   display: none;
 }
 
@@ -430,6 +435,7 @@ body.player-layout-qobuz .page-shell {
 }
 
 body.player-layout-qobuz .now-playing-bar {
+  position: fixed;
   left: 0;
   right: 0;
   bottom: 0;

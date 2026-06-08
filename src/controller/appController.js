@@ -41,6 +41,7 @@ import {
 import { buildPlayerSnapshot } from './playerPresenter.js';
 import { createPlayerStore } from './playerStore.js';
 import {
+  bindWheelScrollLock,
   bindSeekControl as bindPlayerSeekControl,
   bindVolumeControl as bindPlayerVolumeControl,
   getMutedVolumeState,
@@ -80,7 +81,6 @@ import {
   buildArtistInfoPayload,
   buildLyricsPayload,
   buildTagEditorPayload,
-  collectTagTrackRows,
 } from './editorPayloads.js';
 import {
   hasReactRenderer,
@@ -143,35 +143,16 @@ import {
 } from './editorViewPresenter.js';
 
 const {
-  appTitle,
   appSidebar,
-  albumCount,
-  trackCount,
-  libraryStatus,
-  searchInput,
-  clearSearchButton,
-  backButton,
-  navHome,
-  navLibrary,
-  navFavorites,
-  navWishlist,
-  navSettings,
-  sidebarToggleButton,
-  mobileSidebarButton,
+  topbarRoot,
   sidebarOverlay,
+  loginView,
+  loginViewRoot,
   homeView,
-  homeHero,
-  homeHeroEyebrow,
-  homeHeroTitle,
-  homeHeroSubtitle,
+  homeIntroRoot,
   libraryView,
-  libraryBrowserCaption,
-  libraryTabFolders,
-  libraryTabAlbums,
-  libraryTabCollections,
-  libraryTabArtists,
-  libraryTabTracks,
-  libraryTabPlaylists,
+  libraryIntroRoot,
+  libraryTabsRoot,
   libraryPanelFolders,
   libraryPanelAlbums,
   libraryPanelCollections,
@@ -186,18 +167,18 @@ const {
   artistView,
   albumView,
   albumGrid,
-  homeAlbumCaption,
-  favoriteAlbumCaption,
-  favoriteTrackCaption,
+  favoriteAlbumsIntroRoot,
+  favoriteTracksIntroRoot,
   favoriteAlbumGrid,
   favoriteTrackList,
-  wishlistAlbumCaption,
-  wishlistAddAlbumButton,
+  wishlistIntroRoot,
   wishlistAlbumGrid,
+  settingsIntroRoot,
   settingsTabs,
   settingsPanels,
   settingsReactPanelHost,
-  settingsStatus,
+  settingsStatusRoot,
+  adminIntroRoot,
   appFavicon,
   audioPlayer,
   nowPlayingBar,
@@ -251,56 +232,11 @@ const {
   queueList,
   tagEditorOverlay,
   tagEditorModal,
-  tagEditorTitle,
-  tagEditorCaption,
-  tagEditorCloseButton,
-  tagEditorCancelButton,
-  tagEditorSaveButton,
-  tagEditorResetButton,
-  tagEditorBodyRoot,
   artistEditorOverlay,
   artistEditorModal,
-  artistEditorTitle,
-  artistEditorCloseButton,
-  artistEditorCancelButton,
-  artistEditorSaveButton,
-  artistEditorResetButton,
-  artistEditorBodyRoot,
   lyricsEditorOverlay,
   lyricsEditorModal,
-  lyricsEditorTitle,
-  lyricsEditorCaption,
-  lyricsEditorCloseButton,
-  lyricsEditorCancelButton,
-  lyricsEditorSaveButton,
-  lyricsEditorResetButton,
-  lyricsEditorBodyRoot,
 } = getDomRefs();
-let tagAlbumTitleInput = null;
-let tagAlbumArtistInput = null;
-let tagAlbumDateInput = null;
-let tagAlbumGenreInput = null;
-let tagAlbumCollectionNameInput = null;
-let tagAlbumMediaTypesInput = null;
-let tagAlbumStatusInput = null;
-let tagAlbumCoverUrlInput = null;
-let tagEditorCoverPreview = null;
-let tagEditorCoverFallback = null;
-let tagScraperQueryInput = null;
-let tagScraperSearchButton = null;
-let tagScraperStatus = null;
-let tagScraperResults = null;
-let tagTrackList = null;
-let artistImageUrlInput = null;
-let artistBioInput = null;
-let artistSourceUrlInput = null;
-let lyricsSyncedInput = null;
-let lyricsPlainInput = null;
-let lyricsScraperQueryInput = null;
-let lyricsScraperSearchButton = null;
-let lyricsScraperStatus = null;
-let lyricsScraperResults = null;
-
 
 const state = createInitialState();
 let queuePanelStore = null;
@@ -326,13 +262,69 @@ let playerReserveResizeObserver = null;
 let playerReserveFrame = 0;
 let measuredPlayerReserve = '';
 
+const LIBRARY_TAB_REGISTRY = [
+  ['folders', 'Folders', libraryPanelFolders],
+  ['albums', 'Albums', libraryPanelAlbums],
+  ['collections', 'Collections', libraryPanelCollections],
+  ['artists', 'Artists', libraryPanelArtists],
+  ['tracks', 'Tracks', libraryPanelTracks],
+  ['playlists', 'Playlists', libraryPanelPlaylists],
+];
+
+const PRIMARY_VIEW_REGISTRY = {
+  login: loginView,
+  home: homeView,
+  library: libraryView,
+  favorites: favoritesView,
+  wishlist: wishlistView,
+  settings: settingsView,
+  admin: adminView,
+};
+
+const SECONDARY_VIEW_VISIBILITY_REGISTRY = [
+  { element: artistView, isVisible: (viewContext) => viewContext.isArtistView || viewContext.isCollectionView },
+  { element: albumView, isVisible: (viewContext) => viewContext.isAlbumView },
+  { element: fullscreenOverlay, isVisible: (viewContext) => viewContext.isFullscreenView },
+];
+
+const ROUTE_VIEW_RENDERERS = {
+  login: () => renderLoginView(),
+  album: ({ currentAlbum }) => renderAlbumDetail(currentAlbum),
+  artist: ({ currentArtist }) => renderArtistDetail(currentArtist),
+  collection: ({ currentCollectionName }) => renderCollectionDetail(currentCollectionName),
+  library: ({ filteredTracks, filteredAlbums }) => renderLibraryView(filteredTracks, filteredAlbums),
+  favorites: ({ filteredTracks }) => renderFavoritesView(filteredTracks),
+  wishlist: () => renderWishlistView(),
+  settings: () => renderSettingsView(),
+  admin: () => renderAdminView(),
+  fullscreen: () => renderFullscreenView(),
+  home: ({ homeAlbums }) => renderAlbumCollection(albumGrid, homeAlbums, 'No albums matched this search.', { pageable: true }),
+};
+
 init().catch((error) => {
   console.error(error);
-  libraryStatus.textContent = error.message || 'Failed to load library.';
+  state.libraryFolders = {
+    ...(state.libraryFolders || {}),
+    scan: { status: 'error', percent: 0 },
+  };
+  renderSidebar();
 });
 
 async function init() {
   state.settings = readStoredSettings();
+  window.addEventListener('monochrome:download-settings-updated', handleDownloadSettingsUpdated);
+  window.addEventListener('storage', handleStorageSync);
+
+  const initialRouteResult = resolveRouteFromLocation({
+    browseView: state.browseView,
+    hasAlbum: () => false,
+  });
+  const shouldBootstrapLoginRoute = initialRouteResult.route.view === 'login';
+
+  if (shouldBootstrapLoginRoute) {
+    await initLoginRoute(initialRouteResult.route);
+    return;
+  }
 
   const [config, libraryFolders] = await Promise.all([
     fetchJson('/api/config'),
@@ -380,6 +372,71 @@ async function init() {
   loadHomeAlbums().catch((error) => console.error(error));
 }
 
+async function initLoginRoute(route) {
+  state.route = route;
+  state.loginRouteOnly = true;
+  state.searchTerm = '';
+  state.searchInputValue = '';
+  state.currentUser = null;
+  state.canDownload = false;
+
+  applySettings();
+  bindEvents();
+  setupMeasuredPlayerReserve();
+
+  try {
+    const bootstrap = await fetchJson('/api/public/bootstrap');
+    state.title = bootstrap?.title || state.title;
+    state.ambientCovers = Array.isArray(bootstrap?.ambientCovers) ? bootstrap.ambientCovers : [];
+    setAmbientCover(bootstrap?.ambientCoverUrl, {
+      title: bootstrap?.ambientTitle,
+      artist: bootstrap?.ambientArtist,
+    });
+  } catch (error) {
+    state.ambientCovers = [];
+    setAmbientCover('');
+  }
+
+  try {
+    const auth = await fetchJson('/api/auth/me');
+    state.currentUser = auth.user || null;
+    state.canDownload = auth.user?.canDownload !== false;
+    state.loginRouteOnly = false;
+  } catch (error) {
+    state.currentUser = null;
+    state.canDownload = false;
+  }
+
+  updateRouteFromLocation();
+  render();
+}
+
+function handleDownloadSettingsUpdated(event) {
+  applyLiveDownloadSettings(event?.detail);
+}
+
+function handleStorageSync(event) {
+  if (event?.key !== STORAGE_KEYS.downloadSettingsSync || !event.newValue) return;
+  try {
+    const payload = JSON.parse(event.newValue);
+    applyLiveDownloadSettings(payload?.settings);
+  } catch (error) {
+    console.warn('Unable to sync download settings from storage event.', error);
+  }
+}
+
+function applyLiveDownloadSettings(downloadSettings) {
+  if (!downloadSettings || typeof downloadSettings !== 'object') return;
+  state.settings = {
+    ...state.settings,
+    downloadQuality: downloadSettings.downloadQuality || state.settings.downloadQuality,
+    bulkDownloadMethod: downloadSettings.bulkDownloadMethod || state.settings.bulkDownloadMethod,
+    filenameTemplate: downloadSettings.filenameTemplate || state.settings.filenameTemplate,
+    archiveFilenameTemplate: downloadSettings.archiveFilenameTemplate || state.settings.archiveFilenameTemplate,
+    zipEntryFolderTemplate: downloadSettings.zipEntryFolderTemplate || state.settings.zipEntryFolderTemplate,
+  };
+}
+
 function isMobileSidebarLayout() {
   return window.matchMedia(MOBILE_SIDEBAR_QUERY).matches;
 }
@@ -388,26 +445,8 @@ function setMobileSidebarOpen(open) {
   const shouldOpen = Boolean(open) && isMobileSidebarLayout();
   document.body.classList.toggle('mobile-sidebar-open', shouldOpen);
   sidebarOverlay.hidden = !shouldOpen;
-  mobileSidebarButton.setAttribute('aria-expanded', String(shouldOpen));
-  updateSidebarToggleButton();
-}
-
-function updateSidebarToggleButton() {
-  const sidebarToggleIcon = sidebarToggleButton.querySelector('.fa-solid');
-  if (isMobileSidebarLayout()) {
-    sidebarToggleButton.setAttribute('aria-expanded', String(document.body.classList.contains('mobile-sidebar-open')));
-    sidebarToggleButton.setAttribute('aria-label', 'Close sidebar');
-    if (sidebarToggleIcon) {
-      sidebarToggleIcon.className = 'fa-solid fa-xmark';
-    }
-    return;
-  }
-
-  sidebarToggleButton.setAttribute('aria-expanded', String(!state.settings.sidebarCollapsed));
-  sidebarToggleButton.setAttribute('aria-label', state.settings.sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
-  if (sidebarToggleIcon) {
-    sidebarToggleIcon.className = `fa-solid ${state.settings.sidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`;
-  }
+  renderTopbar();
+  renderSidebar();
 }
 
 function navigateFromSidebar(view) {
@@ -425,40 +464,16 @@ function navigateFromSidebar(view) {
   }
 }
 
+function resetSearchState({ focus = false, refresh = true } = {}) {
+  updateSearchValue('', { focus, refresh, immediate: true });
+}
+
 function bindEvents() {
-  searchInput.addEventListener('input', () => {
-    state.searchTerm = searchInput.value.trim().toLowerCase();
-    queueVisiblePageFetch(0);
-  });
-
-  clearSearchButton.addEventListener('click', () => {
-    searchInput.value = '';
-    state.searchTerm = '';
-    searchInput.focus();
-    queueVisiblePageFetch(0);
-  });
-
-  backButton.addEventListener('click', () => navigateToView(state.browseView));
-  navHome.addEventListener('click', () => navigateFromSidebar('home'));
-  navLibrary.addEventListener('click', () => navigateFromSidebar('library'));
-  navFavorites.addEventListener('click', () => navigateFromSidebar('favorites'));
-  navWishlist.addEventListener('click', () => navigateFromSidebar('wishlist'));
-  navSettings.addEventListener('click', () => navigateFromSidebar('settings'));
-  wishlistAddAlbumButton?.addEventListener('click', () => openAddAlbumEditor());
-  sidebarToggleButton.addEventListener('click', () => {
-    if (isMobileSidebarLayout()) {
-      setMobileSidebarOpen(false);
-      return;
-    }
-    updateSetting('sidebarCollapsed', !state.settings.sidebarCollapsed, true);
-  });
-  mobileSidebarButton.addEventListener('click', () => setMobileSidebarOpen(true));
   sidebarOverlay.addEventListener('click', () => setMobileSidebarOpen(false));
   window.addEventListener('resize', () => {
     if (!isMobileSidebarLayout()) {
       setMobileSidebarOpen(false);
     }
-    updateSidebarToggleButton();
     renderSidebar();
     scheduleMeasuredPlayerReserve();
   });
@@ -466,18 +481,6 @@ function bindEvents() {
     if (event.key === 'Escape' && document.body.classList.contains('mobile-sidebar-open')) {
       setMobileSidebarOpen(false);
     }
-  });
-  libraryTabFolders.addEventListener('click', () => setLibraryTab('folders'));
-  libraryTabAlbums.addEventListener('click', () => setLibraryTab('albums'));
-  libraryTabCollections.addEventListener('click', () => setLibraryTab('collections'));
-  libraryTabArtists.addEventListener('click', () => setLibraryTab('artists'));
-  libraryTabTracks.addEventListener('click', () => setLibraryTab('tracks'));
-  libraryTabPlaylists.addEventListener('click', () => setLibraryTab('playlists'));
-  settingsTabs.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-settings-tab]');
-    if (!button) return;
-    state.settingsTab = button.dataset.settingsTab;
-    renderSettingsView();
   });
   settingsPanels.addEventListener('input', handleSettingsInput);
   settingsPanels.addEventListener('change', handleSettingsInput);
@@ -546,96 +549,7 @@ function bindEvents() {
   queueOverlay.addEventListener('click', closeQueuePanel);
   tagEditorOverlay.addEventListener('click', closeTagEditor);
   lyricsEditorOverlay.addEventListener('click', closeLyricsEditor);
-  lyricsEditorModal.addEventListener('click', (event) => {
-    if (event.target.closest('#lyrics-editor-close-button') || event.target.closest('#lyrics-editor-cancel-button')) {
-      closeLyricsEditor();
-      return;
-    }
-    if (event.target.closest('#lyrics-editor-save-button')) {
-      saveLyricsEditor().catch((error) => {
-        setLyricsEditorStatus(error.message || 'Unable to save lyrics.');
-      });
-      return;
-    }
-    if (event.target.closest('#lyrics-editor-reset-button')) {
-      resetLyricsEditor().catch((error) => {
-        setLyricsEditorStatus(error.message || 'Unable to reset lyrics.');
-      });
-      return;
-    }
-    if (!event.target.closest('#lyrics-scraper-search-button')) return;
-    searchLyricsSuggestions().catch((error) => {
-      setLyricsEditorStatus(error.message || 'Unable to search lyrics.');
-    });
-  });
-  lyricsEditorModal.addEventListener('keydown', (event) => {
-    if (!event.target.closest('#lyrics-scraper-query')) return;
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    searchLyricsSuggestions().catch((error) => {
-      setLyricsEditorStatus(error.message || 'Unable to search lyrics.');
-    });
-  });
   artistEditorOverlay.addEventListener('click', closeArtistEditor);
-  artistEditorModal.addEventListener('click', (event) => {
-    if (event.target.closest('#artist-editor-close-button') || event.target.closest('#artist-editor-cancel-button')) {
-      closeArtistEditor();
-      return;
-    }
-    if (event.target.closest('#artist-editor-save-button')) {
-      saveArtistEditor().catch((error) => {
-        syncArtistEditorRefs();
-        if (!artistBioInput) return;
-        artistBioInput.setCustomValidity(error.message || 'Unable to save artist info.');
-        artistBioInput.reportValidity();
-        artistBioInput.setCustomValidity('');
-      });
-      return;
-    }
-    if (event.target.closest('#artist-editor-reset-button')) {
-      resetArtistEditor().catch((error) => {
-        syncArtistEditorRefs();
-        if (!artistBioInput) return;
-        artistBioInput.setCustomValidity(error.message || 'Unable to clear artist info.');
-        artistBioInput.reportValidity();
-        artistBioInput.setCustomValidity('');
-      });
-    }
-  });
-  tagEditorModal.addEventListener('input', (event) => {
-    if (!event.target.closest('#tag-album-cover-url')) return;
-    syncTagEditorCoverPreview();
-  });
-  tagEditorModal.addEventListener('click', (event) => {
-    if (event.target.closest('#tag-editor-close-button') || event.target.closest('#tag-editor-cancel-button')) {
-      closeTagEditor();
-      return;
-    }
-    if (event.target.closest('#tag-editor-save-button')) {
-      saveTagEditor().catch((error) => {
-        setTagEditorStatus(error.message || 'Unable to save album tags.');
-      });
-      return;
-    }
-    if (event.target.closest('#tag-editor-reset-button')) {
-      resetTagEditor().catch((error) => {
-        setTagEditorStatus(error.message || 'Unable to reset album tags.');
-      });
-      return;
-    }
-    if (!event.target.closest('#tag-scraper-search-button')) return;
-    searchTagSuggestions().catch((error) => {
-      setTagEditorStatus(error.message || 'Unable to search MusicBrainz.');
-    });
-  });
-  tagEditorModal.addEventListener('keydown', (event) => {
-    if (!event.target.closest('#tag-scraper-query')) return;
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    searchTagSuggestions().catch((error) => {
-      setTagEditorStatus(error.message || 'Unable to search MusicBrainz.');
-    });
-  });
   queueDownloadButton.addEventListener('click', () => {
     downloadQueueTracks().catch((error) => console.error(error));
   });
@@ -643,7 +557,7 @@ function bindEvents() {
     event.preventDefault();
     const track = getCurrentTrack();
     if (!track) return;
-    triggerTrackDownload(track);
+    triggerTrackBrowserDownload(track);
   });
   queueFavoriteButton.addEventListener('click', () => {
     favoriteTracks(getPlaybackQueue());
@@ -753,10 +667,17 @@ function bindEvents() {
     onPersist: persistPlaybackState,
   });
   bindVolumeControl(fullscreenVolumeBar);
+  bindWheelScrollLock(nowPlayingBar);
 
   fullscreenVolumeButton.addEventListener('click', toggleMute);
   window.addEventListener('hashchange', () => {
     updateRouteFromLocation();
+    if (state.loginRouteOnly && state.route.view !== 'login') {
+      const { nextPath, errorCode } = getLoginRouteState();
+      window.history.replaceState(null, '', getLoginRoutePath(nextPath, errorCode));
+      updateRouteFromLocation();
+      return;
+    }
     persistPlaybackState({ includeTime: false });
     render();
   });
@@ -786,7 +707,6 @@ function hydrateLibrary(config, library) {
   state.artistGroups = buildArtistGroups(library.tracks);
   state.artistGroupMap = new Map(state.artistGroups.map((artist) => [artist.name, artist]));
   state.homeAlbumIds = getRandomAlbumIds(library.albums, 50);
-  appTitle.textContent = getDisplayTitle();
   updateSidebarScanStatus();
 }
 
@@ -868,6 +788,52 @@ function queueVisiblePageFetch(offset = 0) {
   queueLibraryPageFetch(offset);
 }
 
+function clearPendingSearchUpdate() {
+  if (!state.searchDebounceId) return;
+  window.clearTimeout(state.searchDebounceId);
+  state.searchDebounceId = 0;
+}
+
+function shouldFetchSearchResultsForCurrentView() {
+  if (state.route.view === 'wishlist' || state.route.view === 'collection') {
+    return true;
+  }
+  if (state.route.view !== 'library') {
+    return false;
+  }
+  return state.libraryTab === 'albums'
+    || state.libraryTab === 'collections'
+    || state.libraryTab === 'artists'
+    || state.libraryTab === 'tracks';
+}
+
+function commitSearchValue(value, { refresh = true } = {}) {
+  const normalizedValue = String(value || '').trim().toLowerCase();
+  const searchChanged = state.searchTerm !== normalizedValue;
+  state.searchTerm = normalizedValue;
+  state.searchDebounceId = 0;
+  if (!refresh || !searchChanged) return;
+  if (shouldFetchSearchResultsForCurrentView()) {
+    queueVisiblePageFetch(0);
+    return;
+  }
+  render();
+}
+
+function updateSearchValue(value, { focus = false, refresh = true, immediate = false } = {}) {
+  state.searchInputValue = value;
+  if (focus) state.searchFocusNonce += 1;
+  renderTopbar();
+  clearPendingSearchUpdate();
+  if (immediate) {
+    commitSearchValue(value, { refresh });
+    return;
+  }
+  state.searchDebounceId = window.setTimeout(() => {
+    commitSearchValue(value, { refresh });
+  }, 180);
+}
+
 async function loadLibraryPage(offset = 0, { scrollTop = false } = {}) {
   const library = await fetchLibraryPagePayload(offset);
   hydrateLibrary({ title: state.title }, library);
@@ -882,6 +848,7 @@ async function loadHomeAlbums() {
   const library = await fetchJson('/api/home-albums?limit=50');
   mergeLibraryData(library);
   state.homeAlbumIds = getRandomAlbumIds(library.albums || [], 50);
+  setAmbientCoverFromAlbums(library.albums || [], { force: true });
   if (state.route.view === 'home') {
     render();
   }
@@ -1135,11 +1102,14 @@ function maybePersistPlaybackProgress() {
 }
 
 function updateRouteFromLocation() {
-  const { route, artistNameToLoad, collectionNameToLoad } = parseRouteFromHash(window.location.hash, {
+  const { route, artistNameToLoad, collectionNameToLoad } = resolveRouteFromLocation({
     browseView: state.browseView,
     hasAlbum: (albumId) => state.albumMap.has(albumId),
   });
   state.route = route;
+  if (route.view !== 'login') {
+    clearLoginRouteSearchParams();
+  }
   if (artistNameToLoad) {
     loadArtistLibrary(artistNameToLoad)
       .then(() => render())
@@ -1303,7 +1273,8 @@ function applyServerConfig(config = {}) {
       downloadQuality: config.downloadSettings.downloadQuality || state.settings.downloadQuality,
       bulkDownloadMethod: config.downloadSettings.bulkDownloadMethod || state.settings.bulkDownloadMethod,
       filenameTemplate: config.downloadSettings.filenameTemplate || state.settings.filenameTemplate,
-      folderTemplate: config.downloadSettings.folderTemplate || state.settings.folderTemplate,
+      archiveFilenameTemplate: config.downloadSettings.archiveFilenameTemplate || state.settings.archiveFilenameTemplate,
+      zipEntryFolderTemplate: config.downloadSettings.zipEntryFolderTemplate || state.settings.zipEntryFolderTemplate,
     };
   }
 }
@@ -1329,7 +1300,16 @@ function navigateToView(view) {
   }
 }
 
+function shouldResetSearchForDetailNavigation() {
+  if (!state.searchTerm) return false;
+  if (state.route.view === 'artist') return true;
+  return state.route.view === 'library' && state.libraryTab === 'tracks';
+}
+
 function openAlbum(albumId) {
+  if (shouldResetSearchForDetailNavigation()) {
+    resetSearchState({ refresh: false });
+  }
   window.location.hash = getAlbumHash(albumId);
   scrollPageToTop();
 }
@@ -1370,6 +1350,9 @@ function preservePageScroll(callback) {
 }
 
 function openArtist(artistName) {
+  if (shouldResetSearchForDetailNavigation()) {
+    resetSearchState({ refresh: false });
+  }
   loadArtistLibrary(artistName).catch((error) => console.error(error));
   window.location.hash = getArtistHash(artistName);
 }
@@ -1420,78 +1403,24 @@ function render() {
     state.browseView = 'home';
   }
 
-  const filteredTracks = getFilteredTracks();
-  const filteredAlbums = getFilteredAlbums(filteredTracks);
-  const homeAlbums = getHomeAlbums(filteredAlbums);
-  const currentAlbum = getCurrentAlbum();
-  const currentArtist = getCurrentArtist();
-  const currentCollectionName = state.route.collectionName || '';
-  const isAlbumView = state.route.view === 'album' && !!currentAlbum;
-  const isArtistView = state.route.view === 'artist';
-  const isCollectionView = state.route.view === 'collection';
-  const isFavoritesView = state.route.view === 'favorites';
-  const isWishlistView = state.route.view === 'wishlist';
-  const isSettingsView = state.route.view === 'settings';
-  const isAdminView = state.route.view === 'admin';
-  const isFullscreenView = state.route.view === 'fullscreen';
-  const isLibraryView = state.route.view === 'library' && !isAlbumView && !isArtistView && !isCollectionView;
-  const isHomeView = state.route.view === 'home' && !isAlbumView && !isArtistView && !isCollectionView;
+  const viewContext = getRouteRenderContext();
 
   renderSidebar({
-    albumTotal: state.libraryTotals.albums || filteredAlbums.length,
-    trackTotal: state.libraryTotals.tracks || filteredTracks.length,
+    albumTotal: state.libraryTotals.albums || viewContext.filteredAlbums.length,
+    trackTotal: state.libraryTotals.tracks || viewContext.filteredTracks.length,
   });
+  renderTopbar(viewContext);
+  renderHomeIntro(viewContext);
 
-  homeView.hidden = !isHomeView;
-  libraryView.hidden = !isLibraryView;
-  favoritesView.hidden = !isFavoritesView;
-  wishlistView.hidden = !isWishlistView;
-  settingsView.hidden = !isSettingsView;
-  adminView.hidden = !isAdminView;
-  if (!isAdminView) {
+  applyPrimaryViewVisibility(viewContext.activePrimaryView);
+  if (!viewContext.isAdminView) {
     unmountReact(adminPanelRoot);
   }
-  artistView.hidden = !isArtistView && !isCollectionView;
-  albumView.hidden = !isAlbumView;
-  fullscreenOverlay.hidden = !isFullscreenView;
-  backButton.hidden = !isAlbumView && !isArtistView && !isCollectionView;
-  clearSearchButton.hidden = !state.searchTerm;
-  homeHero.hidden = !isHomeView || !state.settings.showHomeBanner;
-  document.body.dataset.view = state.route.view;
+  applySecondaryViewVisibility(viewContext);
+  applyTopbarVisibility(viewContext);
+  applyDocumentViewState();
 
-  navHome.classList.toggle('is-active', state.route.view === 'home');
-  navLibrary.classList.toggle('is-active', state.route.view === 'library' || state.route.view === 'collection');
-  navFavorites.classList.toggle('is-active', state.route.view === 'favorites');
-  navWishlist.classList.toggle('is-active', state.route.view === 'wishlist');
-  navSettings.classList.toggle('is-active', state.route.view === 'settings');
-
-  homeAlbumCaption.textContent = state.searchTerm
-    ? `Albums matching "${state.searchTerm}"`
-    : state.route.view === 'library'
-      ? 'Everything currently indexed on your server.'
-      : '';
-
-  if (isAlbumView) {
-    renderAlbumDetail(currentAlbum);
-  } else if (isArtistView) {
-    renderArtistDetail(currentArtist);
-  } else if (isCollectionView) {
-    renderCollectionDetail(currentCollectionName);
-  } else if (isLibraryView) {
-    renderLibraryView(filteredTracks, filteredAlbums);
-  } else if (isFavoritesView) {
-    renderFavoritesView(filteredTracks);
-  } else if (isWishlistView) {
-    renderWishlistView();
-  } else if (isSettingsView) {
-    renderSettingsView();
-  } else if (isAdminView) {
-    renderAdminView();
-  } else if (isFullscreenView) {
-    renderFullscreenView();
-  } else {
-    renderAlbumCollection(albumGrid, homeAlbums, 'No albums matched this search.', { pageable: true });
-  }
+  renderActiveRouteView(viewContext);
 
   renderQueuePanel();
   scheduleMeasuredPlayerReserve();
@@ -1501,21 +1430,13 @@ function renderFavoritesView(filteredTracks) {
   const favoriteAlbums = state.albums.filter((album) => isFavoriteAlbum(album.id) && albumMatchesSearch(album));
   const favoriteTracks = filteredTracks.filter((track) => isFavoriteTrack(track.id));
 
-  favoriteAlbumCaption.textContent = state.searchTerm
-    ? `Favorite albums matching "${state.searchTerm}"`
-    : 'Albums you marked for quick access.';
-  favoriteTrackCaption.textContent = state.searchTerm
-    ? `Favorite tracks matching "${state.searchTerm}"`
-    : 'Tracks you marked for quick access.';
-
+  renderFavoritesIntros();
   renderAlbumCollection(favoriteAlbumGrid, favoriteAlbums, 'No favorite albums yet.');
   renderTrackCollection(favoriteTrackList, favoriteTracks, favoriteTracks, 'No favorite tracks yet.');
 }
 
 function renderWishlistView() {
-  wishlistAlbumCaption.textContent = state.searchTerm
-    ? `Wishlist albums matching "${state.searchTerm}"`
-    : 'Albums marked as Wishlist in your local album tags.';
+  renderWishlistIntro();
 
   if (!state.wishlistAlbumsLoaded) {
     renderAlbumCollection(wishlistAlbumGrid, [], 'Loading wishlist albums...');
@@ -1535,14 +1456,24 @@ function renderSettingsView() {
   preservePageScroll(() => {
     state.settingsTab = normalizeSettingsTab(state.settingsTab);
     publishSettingsSnapshot(state.settingsTab);
+    renderSettingsIntro();
     renderSettingsTabs();
     renderSettingsPanelReact(state.settingsTab);
-    settingsStatus.textContent = '';
+    state.settingsStatusMessage = '';
+    renderSettingsStatus();
   });
+}
+
+function setSettingsTab(tab) {
+  const nextTab = normalizeSettingsTab(tab);
+  if (state.settingsTab === nextTab) return;
+  state.settingsTab = nextTab;
+  renderSettingsView();
 }
 
 function renderAdminView() {
   if (!hasReactRenderer('renderAdminPanel')) return;
+  renderAdminIntro();
   renderReact('renderAdminPanel', adminPanelRoot, {});
 }
 
@@ -1606,8 +1537,25 @@ function renderSettingsPanelReact(tab) {
 function renderSettingsTabs() {
   if (hasReactRenderer('renderSettingsTabs')) {
     publishSettingsSnapshot(state.settingsTab);
-    renderReact('renderSettingsTabs', settingsTabs, { store: getSettingsPanelStore() });
+    renderReact('renderSettingsTabs', settingsTabs, {
+      store: getSettingsPanelStore(),
+      onSelect: setSettingsTab,
+    });
   }
+}
+
+function renderSettingsIntro() {
+  renderReact('renderSettingsIntro', settingsIntroRoot, {});
+}
+
+function renderSettingsStatus() {
+  renderReact('renderSettingsStatus', settingsStatusRoot, {
+    message: state.settingsStatusMessage,
+  });
+}
+
+function renderAdminIntro() {
+  renderReact('renderAdminIntro', adminIntroRoot, {});
 }
 
 function handleSettingsInput(event) {
@@ -1877,22 +1825,14 @@ function applySettings() {
   document.documentElement.style.setProperty('--album-card-size', `${clampAlbumCardSize(state.settings.albumCardSize)}px`);
   document.body.classList.toggle('no-album-cover-background', !state.settings.albumCoverBackground);
   document.body.classList.toggle('compact-artists', state.settings.compactArtists);
-  document.body.classList.toggle('player-layout-qobuz', state.settings.playerLayout === 'qobuz');
+  const isQobuzLayout = state.settings.playerLayout === 'qobuz';
+  document.body.classList.toggle('player-layout-qobuz', isQobuzLayout);
+  document.body.classList.toggle('player-layout-floating', !isQobuzLayout);
 
   const displayTitle = getDisplayTitle();
-  appTitle.textContent = displayTitle;
-  appTitle.hidden = !state.settings.showLibraryTitle;
   document.title = `${displayTitle} | Local Streamer`;
-  homeHeroEyebrow.textContent = state.settings.homeBannerEyebrow || DEFAULT_SETTINGS.homeBannerEyebrow;
-  homeHeroTitle.textContent = state.settings.homeBannerTitle || DEFAULT_SETTINGS.homeBannerTitle;
-  homeHeroSubtitle.textContent = state.settings.homeBannerSubtitle || DEFAULT_SETTINGS.homeBannerSubtitle;
 
-  navHome.hidden = !state.settings.showHome;
-  navLibrary.hidden = !state.settings.showLibrary;
-  navFavorites.hidden = !state.settings.showFavorites;
-  navWishlist.hidden = !state.settings.showFavorites;
   document.body.classList.toggle('sidebar-collapsed', Boolean(state.settings.sidebarCollapsed));
-  updateSidebarToggleButton();
 
   audioPlayer.playbackRate = 1;
   audioPlayer.volume = getEffectiveAudioVolume();
@@ -1903,6 +1843,40 @@ function applySettings() {
   if (currentTrack) {
     syncPlayerUtilityElementRefs();
   }
+}
+
+function setAmbientCover(url = '', { title = '', artist = '' } = {}) {
+  state.ambientCoverUrl = String(url || '').trim();
+  state.ambientCoverTitle = String(title || '').trim();
+  state.ambientCoverArtist = String(artist || '').trim();
+  applyAmbientBackdrop();
+}
+
+function setAmbientCoverFromAlbums(albums = [], { force = false } = {}) {
+  if (!force && state.ambientCoverUrl) return;
+  const candidates = (Array.isArray(albums) ? albums : []).filter((album) => album?.coverUrl);
+  if (!candidates.length) {
+    if (!state.ambientCoverUrl) {
+      applyAmbientBackdrop();
+    }
+    return;
+  }
+  const ambientAlbum = candidates[Math.floor(Math.random() * candidates.length)];
+  setAmbientCover(ambientAlbum.coverUrl, {
+    title: ambientAlbum.title,
+    artist: ambientAlbum.albumArtist || ambientAlbum.artist,
+  });
+}
+
+function applyAmbientBackdrop() {
+  const coverUrl = String(state.ambientCoverUrl || '').trim();
+  const root = document.documentElement;
+  if (coverUrl) {
+    root.style.setProperty('--ambient-cover-image', `url("${coverUrl}")`);
+  } else {
+    root.style.setProperty('--ambient-cover-image', 'none');
+  }
+  document.body.classList.toggle('has-ambient-cover', Boolean(coverUrl));
 }
 
 function applyThemeSettings() {
@@ -1978,7 +1952,8 @@ function readSettingInputValue(input) {
 }
 
 function showSettingsStatus(message) {
-  settingsStatus.textContent = message;
+  state.settingsStatusMessage = message;
+  renderSettingsStatus();
 }
 
 function changeLibraryPageSize(value, { alreadySaved = false } = {}) {
@@ -2048,6 +2023,127 @@ function renderSidebar({
   });
 }
 
+function renderTopbar(viewContext = getRouteRenderContext()) {
+  renderReact('renderTopbar', topbarRoot, {
+    searchValue: state.searchInputValue,
+    showBackButton: Boolean(
+      viewContext.isAlbumView
+      || viewContext.isArtistView
+      || viewContext.isCollectionView
+    ),
+    showClearButton: Boolean(state.searchInputValue),
+    mobileSidebarOpen: document.body.classList.contains('mobile-sidebar-open'),
+    focusNonce: state.searchFocusNonce,
+    onSearchChange: (value) => {
+      updateSearchValue(value, { refresh: true });
+    },
+    onClearSearch: () => resetSearchState({ focus: true, refresh: true }),
+    onBack: () => navigateToView(state.browseView),
+    onOpenSidebar: () => setMobileSidebarOpen(true),
+  });
+}
+
+function renderHomeIntro(viewContext = getRouteRenderContext()) {
+  renderReact('renderHomeIntro', homeIntroRoot, {
+    showBanner: Boolean(viewContext.isHomeView && state.settings.showHomeBanner),
+    eyebrow: state.settings.homeBannerEyebrow || DEFAULT_SETTINGS.homeBannerEyebrow,
+    title: state.settings.homeBannerTitle || DEFAULT_SETTINGS.homeBannerTitle,
+    subtitle: state.settings.homeBannerSubtitle || DEFAULT_SETTINGS.homeBannerSubtitle,
+    albumHeading: 'Recommended Albums',
+    albumCaption: state.searchTerm
+      ? `Albums matching "${state.searchTerm}"`
+      : state.route.view === 'library'
+        ? 'Everything currently indexed on your server.'
+        : '',
+  });
+}
+
+function renderLoginView() {
+  const { nextPath, errorCode } = getLoginRouteState();
+  renderReact('renderLoginView', loginViewRoot, {
+    title: getDisplayTitle(),
+    currentUser: state.currentUser,
+    nextPath,
+    errorCode,
+    ambientCoverUrl: state.ambientCoverUrl,
+    ambientTitle: state.ambientCoverTitle,
+    ambientArtist: state.ambientCoverArtist,
+    ambientCovers: state.ambientCovers,
+  });
+}
+
+function resolveRouteFromLocation({ browseView, hasAlbum }) {
+  const pathname = String(window.location.pathname || '').replace(/\/+$/, '') || '/';
+  if (pathname === '/login') {
+    return {
+      route: {
+        view: 'login',
+        albumId: null,
+        artistName: null,
+        collectionName: null,
+      },
+      artistNameToLoad: '',
+      collectionNameToLoad: '',
+    };
+  }
+  return parseRouteFromHash(window.location.hash, {
+    browseView,
+    hasAlbum,
+  });
+}
+
+function renderLibraryIntro() {
+  const captionsByTab = {
+    folders: 'Browse the exact folder structure from your local server.',
+    albums: 'Browse your scanned releases as album cards.',
+    collections: 'Browse album collections from your local album tags.',
+    artists: 'Browse the library grouped by album artist.',
+    tracks: 'Search tracks directly without loading the whole library.',
+    playlists: 'Smart playlists built from your local library state.',
+  };
+  renderReact('renderLibraryIntro', libraryIntroRoot, {
+    title: 'Browse Library',
+    caption: captionsByTab[state.libraryTab] || captionsByTab.albums,
+  });
+}
+
+function renderLibraryTabs() {
+  renderReact('renderLibraryTabs', libraryTabsRoot, {
+    tabs: LIBRARY_TAB_REGISTRY.map(([id, label]) => ({
+      id,
+      label,
+      hidden: id === 'folders' && !state.settings.showFolderBrowser,
+    })),
+    activeTab: state.libraryTab,
+    onSelect: setLibraryTab,
+  });
+}
+
+function renderFavoritesIntros() {
+  renderReact('renderFavoritesIntro', favoriteAlbumsIntroRoot, {
+    title: 'Favorite Albums',
+    caption: state.searchTerm
+      ? `Favorite albums matching "${state.searchTerm}"`
+      : 'Albums you marked for quick access.',
+  });
+  renderReact('renderFavoritesIntro', favoriteTracksIntroRoot, {
+    title: 'Favorite Tracks',
+    caption: state.searchTerm
+      ? `Favorite tracks matching "${state.searchTerm}"`
+      : 'Tracks you marked for quick access.',
+  });
+}
+
+function renderWishlistIntro() {
+  renderReact('renderWishlistIntro', wishlistIntroRoot, {
+    title: 'Wishlist Albums',
+    caption: state.searchTerm
+      ? `Wishlist albums matching "${state.searchTerm}"`
+      : 'Albums marked as Wishlist in your local album tags.',
+    onAddAlbum: () => openAddAlbumEditor(),
+  });
+}
+
 function isCurrentUserAdmin() {
   return state.currentUser?.role === 'admin';
 }
@@ -2065,9 +2161,158 @@ function updateSidebarScanStatus(indexedAt = state.generatedAt) {
   renderSidebar({ indexedAt });
 }
 
+function getRouteRenderContext() {
+  const filteredTracks = getFilteredTracks();
+  const filteredAlbums = getFilteredAlbums(filteredTracks);
+  const homeAlbums = getHomeAlbums(filteredAlbums);
+  const currentAlbum = getCurrentAlbum();
+  const currentArtist = getCurrentArtist();
+  const currentCollectionName = state.route.collectionName || '';
+  const isLoginView = state.route.view === 'login';
+  const isAlbumView = state.route.view === 'album' && !!currentAlbum;
+  const isArtistView = state.route.view === 'artist';
+  const isCollectionView = state.route.view === 'collection';
+  const isFavoritesView = state.route.view === 'favorites';
+  const isWishlistView = state.route.view === 'wishlist';
+  const isSettingsView = state.route.view === 'settings';
+  const isAdminView = state.route.view === 'admin';
+  const isFullscreenView = state.route.view === 'fullscreen';
+  const isLibraryView = state.route.view === 'library' && !isLoginView && !isAlbumView && !isArtistView && !isCollectionView;
+  const isHomeView = state.route.view === 'home' && !isLoginView && !isAlbumView && !isArtistView && !isCollectionView;
+  const activePrimaryView = isLoginView
+    ? 'login'
+    : isHomeView
+    ? 'home'
+    : isLibraryView
+      ? 'library'
+      : isFavoritesView
+        ? 'favorites'
+        : isWishlistView
+          ? 'wishlist'
+          : isSettingsView
+            ? 'settings'
+            : isAdminView
+              ? 'admin'
+              : '';
+  const activeRouteView = isLoginView
+    ? 'login'
+    : isAlbumView
+    ? 'album'
+    : isArtistView
+      ? 'artist'
+      : isCollectionView
+        ? 'collection'
+        : isLibraryView
+          ? 'library'
+          : isFavoritesView
+            ? 'favorites'
+            : isWishlistView
+              ? 'wishlist'
+              : isSettingsView
+                ? 'settings'
+                : isAdminView
+                  ? 'admin'
+                  : isFullscreenView
+                    ? 'fullscreen'
+                    : 'home';
+
+  return {
+    filteredTracks,
+    filteredAlbums,
+    homeAlbums,
+    currentAlbum,
+    currentArtist,
+    currentCollectionName,
+    isLoginView,
+    isAlbumView,
+    isArtistView,
+    isCollectionView,
+    isFavoritesView,
+    isWishlistView,
+    isSettingsView,
+    isAdminView,
+    isFullscreenView,
+    isLibraryView,
+    isHomeView,
+    activePrimaryView,
+    activeRouteView,
+  };
+}
+
+function applyPrimaryViewVisibility(activePrimaryView) {
+  for (const [viewId, element] of Object.entries(PRIMARY_VIEW_REGISTRY)) {
+    element.hidden = viewId !== activePrimaryView;
+  }
+}
+
+function applySecondaryViewVisibility(viewContext) {
+  for (const { element, isVisible } of SECONDARY_VIEW_VISIBILITY_REGISTRY) {
+    element.hidden = !isVisible(viewContext);
+  }
+}
+
+function applyTopbarVisibility(viewContext) {
+  const hideShellChrome = Boolean(viewContext.isLoginView || viewContext.isFullscreenView);
+  topbarRoot.hidden = hideShellChrome;
+  appSidebar.hidden = hideShellChrome;
+  nowPlayingBar.hidden = hideShellChrome;
+  if (hideShellChrome) {
+    sidebarOverlay.hidden = true;
+    document.body.classList.remove('mobile-sidebar-open');
+  }
+}
+
+function applyDocumentViewState() {
+  document.body.dataset.view = state.route.view;
+}
+
+function renderActiveRouteView(viewContext) {
+  const renderRouteView = ROUTE_VIEW_RENDERERS[viewContext.activeRouteView] || ROUTE_VIEW_RENDERERS.home;
+  renderRouteView(viewContext);
+}
+
+function getLoginRouteState() {
+  const url = new URL(window.location.href);
+  return {
+    nextPath: sanitizeLoginNext(url.searchParams.get('next')),
+    errorCode: String(url.searchParams.get('error') || '').trim().toLowerCase(),
+  };
+}
+
+function sanitizeLoginNext(value) {
+  const nextPath = String(value || '/').trim();
+  if (!nextPath.startsWith('/') || nextPath.startsWith('//')) return '/';
+  if (nextPath.startsWith('/login')) return '/';
+  if (nextPath === '/admin' || nextPath.startsWith('/admin/')) return '/';
+  return nextPath;
+}
+
+function getLoginRoutePath(nextPath = '/', errorCode = '') {
+  const params = new URLSearchParams();
+  params.set('next', sanitizeLoginNext(nextPath));
+  if (errorCode) {
+    params.set('error', errorCode);
+  }
+  return `/login?${params.toString()}`;
+}
+
+function clearLoginRouteSearchParams() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has('next') && !url.searchParams.has('error')) return;
+  url.searchParams.delete('next');
+  url.searchParams.delete('error');
+  const nextSearch = url.searchParams.toString();
+  const nextUrl = `${url.pathname}${nextSearch ? `?${nextSearch}` : ''}${url.hash}`;
+  window.history.replaceState(null, '', nextUrl);
+}
+
 function setLibraryTab(tab) {
   if (tab === 'folders' && !state.settings.showFolderBrowser) {
     tab = 'albums';
+  }
+  const tabChanged = state.libraryTab !== tab;
+  if (tabChanged && state.searchTerm) {
+    resetSearchState({ refresh: false });
   }
   state.libraryTab = tab;
   if (tab === 'folders') {
@@ -2088,47 +2333,30 @@ function setLibraryTab(tab) {
 }
 
 function renderLibraryView(filteredTracks, filteredAlbums) {
+  renderLibraryIntro();
+  renderLibraryTabs();
   if (state.libraryTab === 'folders' && !state.settings.showFolderBrowser) {
     state.libraryTab = 'albums';
   }
 
-  const tabs = [
-    ['folders', libraryTabFolders, libraryPanelFolders],
-    ['albums', libraryTabAlbums, libraryPanelAlbums],
-    ['collections', libraryTabCollections, libraryPanelCollections],
-    ['artists', libraryTabArtists, libraryPanelArtists],
-    ['tracks', libraryTabTracks, libraryPanelTracks],
-    ['playlists', libraryTabPlaylists, libraryPanelPlaylists],
-  ];
-
-  for (const [tabId, button, panel] of tabs) {
+  for (const [tabId, , panel] of LIBRARY_TAB_REGISTRY) {
     const visible = tabId !== 'folders' || state.settings.showFolderBrowser;
-    button.hidden = !visible;
     panel.hidden = !visible;
     if (!visible) continue;
-    const active = state.libraryTab === tabId;
-    button.classList.toggle('is-active', active);
-    button.setAttribute('aria-selected', String(active));
-    panel.hidden = !active;
+    panel.hidden = state.libraryTab !== tabId;
   }
 
   if (state.libraryTab === 'folders') {
-    libraryBrowserCaption.textContent = 'Browse the exact folder structure from your local server.';
     renderFolderBrowser();
   } else if (state.libraryTab === 'albums') {
-    libraryBrowserCaption.textContent = 'Browse your scanned releases as album cards.';
     renderLibraryAlbumsPanel(filteredAlbums);
   } else if (state.libraryTab === 'collections') {
-    libraryBrowserCaption.textContent = 'Browse album collections from your local album tags.';
     renderLibraryCollectionsPanel();
   } else if (state.libraryTab === 'artists') {
-    libraryBrowserCaption.textContent = 'Browse the library grouped by album artist.';
     renderArtistsBrowser();
   } else if (state.libraryTab === 'tracks') {
-    libraryBrowserCaption.textContent = 'Search tracks directly without loading the whole library.';
     renderLibraryTracksPanel();
   } else {
-    libraryBrowserCaption.textContent = 'Smart playlists built from your local library state.';
     renderPlaylistsBrowser(filteredTracks);
   }
 }
@@ -2439,78 +2667,51 @@ function getCollectionCoverUrl(collectionName) {
 function openArtistEditor(artist) {
   const info = state.artistInfoMap.get(artist.name) || null;
   state.artistEditorName = artist.name;
-  renderEditorModalShell(artistEditorModal, buildArtistEditorModalSnapshot(artist.name));
-  renderArtistEditorBody(buildArtistEditorBodySnapshot(info));
-  syncArtistEditorRefs();
+  renderArtistEditorModal({
+    renderKey: `${artist.name}-${Date.now()}`,
+    ...buildArtistEditorModalSnapshot(artist.name),
+    ...buildArtistEditorBodySnapshot(info),
+    onClose: closeArtistEditor,
+    onSave: saveArtistEditor,
+    onReset: resetArtistEditor,
+  });
   artistEditorModal.hidden = false;
   artistEditorOverlay.hidden = false;
-  artistImageUrlInput?.focus();
 }
 
 function closeArtistEditor() {
   state.artistEditorName = '';
   artistEditorModal.hidden = true;
   artistEditorOverlay.hidden = true;
-  unmountReact(document.querySelector('#artist-editor-body-root'));
   unmountReact(artistEditorModal);
-  syncArtistEditorRefs();
 }
 
-function renderArtistEditorBody(props = {}) {
-  const bodyRoot = document.querySelector('#artist-editor-body-root');
-  if (!bodyRoot) return;
-  renderReact('renderArtistEditorBody', bodyRoot, {
-    renderKey: `${state.artistEditorName || 'artist'}-${Date.now()}`,
-    ...props,
-  });
+function renderArtistEditorModal(props = {}) {
+  renderReact('renderArtistEditorModal', artistEditorModal, props);
 }
 
-function syncArtistEditorRefs() {
-  artistImageUrlInput = document.querySelector('#artist-image-url');
-  artistBioInput = document.querySelector('#artist-bio');
-  artistSourceUrlInput = document.querySelector('#artist-source-url');
-}
-
-async function saveArtistEditor() {
+async function saveArtistEditor(formData = {}) {
   if (!state.artistEditorName) return;
-  syncArtistEditorRefs();
-  const saveButton = document.querySelector('#artist-editor-save-button');
-  if (saveButton) saveButton.disabled = true;
-  try {
-    const info = await fetchJson(`/api/artists/${encodeURIComponent(state.artistEditorName)}/info`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildArtistInfoPayload({
-        imageUrl: artistImageUrlInput?.value,
-        bio: artistBioInput?.value,
-        sourceUrl: artistSourceUrlInput?.value,
-      })),
-    });
-    state.artistInfoMap.set(state.artistEditorName, info);
-    closeArtistEditor();
-    render();
-  } finally {
-    if (saveButton) saveButton.disabled = false;
-  }
+  const info = await fetchJson(`/api/artists/${encodeURIComponent(state.artistEditorName)}/info`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(buildArtistInfoPayload(formData)),
+  });
+  state.artistInfoMap.set(state.artistEditorName, info);
+  closeArtistEditor();
+  render();
 }
 
 async function resetArtistEditor() {
   if (!state.artistEditorName || !window.confirm('Clear edited artist image and info?')) return;
-  syncArtistEditorRefs();
-  const resetButton = document.querySelector('#artist-editor-reset-button');
-  if (resetButton) resetButton.disabled = true;
-  try {
-    const info = await fetchJson(`/api/artists/${encodeURIComponent(state.artistEditorName)}/info`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reset: true }),
-    });
-    state.artistInfoMap.set(state.artistEditorName, info);
-    closeArtistEditor();
-    render();
-  } finally {
-    if (resetButton) resetButton.disabled = false;
-  }
+  const info = await fetchJson(`/api/artists/${encodeURIComponent(state.artistEditorName)}/info`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reset: true }),
+  });
+  state.artistInfoMap.set(state.artistEditorName, info);
+  closeArtistEditor();
+  render();
 }
 
 function renderAlbumCollection(container, albums, emptyMessage, { pageable = false, pagerType = '' } = {}) {
@@ -2853,10 +3054,6 @@ function playAlbumFromCard(album) {
   playTrack(tracks[0], tracks);
 }
 
-function renderEditorModalShell(container, props) {
-  renderReact('renderEditorModal', container, props);
-}
-
 async function openTagEditor(album) {
   state.tagEditorAlbumId = album.id;
   state.tagEditorMode = 'edit';
@@ -2864,14 +3061,24 @@ async function openTagEditor(album) {
   state.tagEditorSuggestions = [];
 
   const tracks = await ensureAlbumTracks(album);
-  renderEditorModalShell(tagEditorModal, buildTagEditorModalSnapshot(album.title));
-  renderAlbumTagEditorBody(buildTagEditorBodySnapshot(album, tracks, { extractYear }));
-  syncTagEditorRefs();
-  syncTagEditorCoverPreview();
+  const bodySnapshot = buildTagEditorBodySnapshot(album, tracks, { extractYear });
+  const { title: albumTitleValue, ...tagBodyProps } = bodySnapshot;
+  renderAlbumTagEditorModal({
+    renderKey: `${album.id}-${Date.now()}`,
+    ...buildTagEditorModalSnapshot(album.title),
+    ...tagBodyProps,
+    albumTitleValue,
+    mode: 'edit',
+    musicBrainzId: album.musicBrainzId || '',
+    onClose: closeTagEditor,
+    onSearch: searchTagSuggestions,
+    onLoadSuggestionDetail: fetchTagSuggestionDetail,
+    onSave: saveTagEditor,
+    onReset: resetTagEditor,
+  });
 
   tagEditorModal.hidden = false;
   tagEditorOverlay.hidden = false;
-  tagAlbumTitleInput?.focus();
 }
 
 function openAddAlbumEditor() {
@@ -2880,14 +3087,24 @@ function openAddAlbumEditor() {
   state.tagEditorMusicBrainzId = '';
   state.tagEditorSuggestions = [];
 
-  renderEditorModalShell(tagEditorModal, buildAddAlbumModalSnapshot());
-  renderAlbumTagEditorBody(buildAddAlbumBodySnapshot());
-  syncTagEditorRefs();
-  syncTagEditorCoverPreview();
+  const bodySnapshot = buildAddAlbumBodySnapshot();
+  const { title: albumTitleValue, ...tagBodyProps } = bodySnapshot;
+  renderAlbumTagEditorModal({
+    renderKey: `add-album-${Date.now()}`,
+    ...buildAddAlbumModalSnapshot(),
+    ...tagBodyProps,
+    albumTitleValue,
+    mode: 'add',
+    musicBrainzId: '',
+    onClose: closeTagEditor,
+    onSearch: searchTagSuggestions,
+    onLoadSuggestionDetail: fetchTagSuggestionDetail,
+    onSave: saveTagEditor,
+    onReset: resetTagEditor,
+  });
 
   tagEditorModal.hidden = false;
   tagEditorOverlay.hidden = false;
-  tagAlbumTitleInput?.focus();
 }
 
 async function ensureAlbumTracks(album) {
@@ -2909,239 +3126,100 @@ function closeTagEditor() {
   state.tagEditorSuggestions = [];
   tagEditorModal.hidden = true;
   tagEditorOverlay.hidden = true;
-  unmountReact(document.querySelector('#tag-editor-body-root'));
   unmountReact(tagEditorModal);
-  syncTagEditorRefs();
 }
 
-function renderAlbumTagEditorBody(props = {}) {
-  const bodyRoot = document.querySelector('#tag-editor-body-root');
-  if (!bodyRoot) return;
-  renderReact('renderAlbumTagEditorBody', bodyRoot, {
-    renderKey: `${state.tagEditorAlbumId || 'album'}-${Date.now()}`,
-    ...props,
-  });
+function renderAlbumTagEditorModal(props = {}) {
+  renderReact('renderAlbumTagEditorModal', tagEditorModal, props);
 }
 
-function syncTagEditorRefs() {
-  tagAlbumTitleInput = document.querySelector('#tag-album-title');
-  tagAlbumArtistInput = document.querySelector('#tag-album-artist');
-  tagAlbumDateInput = document.querySelector('#tag-album-date');
-  tagAlbumGenreInput = document.querySelector('#tag-album-genre');
-  tagAlbumCollectionNameInput = document.querySelector('#tag-album-collection-name');
-  tagAlbumMediaTypesInput = document.querySelector('#tag-album-media-types');
-  tagAlbumStatusInput = document.querySelector('#tag-album-status');
-  tagAlbumCoverUrlInput = document.querySelector('#tag-album-cover-url');
-  tagEditorCoverPreview = document.querySelector('#tag-editor-cover-preview');
-  tagEditorCoverFallback = document.querySelector('#tag-editor-cover-fallback');
-  tagScraperQueryInput = document.querySelector('#tag-scraper-query');
-  tagScraperSearchButton = document.querySelector('#tag-scraper-search-button');
-  tagScraperStatus = document.querySelector('#tag-scraper-status');
-  tagScraperResults = document.querySelector('#tag-scraper-results');
-  tagTrackList = document.querySelector('#tag-track-list');
-}
-
-function setTagEditorStatus(message) {
-  syncTagEditorRefs();
-  if (tagScraperStatus) {
-    tagScraperStatus.textContent = message || '';
-  }
-}
-
-function syncTagEditorCoverPreview() {
-  syncTagEditorRefs();
-  if (!tagEditorCoverPreview || !tagEditorCoverFallback || !tagAlbumCoverUrlInput) return;
-  setImageOrFallback({
-    imageElement: tagEditorCoverPreview,
-    fallbackElement: tagEditorCoverFallback,
-    src: tagAlbumCoverUrlInput.value.trim(),
-    alt: `${tagAlbumTitleInput.value || 'Album'} cover art`,
-  });
-}
-
-async function searchTagSuggestions() {
+async function searchTagSuggestions(query = '') {
   const albumId = state.tagEditorAlbumId;
-  syncTagEditorRefs();
-  if (!tagScraperSearchButton || !tagScraperQueryInput || !tagScraperResults) return;
-
-  tagScraperSearchButton.disabled = true;
-  setTagEditorStatus('Searching MusicBrainz...');
-  state.tagEditorSuggestions = [];
-  renderTagSuggestions();
-
-  try {
-    const query = tagScraperQueryInput.value.trim();
-    const endpoint = state.tagEditorMode === 'add'
-      ? `/api/tag-suggestions?q=${encodeURIComponent(query)}`
-      : `/api/albums/${encodeURIComponent(albumId)}/tag-suggestions?q=${encodeURIComponent(query)}`;
-    const result = await fetchJson(endpoint);
-    state.tagEditorSuggestions = result.suggestions || [];
-    renderTagSuggestions();
-    setTagEditorStatus(state.tagEditorSuggestions.length
-      ? `Found ${state.tagEditorSuggestions.length} possible release${state.tagEditorSuggestions.length === 1 ? '' : 's'}.`
-      : 'No MusicBrainz releases found. Try a simpler artist + album search.');
-  } finally {
-    tagScraperSearchButton.disabled = false;
-  }
+  const endpoint = state.tagEditorMode === 'add'
+    ? `/api/tag-suggestions?q=${encodeURIComponent(String(query || '').trim())}`
+    : `/api/albums/${encodeURIComponent(albumId)}/tag-suggestions?q=${encodeURIComponent(String(query || '').trim())}`;
+  const result = await fetchJson(endpoint);
+  state.tagEditorSuggestions = result.suggestions || [];
+  return state.tagEditorSuggestions;
 }
 
-function renderTagSuggestions() {
-  syncTagEditorRefs();
-  if (!tagScraperResults) return;
-  renderReact('renderTagSuggestionResults', tagScraperResults, {
-    suggestions: state.tagEditorSuggestions,
-    onApply: (index) => {
-      const suggestion = state.tagEditorSuggestions[index];
-      if (!suggestion) return;
-      applyTagSuggestion(suggestion).catch((error) => {
-        setTagEditorStatus(error.message || 'Unable to apply MusicBrainz result.');
-      });
-    },
-  });
-}
-
-async function applyTagSuggestion(suggestion) {
-  syncTagEditorRefs();
-  setTagEditorStatus(`Loading track list for ${suggestion.title}...`);
+async function fetchTagSuggestionDetail(suggestion) {
   const detail = await fetchJson(`/api/musicbrainz/releases/${encodeURIComponent(suggestion.id)}`);
   state.tagEditorMusicBrainzId = detail.id || suggestion.id || '';
-  if (!tagAlbumTitleInput || !tagAlbumArtistInput || !tagAlbumDateInput || !tagAlbumGenreInput || !tagAlbumCoverUrlInput || !tagTrackList) return;
-
-  tagAlbumTitleInput.value = detail.albumTitle || suggestion.title || tagAlbumTitleInput.value;
-  tagAlbumArtistInput.value = detail.albumArtist || suggestion.artist || tagAlbumArtistInput.value;
-  tagAlbumDateInput.value = detail.year || extractYear(detail.date || suggestion.date) || tagAlbumDateInput.value;
-  tagAlbumGenreInput.value = detail.genre || tagAlbumGenreInput.value;
-  tagAlbumCoverUrlInput.value = detail.coverUrl || suggestion.coverUrl || tagAlbumCoverUrlInput.value;
-  syncTagEditorCoverPreview();
-
-  const rows = [...tagTrackList.querySelectorAll('.tag-track-row')];
-  for (const [index, row] of rows.entries()) {
-    const track = detail.tracks?.[index];
-    if (!track) continue;
-    row.querySelector('.tag-track-title').value = track.title || row.querySelector('.tag-track-title').value;
-    row.querySelector('.tag-track-artist').value = track.artist || row.querySelector('.tag-track-artist').value;
-    row.querySelector('.tag-track-number').value = track.trackNumber || index + 1;
-    row.dataset.discNumber = String(track.discNumber || row.dataset.discNumber || 1);
-  }
-
-  setTagEditorStatus(`Applied MusicBrainz release${detail.sourceUrl ? `: ${detail.sourceUrl}` : '.'}`);
+  return {
+    ...detail,
+    year: detail.year || extractYear(detail.date || suggestion.date) || '',
+  };
 }
 
-async function saveTagEditor() {
+async function saveTagEditor(formData = {}) {
   const albumId = state.tagEditorAlbumId;
   if (state.tagEditorMode !== 'add' && !albumId) return;
-  syncTagEditorRefs();
-
-  const saveButton = document.querySelector('#tag-editor-save-button');
-  if (saveButton) saveButton.disabled = true;
-  setTagEditorStatus('Saving local tag overrides...');
-
-  try {
-    const payload = collectTagEditorPayload();
-    setTagEditorStatus('Saving local tag overrides...');
-    const endpoint = state.tagEditorMode === 'add'
-      ? '/api/albums'
-      : `/api/albums/${encodeURIComponent(albumId)}/tags`;
-    const result = await fetchJson(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (result.library) {
-      mergeLibraryData(result.library);
-    }
-    state.wishlistAlbumsLoaded = false;
-    state.collectionFoldersLoaded = false;
-    state.collectionAlbumsLoaded = false;
-    if (state.route.view === 'collection') {
-      state.selectedCollectionFolderPath = state.route.collectionName || payload.collectionName || state.selectedCollectionFolderPath;
-      await loadCollectionFolders();
-      if (!collectionFolderExists(state.selectedCollectionFolderPath)) {
-        returnToCollectionLibrary();
-        await loadCollectionFolders();
-      } else {
-        await loadCollectionAlbumsPage(0);
-      }
-    } else if (state.route.view === 'library' && state.libraryTab === 'collections') {
-      await loadCollectionFolders();
-    }
-    if (state.tagEditorMode === 'add' || result.manual) {
-      await loadWishlistAlbumsPage(0);
-    } else if (result.library) {
-      hydrateLibrary({ title: state.title }, result.library);
-    }
-    sanitizeStoredFavorites();
-    closeTagEditor();
-    render();
-    updatePlayerUi();
-  } finally {
-    if (saveButton) saveButton.disabled = false;
+  const payload = buildTagEditorPayload(formData);
+  const endpoint = state.tagEditorMode === 'add'
+    ? '/api/albums'
+    : `/api/albums/${encodeURIComponent(albumId)}/tags`;
+  const result = await fetchJson(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (result.library) {
+    mergeLibraryData(result.library);
   }
+  state.wishlistAlbumsLoaded = false;
+  state.collectionFoldersLoaded = false;
+  state.collectionAlbumsLoaded = false;
+  if (state.route.view === 'collection') {
+    state.selectedCollectionFolderPath = state.route.collectionName || payload.collectionName || state.selectedCollectionFolderPath;
+    await loadCollectionFolders();
+    if (!collectionFolderExists(state.selectedCollectionFolderPath)) {
+      returnToCollectionLibrary();
+      await loadCollectionFolders();
+    } else {
+      await loadCollectionAlbumsPage(0);
+    }
+  } else if (state.route.view === 'library' && state.libraryTab === 'collections') {
+    await loadCollectionFolders();
+  }
+  if (state.tagEditorMode === 'add' || result.manual) {
+    await loadWishlistAlbumsPage(0);
+  } else if (result.library) {
+    hydrateLibrary({ title: state.title }, result.library);
+  }
+  sanitizeStoredFavorites();
+  closeTagEditor();
+  render();
+  updatePlayerUi();
 }
 
 async function resetTagEditor() {
   const albumId = state.tagEditorAlbumId;
-  if (state.tagEditorMode === 'add') {
-    renderAlbumTagEditorBody(buildAddAlbumBodySnapshot());
-    syncTagEditorRefs();
-    syncTagEditorCoverPreview();
-    return;
-  }
   if (!albumId || !window.confirm('Clear all local tag overrides for this album?')) return;
-  syncTagEditorRefs();
-
-  const resetButton = document.querySelector('#tag-editor-reset-button');
-  if (resetButton) resetButton.disabled = true;
-  setTagEditorStatus('Resetting local tag overrides...');
-
-  try {
-    const result = await fetchJson(`/api/albums/${encodeURIComponent(albumId)}/tags`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reset: true }),
-    });
-    hydrateLibrary({ title: state.title }, result.library);
-    state.wishlistAlbumsLoaded = false;
-    state.collectionFoldersLoaded = false;
-    state.collectionAlbumsLoaded = false;
-    if (state.route.view === 'collection') {
-      await loadCollectionFolders();
-      if (!collectionFolderExists(state.selectedCollectionFolderPath)) {
-        returnToCollectionLibrary();
-        await loadCollectionFolders();
-      } else {
-        await loadCollectionAlbumsPage(0);
-      }
-    } else if (state.route.view === 'library' && state.libraryTab === 'collections') {
-      await loadCollectionFolders();
-    }
-    sanitizeStoredFavorites();
-    closeTagEditor();
-    render();
-    updatePlayerUi();
-  } finally {
-    if (resetButton) resetButton.disabled = false;
-  }
-}
-
-function collectTagEditorPayload() {
-  syncTagEditorRefs();
-  const tracks = tagTrackList
-    ? collectTagTrackRows(tagTrackList.querySelectorAll('.tag-track-row'))
-    : [];
-
-  return buildTagEditorPayload({
-    albumTitle: tagAlbumTitleInput?.value,
-    albumArtist: tagAlbumArtistInput?.value,
-    date: tagAlbumDateInput?.value,
-    genre: tagAlbumGenreInput?.value,
-    collectionName: tagAlbumCollectionNameInput?.value,
-    mediaTypes: getSelectedMediaTypes(),
-    status: tagAlbumStatusInput?.value || (state.tagEditorMode === 'add' ? 'Wishlist' : 'Collection'),
-    coverUrl: tagAlbumCoverUrlInput?.value,
-    musicBrainzId: state.tagEditorMusicBrainzId,
-    tracks,
+  const result = await fetchJson(`/api/albums/${encodeURIComponent(albumId)}/tags`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reset: true }),
   });
+  hydrateLibrary({ title: state.title }, result.library);
+  state.wishlistAlbumsLoaded = false;
+  state.collectionFoldersLoaded = false;
+  state.collectionAlbumsLoaded = false;
+  if (state.route.view === 'collection') {
+    await loadCollectionFolders();
+    if (!collectionFolderExists(state.selectedCollectionFolderPath)) {
+      returnToCollectionLibrary();
+      await loadCollectionFolders();
+    } else {
+      await loadCollectionAlbumsPage(0);
+    }
+  } else if (state.route.view === 'library' && state.libraryTab === 'collections') {
+    await loadCollectionFolders();
+  }
+  sanitizeStoredFavorites();
+  closeTagEditor();
+  render();
+  updatePlayerUi();
 }
 
 async function loadTrackLyrics(trackId, { force = false } = {}) {
@@ -3164,154 +3242,83 @@ function hasLyricsText(lyrics) {
   return Boolean(lyrics?.syncedLyrics?.trim() || lyrics?.plainLyrics?.trim());
 }
 
-function openLyricsEditor(track) {
+async function openLyricsEditor(track) {
   state.lyricsEditorTrackId = track.id;
   state.lyricsSuggestions = [];
-  const cachedLyrics = state.lyricsMap.get(track.id);
-  renderEditorModalShell(lyricsEditorModal, buildLyricsEditorModalSnapshot(track));
-  renderLyricsEditorBody(buildLyricsEditorBodySnapshot(track, cachedLyrics));
+  const cachedLyrics = state.lyricsMap.get(track.id) || {};
+  let lyrics = cachedLyrics;
+  try {
+    await loadTrackLyrics(track.id, { force: true });
+    lyrics = state.lyricsMap.get(track.id) || cachedLyrics;
+  } catch (error) {
+    console.warn(error.message || 'Unable to load saved lyrics.');
+  }
+  renderLyricsEditorModal({
+    renderKey: `${track.id}-${Date.now()}`,
+    ...buildLyricsEditorModalSnapshot(track),
+    ...buildLyricsEditorBodySnapshot(track, lyrics),
+    onClose: closeLyricsEditor,
+    onSearch: searchLyricsSuggestions,
+    onSave: saveLyricsEditor,
+    onReset: resetLyricsEditor,
+  });
   lyricsEditorOverlay.hidden = false;
   lyricsEditorModal.hidden = false;
-  loadTrackLyrics(track.id, { force: true })
-    .then(() => {
-      const lyrics = state.lyricsMap.get(track.id);
-      syncLyricsEditorRefs();
-      if (lyricsSyncedInput) lyricsSyncedInput.value = lyrics?.syncedLyrics || lyricsSyncedInput.value;
-      if (lyricsPlainInput) lyricsPlainInput.value = lyrics?.plainLyrics || lyricsPlainInput.value;
-    })
-    .catch((error) => {
-      setLyricsEditorStatus(error.message || 'Unable to load saved lyrics.');
-    });
 }
 
 function closeLyricsEditor() {
   state.lyricsEditorTrackId = '';
   state.lyricsSuggestions = [];
-  unmountReact(document.querySelector('#lyrics-editor-body-root'));
   unmountReact(lyricsEditorModal);
   lyricsEditorOverlay.hidden = true;
   lyricsEditorModal.hidden = true;
 }
 
-function renderLyricsEditorBody(props = {}) {
-  const bodyRoot = document.querySelector('#lyrics-editor-body-root');
-  if (!bodyRoot) return;
-  renderReact('renderLyricsEditorBody', bodyRoot, {
-    renderKey: `lyrics-${state.lyricsEditorTrackId}-${Date.now()}`,
-    ...props,
-  });
-  syncLyricsEditorRefs();
-  window.requestAnimationFrame(syncLyricsEditorRefs);
+function renderLyricsEditorModal(props = {}) {
+  renderReact('renderLyricsEditorModal', lyricsEditorModal, props);
 }
 
-function syncLyricsEditorRefs() {
-  lyricsSyncedInput = document.querySelector('#lyrics-synced-input');
-  lyricsPlainInput = document.querySelector('#lyrics-plain-input');
-  lyricsScraperQueryInput = document.querySelector('#lyrics-scraper-query');
-  lyricsScraperSearchButton = document.querySelector('#lyrics-scraper-search-button');
-  lyricsScraperStatus = document.querySelector('#lyrics-scraper-status');
-  lyricsScraperResults = document.querySelector('#lyrics-scraper-results');
-}
-
-function setLyricsEditorStatus(message) {
-  syncLyricsEditorRefs();
-  if (lyricsScraperStatus) lyricsScraperStatus.textContent = message;
-}
-
-async function searchLyricsSuggestions() {
+async function searchLyricsSuggestions(query = '') {
   const trackId = state.lyricsEditorTrackId;
   if (!trackId) return;
-  syncLyricsEditorRefs();
-  if (lyricsScraperSearchButton) lyricsScraperSearchButton.disabled = true;
-  setLyricsEditorStatus('Searching LRCLIB...');
-  state.lyricsSuggestions = [];
-  renderLyricsSuggestions();
-  try {
-    const query = lyricsScraperQueryInput?.value.trim() || '';
-    const suggestions = await fetchJson(`/api/tracks/${encodeURIComponent(trackId)}/lyrics-suggestions?q=${encodeURIComponent(query)}`);
-    state.lyricsSuggestions = suggestions;
-    if (suggestions.length === 0) {
-      setLyricsEditorStatus('No lyrics found. You can paste lyrics manually.');
-      return;
-    }
-    setLyricsEditorStatus(`${suggestions.length} result${suggestions.length === 1 ? '' : 's'} found.`);
-    renderLyricsSuggestions();
-  } finally {
-    syncLyricsEditorRefs();
-    if (lyricsScraperSearchButton) lyricsScraperSearchButton.disabled = false;
-  }
+  const suggestions = await fetchJson(`/api/tracks/${encodeURIComponent(trackId)}/lyrics-suggestions?q=${encodeURIComponent(String(query || '').trim())}`);
+  state.lyricsSuggestions = suggestions;
+  return suggestions;
 }
 
-function renderLyricsSuggestions() {
-  syncLyricsEditorRefs();
-  if (!lyricsScraperResults) return;
-  renderReact('renderLyricsSuggestionResults', lyricsScraperResults, {
-    suggestions: state.lyricsSuggestions,
-    onApply: (index) => {
-      const suggestion = state.lyricsSuggestions[index];
-      if (!suggestion) return;
-      syncLyricsEditorRefs();
-      if (lyricsSyncedInput) lyricsSyncedInput.value = suggestion.syncedLyrics || '';
-      if (lyricsPlainInput) lyricsPlainInput.value = suggestion.plainLyrics || '';
-      setLyricsEditorStatus(suggestion.syncedLyrics
-        ? 'Synced lyrics loaded. Save to keep them locally.'
-        : 'Plain lyrics loaded. Save to keep them locally.');
-    },
-  });
-}
-
-async function saveLyricsEditor() {
+async function saveLyricsEditor(formData = {}) {
   const trackId = state.lyricsEditorTrackId;
   if (!trackId) return;
-  const saveButton = document.querySelector('#lyrics-editor-save-button');
-  if (saveButton) saveButton.disabled = true;
-  syncLyricsEditorRefs();
-  setLyricsEditorStatus('Saving lyrics...');
-  try {
-    setLyricsEditorStatus('Saving lyrics and .lrc sidecar...');
-    await fetchJson(`/api/tracks/${encodeURIComponent(trackId)}/lyrics`, {
-      method: 'POST',
-      body: JSON.stringify(buildLyricsPayload({
-        syncedInput: lyricsSyncedInput?.value,
-        plainInput: lyricsPlainInput?.value,
-        parseSyncedLyrics,
-      })),
-    });
-    state.lyricsRefreshRequestedIds.delete(trackId);
-    await loadTrackLyrics(trackId, { force: true });
-    const lyrics = state.lyricsMap.get(trackId);
-    const lineCount = getSyncedLyricLines(lyrics).length;
-    state.fullscreenLyricsHidden = false;
-    closeLyricsEditor();
-    renderFullscreenView();
-    if (lineCount === 0 && (lyrics.syncedLyrics || lyrics.plainLyrics)) {
-      console.warn('Lyrics saved, but no timestamped synced lines were detected.');
-    }
-  } finally {
-    if (saveButton) saveButton.disabled = false;
+  await fetchJson(`/api/tracks/${encodeURIComponent(trackId)}/lyrics`, {
+    method: 'POST',
+    body: JSON.stringify(buildLyricsPayload({
+      syncedInput: formData.syncedLyrics,
+      plainInput: formData.plainLyrics,
+      parseSyncedLyrics,
+    })),
+  });
+  state.lyricsRefreshRequestedIds.delete(trackId);
+  await loadTrackLyrics(trackId, { force: true });
+  const lyrics = state.lyricsMap.get(trackId);
+  const lineCount = getSyncedLyricLines(lyrics).length;
+  state.fullscreenLyricsHidden = false;
+  closeLyricsEditor();
+  renderFullscreenView();
+  if (lineCount === 0 && (lyrics.syncedLyrics || lyrics.plainLyrics)) {
+    console.warn('Lyrics saved, but no timestamped synced lines were detected.');
   }
 }
 
 async function resetLyricsEditor() {
   const trackId = state.lyricsEditorTrackId;
   if (!trackId || !window.confirm('Remove saved lyrics for this track?')) return;
-  const resetButton = document.querySelector('#lyrics-editor-reset-button');
-  if (resetButton) resetButton.disabled = true;
-  try {
-    await fetchJson(`/api/tracks/${encodeURIComponent(trackId)}/lyrics`, {
-      method: 'POST',
-      body: JSON.stringify({ reset: true }),
-    });
-    state.lyricsRefreshRequestedIds.delete(trackId);
-    await loadTrackLyrics(trackId, { force: true });
-    syncLyricsEditorRefs();
-    if (lyricsSyncedInput) lyricsSyncedInput.value = '';
-    if (lyricsPlainInput) lyricsPlainInput.value = '';
-    renderFullscreenView();
-    setLyricsEditorStatus('Lyrics reset.');
-  } finally {
-    if (resetButton) resetButton.disabled = false;
-  }
+  await fetchJson(`/api/tracks/${encodeURIComponent(trackId)}/lyrics`, {
+    method: 'POST',
+    body: JSON.stringify({ reset: true }),
+  });
+  state.lyricsRefreshRequestedIds.delete(trackId);
+  await loadTrackLyrics(trackId, { force: true });
+  renderFullscreenView();
 }
 
 function playTrack(track, queueTracks = null) {
@@ -3488,7 +3495,7 @@ function getPlayerStore() {
       },
       onDownload: () => {
         const track = getCurrentTrack();
-        if (track) triggerTrackDownload(track);
+        if (track) triggerTrackBrowserDownload(track);
       },
       onQueueToggle: () => {
         state.queueOpen = !state.queueOpen;
@@ -3555,6 +3562,14 @@ function getVolumePlayerIcon() {
 }
 
 function renderFullscreenView() {
+  if (state.route.view !== 'fullscreen') {
+    fullscreenOverlay.hidden = true;
+    fullscreenOverlay.classList.remove('lyrics-hidden', 'ui-hidden', 'is-playing');
+    updateVisualizerState();
+    return;
+  }
+
+  fullscreenOverlay.hidden = false;
   const track = getCurrentTrack();
   const queue = getPlaybackQueue();
   const currentIndex = track ? queue.indexOf(track.id) : -1;
@@ -3814,8 +3829,6 @@ function applyStaticIcons() {
   renderIconHtml(queueFavoriteButton, materialIcon('favorite'));
   renderIconHtml(queueClearButton, playerIcon('clearQueue'));
   renderIconHtml(queueCloseButton, materialIcon('close'));
-  renderIconHtml(backButton, materialIcon('back'));
-  renderIconHtml(clearSearchButton, materialIcon('close'));
 }
 
 function renderIconHtml(element, html) {
@@ -3866,11 +3879,11 @@ async function downloadQueueTracks() {
   const queue = getPlaybackQueue().map((id) => state.trackMap.get(id)).filter(Boolean);
   if (!ensureDownloadAllowed()) return;
   if (state.settings.bulkDownloadMethod === 'zip') {
-    submitBulkDownload(queue, 'Queue.zip');
+    submitBulkDownload(queue, getBulkDownloadFilename({ name: 'Queue', tracks: queue }));
     return;
   }
   for (const track of queue) {
-    triggerTrackDownload(track);
+    triggerTrackBrowserDownload(track);
     await delay(140);
   }
 }
@@ -3883,21 +3896,27 @@ async function downloadAlbumTracks(albumId) {
   if (!ensureDownloadAllowed()) return;
 
   if (state.settings.bulkDownloadMethod === 'zip') {
-    submitBulkDownload(tracks, `${sanitizeFilename(album.title || 'Album')}.zip`);
+    submitBulkDownload(tracks, getBulkDownloadFilename({
+      name: album.title || 'Album',
+      albumTitle: album.title || 'Album',
+      albumArtist: album.albumArtist || album.artist || '',
+      year: album.year || '',
+      tracks,
+    }));
     return;
   }
 
   for (const track of tracks) {
-    triggerTrackDownload(track);
+    triggerTrackBrowserDownload(track);
     await delay(140);
   }
 }
 
-function triggerTrackDownload(track) {
+function triggerTrackBrowserDownload(track) {
   if (!ensureDownloadAllowed()) return;
   const link = document.createElement('a');
   link.href = getTrackDownloadUrl(track);
-  link.download = getDownloadFilename(track);
+  link.download = getTrackBrowserDownloadFilename(track);
   link.style.display = 'none';
   document.body.append(link);
   link.click();
@@ -3926,7 +3945,7 @@ function submitBulkDownload(tracks, filename) {
     filename,
     tracks: selectedTracks.map((track) => ({
       id: track.id,
-      filename: getDownloadFilename(track),
+      filename: getTrackBrowserDownloadFilename(track),
       folder: getDownloadFolder(track),
     })),
   });
@@ -4137,23 +4156,6 @@ function normalizeMediaTypeName(mediaType) {
   return librarySelectors.normalizeMediaTypeName(mediaType);
 }
 
-function setSelectedMediaTypes(mediaTypes) {
-  syncTagEditorRefs();
-  if (!tagAlbumMediaTypesInput) return;
-  const selected = new Set((Array.isArray(mediaTypes) ? mediaTypes : [mediaTypes]).map(normalizeMediaTypeName));
-  for (const input of tagAlbumMediaTypesInput.querySelectorAll('input[type="checkbox"]')) {
-    input.checked = selected.has(input.value);
-  }
-}
-
-function getSelectedMediaTypes() {
-  syncTagEditorRefs();
-  if (!tagAlbumMediaTypesInput) return [];
-  const selected = [...tagAlbumMediaTypesInput.querySelectorAll('input[type="checkbox"]:checked')]
-    .map((input) => input.value);
-  return selected;
-}
-
 function setImageOrFallback({ imageElement, fallbackElement, src, alt }) {
   if (src) {
     imageElement.hidden = false;
@@ -4169,15 +4171,16 @@ function setImageOrFallback({ imageElement, fallbackElement, src, alt }) {
 }
 
 function formatDownloadName(track) {
-  return getDownloadFilename(track);
+  return getTrackBrowserDownloadFilename(track);
 }
 
-function getDownloadFilename(track) {
+function getTrackBrowserDownloadFilename(track) {
   const album = findAlbumByTrack(track);
+  const trackFilenameTemplate = state.settings.filenameTemplate || DEFAULT_SETTINGS.filenameTemplate;
   const extension = state.settings.downloadQuality === 'mp3'
     ? '.mp3'
     : getFileExtension(track.relativePath);
-  const filename = applyTemplate(state.settings.filenameTemplate || DEFAULT_SETTINGS.filenameTemplate, {
+  const filename = applyTemplate(trackFilenameTemplate, {
     discNumber: track.discNumber || '',
     trackNumber: track.trackNumber || '',
     artist: track.artist,
@@ -4193,14 +4196,31 @@ function getDownloadFilename(track) {
 function getTrackDownloadUrl(track) {
   const params = new URLSearchParams({
     quality: state.settings.downloadQuality === 'mp3' ? 'mp3' : 'original',
-    filename: getDownloadFilename(track),
+    filename: getTrackBrowserDownloadFilename(track),
   });
   return `/api/tracks/${encodeURIComponent(track.id)}/download?${params.toString()}`;
 }
 
+function getBulkDownloadFilename({ name = 'Download', albumTitle = '', albumArtist = '', year = '', tracks = [] } = {}) {
+  const filename = applyTemplate(
+    state.settings.archiveFilenameTemplate || DEFAULT_SETTINGS.archiveFilenameTemplate,
+    {
+      name,
+      album: albumTitle || name,
+      albumTitle: albumTitle || name,
+      albumArtist,
+      artist: albumArtist,
+      year,
+      trackCount: Array.isArray(tracks) ? tracks.length : 0,
+    },
+  );
+  const sanitized = sanitizeFilename(filename) || sanitizeFilename(name) || 'download';
+  return `${sanitized}.zip`;
+}
+
 function getDownloadFolder(track) {
   const album = findAlbumByTrack(track);
-  const folder = applyTemplate(state.settings.folderTemplate || DEFAULT_SETTINGS.folderTemplate, {
+  const folder = applyTemplate(state.settings.zipEntryFolderTemplate || DEFAULT_SETTINGS.zipEntryFolderTemplate, {
     discNumber: track.discNumber || '',
     trackNumber: track.trackNumber || '',
     artist: track.artist,

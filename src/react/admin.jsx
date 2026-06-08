@@ -26,6 +26,7 @@ const settingsFieldClassName = [
   'tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--glass)] tw-p-3.5 tw-backdrop-blur-md',
   'max-[720px]:tw-grid-cols-1 max-[720px]:tw-items-start',
 ].join(' ');
+const settingsFieldStackClassName = 'tw-grid tw-gap-3';
 const settingsActionsClassName = 'settings-actions tw-flex tw-flex-wrap tw-items-center tw-gap-2.5';
 const settingsHelpClassName = 'settings-help tw-mt-2 tw-text-muted tw-leading-relaxed';
 const scanProgressClassName = 'scan-progress tw-h-2.5 tw-overflow-hidden tw-rounded-pill tw-border tw-border-line tw-bg-[var(--background-soft)]';
@@ -39,7 +40,6 @@ const libraryFolderOptionClassName = [
 ].join(' ');
 
 export function AdminSettingsPanel({ embedded = false }) {
-  const root = document.querySelector('#admin-root');
   const savedSettings = loadSavedSettings();
   const adminThemeMode = isLightTheme(savedSettings) ? 'light' : 'dark';
   const [activeTab, setActiveTab] = useState('users');
@@ -51,8 +51,8 @@ export function AdminSettingsPanel({ embedded = false }) {
   const [folders, setFolders] = useState({ available: [], selected: [], scan: {} });
   const [selectedFolders, setSelectedFolders] = useState(new Set());
 
-  const appTitle = config?.title || root?.dataset.appTitle || 'Monochrome-Streamer';
-  const adminUser = users.admin?.username || root?.dataset.adminUser || 'admin';
+  const appTitle = config?.title || 'Monochrome-Streamer';
+  const adminUser = users.admin?.username || 'admin';
 
   useEffect(() => {
     applySavedTheme();
@@ -334,12 +334,19 @@ function DownloadsPanel({ settings, onSaved, setStatus }) {
   async function onSubmit(event) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    await api('/api/admin/download-settings', {
+    const savedSettings = await api('/api/admin/download-settings', {
       method: 'POST',
       body: JSON.stringify(Object.fromEntries(form.entries())),
     });
+    localStorage.setItem(STORAGE_KEYS.downloadSettingsSync, JSON.stringify({
+      timestamp: Date.now(),
+      settings: savedSettings,
+    }));
+    window.dispatchEvent(new CustomEvent('monochrome:download-settings-updated', {
+      detail: savedSettings,
+    }));
     setStatus('Download settings saved.');
-    await onSaved();
+    await onSaved(savedSettings);
   }
 
   return (
@@ -360,11 +367,21 @@ function DownloadsPanel({ settings, onSaved, setStatus }) {
             <option value="zip">ZIP archive before downloading</option>
           </select>
         </label>
-        <label className={settingsFieldClassName}>
-          <span>Filename Template</span>
-          <input name="filenameTemplate" defaultValue={settings.filenameTemplate} />
-        </label>
-        <p className={settingsHelpClassName}>Available: {'{discNumber}'}, {'{trackNumber}'}, {'{artist}'}, {'{title}'}, {'{album}'}, {'{albumArtist}'}, {'{year}'}.</p>
+        <div className={settingsFieldClassName}>
+          <span>Filename Templates</span>
+          <div className={settingsFieldStackClassName}>
+            <label className={settingsFieldStackClassName}>
+              <span>Tracks Filename Template</span>
+              <input name="filenameTemplate" defaultValue={settings.filenameTemplate} />
+            </label>
+            <label className={settingsFieldStackClassName}>
+              <span>ZIP Filename Template</span>
+              <input name="archiveFilenameTemplate" defaultValue={settings.archiveFilenameTemplate} />
+            </label>
+          </div>
+        </div>
+        <p className={settingsHelpClassName}>Tracks template is used for one-by-one browser downloads. Available: {'{discNumber}'}, {'{trackNumber}'}, {'{artist}'}, {'{title}'}, {'{album}'}, {'{albumArtist}'}, {'{year}'}.</p>
+        <p className={settingsHelpClassName}>ZIP template is only used to name queue and album ZIP downloads. Available: {'{name}'}, {'{album}'}, {'{albumTitle}'}, {'{albumArtist}'}, {'{artist}'}, {'{year}'}, {'{trackCount}'}.</p>
         <div className={settingsActionsClassName}>
           <button className="primary-button" type="submit">Save Downloads</button>
         </div>
@@ -604,11 +621,18 @@ function loadSavedSettings() {
   }
 }
 
-const root = document.querySelector('#admin-root');
-if (root) {
-  createRoot(root).render(
+export function mountStandaloneAdmin(rootElement) {
+  if (!rootElement) return null;
+  const root = createRoot(rootElement);
+  root.render(
     <React.StrictMode>
       <AdminSettingsPanel />
     </React.StrictMode>,
   );
+  return root;
+}
+
+const standaloneRoot = document.querySelector('#admin-root');
+if (standaloneRoot) {
+  mountStandaloneAdmin(standaloneRoot);
 }

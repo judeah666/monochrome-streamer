@@ -19,6 +19,7 @@ const settingsFieldClassName = [
   'tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--glass)] tw-p-3.5 tw-backdrop-blur-md',
   'max-[720px]:tw-grid-cols-1 max-[720px]:tw-items-start',
 ].join(' ');
+const settingsFieldStackClassName = 'tw-grid tw-gap-3';
 
 const settingsHelpClassName = 'settings-help tw-mt-2 tw-text-muted tw-leading-relaxed';
 const settingsActionsClassName = 'settings-actions tw-flex tw-flex-wrap tw-items-center tw-gap-2.5';
@@ -70,11 +71,21 @@ export function DownloadSettings({ settings, downloadQualityOptions = [], bulkDo
         </select>
       </label>
       <p className={settingsHelpClassName}>Queue and album downloads can either start one file at a time or stream one ZIP archive from the server.</p>
-      <label className={settingsFieldClassName}>
-        <span>Filename Template</span>
-        <input type="text" data-setting="filenameTemplate" defaultValue={settings.filenameTemplate} />
-      </label>
-      <p className={settingsHelpClassName}>Available: {'{discNumber}'}, {'{trackNumber}'}, {'{artist}'}, {'{title}'}, {'{album}'}, {'{albumArtist}'}, {'{year}'}.</p>
+      <div className={settingsFieldClassName}>
+        <span>Filename Templates</span>
+        <div className={settingsFieldStackClassName}>
+          <label className={settingsFieldStackClassName}>
+            <span>Tracks Filename Template</span>
+            <input type="text" data-setting="filenameTemplate" defaultValue={settings.filenameTemplate} />
+          </label>
+          <label className={settingsFieldStackClassName}>
+            <span>ZIP Filename Template</span>
+            <input type="text" data-setting="archiveFilenameTemplate" defaultValue={settings.archiveFilenameTemplate} />
+          </label>
+        </div>
+      </div>
+      <p className={settingsHelpClassName}>Tracks template is used for one-by-one browser downloads. Available: {'{discNumber}'}, {'{trackNumber}'}, {'{artist}'}, {'{title}'}, {'{album}'}, {'{albumArtist}'}, {'{year}'}.</p>
+      <p className={settingsHelpClassName}>ZIP template is only used to name queue and album ZIP downloads. Available: {'{name}'}, {'{album}'}, {'{albumTitle}'}, {'{albumArtist}'}, {'{artist}'}, {'{year}'}, {'{trackCount}'}.</p>
     </SettingsGroup>
   );
 }

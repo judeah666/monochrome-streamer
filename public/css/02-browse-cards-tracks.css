@@ -83,6 +83,19 @@
   color: var(--text);
 }
 
+.search-bar input[type='search'] {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.search-bar input[type='search']::-webkit-search-decoration,
+.search-bar input[type='search']::-webkit-search-cancel-button,
+.search-bar input[type='search']::-webkit-search-results-button,
+.search-bar input[type='search']::-webkit-search-results-decoration {
+  display: none;
+  -webkit-appearance: none;
+}
+
 .search-icon {
   color: var(--muted);
   font-size: 20px;

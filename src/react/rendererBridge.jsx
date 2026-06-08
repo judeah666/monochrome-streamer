@@ -19,18 +19,19 @@ import { ArtistGrid } from './ArtistGrid.jsx';
 import { ArtistDetail } from './ArtistDetail.jsx';
 import { LibraryFilterBar, LibraryPager } from './LibraryControls.jsx';
 import { LibraryArtistsPanel, LibraryTracksPanel } from './LibraryPanels.jsx';
+import { LibraryTabs } from './LibraryTabs.jsx';
 import { SettingsPanelContainer, SettingsTabsContainer } from './SettingsContainers.jsx';
 import { AdminSettingsPanel } from './admin.jsx';
-import { LyricsEditorBody } from './LyricsEditor.jsx';
-import { AlbumTagEditorBody } from './AlbumTagEditor.jsx';
 import { FolderBrowser } from './FolderBrowser.jsx';
 import { PlaylistBrowser } from './PlaylistBrowser.jsx';
-import { ArtistEditorBody } from './ArtistEditor.jsx';
 import { FullscreenLyrics } from './FullscreenLyrics.jsx';
 import { Sidebar } from './Sidebar.jsx';
-import { EditorModal } from './EditorModal.jsx';
-import { LyricsSuggestionResults, TagSuggestionResults } from './ScraperResults.jsx';
+import { Topbar } from './Topbar.jsx';
+import { HomeIntro } from './HomeIntro.jsx';
+import { AdminIntro, FavoritesIntro, LibraryIntro, SettingsIntro, SettingsStatus, WishlistIntro } from './SectionIntros.jsx';
+import { AlbumTagEditorModal, ArtistEditorModal, LyricsEditorModal } from './EditorModals.jsx';
 import { IconHtml } from './IconHtml.jsx';
+import { LoginView } from './LoginView.jsx';
 
 const mountedRoots = new WeakMap();
 
@@ -55,12 +56,22 @@ const rootRenderers = {
   renderArtistDetail: ArtistDetail,
   renderLibraryFilterBar: LibraryFilterBar,
   renderLibraryPager: LibraryPager,
+  renderLibraryTabs: LibraryTabs,
   renderLibraryArtistsPanel: LibraryArtistsPanel,
   renderLibraryTracksPanel: LibraryTracksPanel,
   renderSettingsPanel: SettingsPanelContainer,
   renderFolderBrowser: FolderBrowser,
   renderPlaylistBrowser: PlaylistBrowser,
   renderSidebar: Sidebar,
+  renderTopbar: Topbar,
+  renderHomeIntro: HomeIntro,
+  renderLibraryIntro: LibraryIntro,
+  renderFavoritesIntro: FavoritesIntro,
+  renderWishlistIntro: WishlistIntro,
+  renderSettingsIntro: SettingsIntro,
+  renderSettingsStatus: SettingsStatus,
+  renderAdminIntro: AdminIntro,
+  renderLoginView: LoginView,
 };
 
 export function installMonochromeReactBridge(targetWindow = window) {
@@ -74,20 +85,14 @@ export function installMonochromeReactBridge(targetWindow = window) {
     bridge[name] = (container, props) => renderReactRoot(container, <Component {...props} />);
   }
 
-  bridge.renderLyricsEditorBody = (container, props) =>
-    renderReactRoot(container, <LyricsEditorBody key={props.renderKey} {...props} />);
-  bridge.renderAlbumTagEditorBody = (container, props) =>
-    renderReactRoot(container, <AlbumTagEditorBody key={props.renderKey} {...props} />, { sync: true });
-  bridge.renderArtistEditorBody = (container, props) =>
-    renderReactRoot(container, <ArtistEditorBody key={props.renderKey} {...props} />, { sync: true });
+  bridge.renderLyricsEditorModal = (container, props) =>
+    renderReactRoot(container, <LyricsEditorModal key={props.renderKey} {...props} />, { sync: true });
+  bridge.renderAlbumTagEditorModal = (container, props) =>
+    renderReactRoot(container, <AlbumTagEditorModal key={props.renderKey} {...props} />, { sync: true });
+  bridge.renderArtistEditorModal = (container, props) =>
+    renderReactRoot(container, <ArtistEditorModal key={props.renderKey} {...props} />, { sync: true });
   bridge.renderFullscreenLyrics = (container, props) =>
     renderReactRoot(container, <FullscreenLyrics key={props.renderKey} {...props} />, { sync: true });
-  bridge.renderEditorModal = (container, props) =>
-    renderReactRoot(container, <EditorModal {...props} />, { sync: true });
-  bridge.renderTagSuggestionResults = (container, props) =>
-    renderReactRoot(container, <TagSuggestionResults {...props} />, { sync: true });
-  bridge.renderLyricsSuggestionResults = (container, props) =>
-    renderReactRoot(container, <LyricsSuggestionResults {...props} />, { sync: true });
   bridge.renderIconHtml = (container, props) =>
     renderReactRoot(container, <IconHtml {...props} />, { sync: true });
   bridge.renderAdminPanel = (container, props) =>

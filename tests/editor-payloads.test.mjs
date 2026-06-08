@@ -4,12 +4,7 @@ import {
   buildArtistInfoPayload,
   buildLyricsPayload,
   buildTagEditorPayload,
-  collectTagTrackRows,
 } from '../src/controller/editorPayloads.js';
-
-function createInput(value) {
-  return { value };
-}
 
 test('buildArtistInfoPayload trims editable artist fields', () => {
   assert.deepEqual(buildArtistInfoPayload({
@@ -21,27 +16,6 @@ test('buildArtistInfoPayload trims editable artist fields', () => {
     bio: 'Bio',
     sourceUrl: 'https://source.example',
   });
-});
-
-test('collectTagTrackRows reads the compact album tag rows', () => {
-  const row = {
-    dataset: { trackId: 'track-1', discNumber: '2' },
-    querySelector(selector) {
-      return {
-        '.tag-track-title': createInput(' Title '),
-        '.tag-track-artist': createInput(' Artist '),
-        '.tag-track-number': createInput(' 4 '),
-      }[selector];
-    },
-  };
-
-  assert.deepEqual(collectTagTrackRows([row]), [{
-    id: 'track-1',
-    title: 'Title',
-    artist: 'Artist',
-    trackNumber: '4',
-    discNumber: '2',
-  }]);
 });
 
 test('buildTagEditorPayload mirrors date into year for local overrides', () => {
@@ -83,7 +57,6 @@ test('buildTagEditorPayload defaults edited scanned albums to collection digital
     status: 'Collection',
     coverUrl: '',
     musicBrainzId: '',
-    tracks: [],
   });
 });
 

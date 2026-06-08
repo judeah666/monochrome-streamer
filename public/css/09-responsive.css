@@ -354,11 +354,15 @@
   }
 
   .now-playing-bar {
-    left: 16px;
-    right: 16px;
     grid-template-columns: 1fr;
     gap: 14px;
     min-height: auto;
+  }
+
+  body.player-layout-floating .now-playing-bar {
+    left: 50%;
+    width: min(calc(100vw - 32px), 760px);
+    transform: translateX(-50%);
   }
 
   body.player-layout-qobuz .now-playing-bar {
@@ -526,7 +530,7 @@
     justify-content: space-between;
   }
 
-  body:not(.player-layout-qobuz) .now-playing-bar {
+  body.player-layout-floating .now-playing-bar {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
@@ -539,70 +543,70 @@
     border-radius: 18px;
   }
 
-  body:not(.player-layout-qobuz) .track-info {
+  body.player-layout-floating .track-info {
     grid-area: track;
     gap: 10px;
   }
 
-  body:not(.player-layout-qobuz) .track-info .cover,
-  body:not(.player-layout-qobuz) .player-cover-fallback {
+  body.player-layout-floating .track-info .cover,
+  body.player-layout-floating .player-cover-fallback {
     width: 58px;
     height: 58px;
     border-radius: 14px;
   }
 
-  body:not(.player-layout-qobuz) .track-info .title {
+  body.player-layout-floating .track-info .title {
     font-size: 0.92rem;
   }
 
-  body:not(.player-layout-qobuz) .track-info .album,
-  body:not(.player-layout-qobuz) .track-info .artist {
+  body.player-layout-floating .track-info .album,
+  body.player-layout-floating .track-info .artist {
     font-size: 0.84rem;
   }
 
-  body:not(.player-layout-qobuz) .player-controls {
+  body.player-layout-floating .player-controls {
     display: contents;
   }
 
-  body:not(.player-layout-qobuz) .player-controls .buttons {
+  body.player-layout-floating .player-controls .buttons {
     grid-area: buttons;
     justify-content: center;
     gap: 13px;
   }
 
-  body:not(.player-layout-qobuz) .player-controls .buttons button {
+  body.player-layout-floating .player-controls .buttons button {
     width: 36px;
     height: 36px;
   }
 
-  body:not(.player-layout-qobuz) .player-controls .buttons button .fa-solid {
+  body.player-layout-floating .player-controls .buttons button .fa-solid {
     font-size: 24px;
   }
 
-  body:not(.player-layout-qobuz) .player-controls .buttons .play-pause-btn {
+  body.player-layout-floating .player-controls .buttons .play-pause-btn {
     width: 52px;
     height: 52px;
   }
 
-  body:not(.player-layout-qobuz) .player-controls .buttons .play-pause-btn .fa-solid {
+  body.player-layout-floating .player-controls .buttons .play-pause-btn .fa-solid {
     font-size: 34px;
   }
 
-  body:not(.player-layout-qobuz) #prev-btn .fa-solid,
-  body:not(.player-layout-qobuz) #next-btn .fa-solid {
+  body.player-layout-floating #prev-btn .fa-solid,
+  body.player-layout-floating #next-btn .fa-solid {
     font-size: 27px;
   }
 
-  body:not(.player-layout-qobuz) .player-controls .buttons .transport-icon-button {
+  body.player-layout-floating .player-controls .buttons .transport-icon-button {
     width: 32px;
     height: 32px;
   }
 
-  body:not(.player-layout-qobuz) .player-controls .buttons .transport-icon-button .fa-solid {
+  body.player-layout-floating .player-controls .buttons .transport-icon-button .fa-solid {
     font-size: 21px;
   }
 
-  body:not(.player-layout-qobuz) .progress-container {
+  body.player-layout-floating .progress-container {
     grid-area: progress;
     order: initial;
     gap: 8px;
@@ -610,30 +614,30 @@
     font-size: 0.82rem;
   }
 
-  body:not(.player-layout-qobuz) .progress-bar {
+  body.player-layout-floating .progress-bar {
     height: 5px;
   }
 
-  body:not(.player-layout-qobuz) .volume-controls {
+  body.player-layout-floating .volume-controls {
     grid-area: actions;
     justify-content: flex-end;
     gap: 6px;
   }
 
-  body:not(.player-layout-qobuz) .volume-controls .icon-button,
-  body:not(.player-layout-qobuz) .volume-controls .icon-link {
+  body.player-layout-floating .volume-controls .icon-button,
+  body.player-layout-floating .volume-controls .icon-link {
     width: 36px;
     height: 36px;
   }
 
-  body:not(.player-layout-qobuz) #volume-btn,
-  body:not(.player-layout-qobuz) #volume-bar,
-  body:not(.player-layout-qobuz) .audio-quality-info::before,
-  body:not(.player-layout-qobuz) #audio-quality-label {
+  body.player-layout-floating #volume-btn,
+  body.player-layout-floating #volume-bar,
+  body.player-layout-floating .audio-quality-info::before,
+  body.player-layout-floating #audio-quality-label {
     display: none;
   }
 
-  body:not(.player-layout-qobuz) .audio-quality-info {
+  body.player-layout-floating .audio-quality-info {
     flex: 0 0 auto;
     min-width: 0;
     max-width: none;
@@ -792,6 +796,12 @@
 
   .now-playing-bar {
     left: calc(var(--sidebar-width) + 16px);
+  }
+
+  body.player-layout-floating .now-playing-bar {
+    left: calc(var(--sidebar-width) + ((100vw - var(--sidebar-width)) / 2));
+    width: min(980px, calc(100vw - var(--sidebar-width) - 32px));
+    transform: translateX(-50%);
   }
 
   body.player-layout-qobuz .now-playing-bar {
