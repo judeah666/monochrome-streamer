@@ -44,6 +44,7 @@ function CoverCaseStack({ covers = [] }) {
               src={cover.coverUrl}
               alt=""
               loading="lazy"
+              decoding="async"
             />
           ) : (
             <div className="tw-relative tw-z-10 tw-grid tw-h-full tw-w-full tw-place-items-center tw-rounded-[16px] tw-bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,0.72)_0_18%,color-mix(in_srgb,var(--accent)_24%,transparent)_19%_38%,color-mix(in_srgb,var(--surface)_78%,transparent)_39%_100%)] tw-shadow-[0_10px_28px_rgba(0,0,0,0.2)]">

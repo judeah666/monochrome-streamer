@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 const ICONS = {
   addQueue: 'fa-plus',
@@ -55,6 +55,48 @@ export function CoverPlaceholder({ className = 'album-art-placeholder' }) {
     <div className={`${className} cover-placeholder-art`}>
       <i className="fa-solid fa-record-vinyl" aria-hidden="true"></i>
     </div>
+  );
+}
+
+export function CoverImage({
+  src = '',
+  alt = '',
+  className = '',
+  placeholderClassName = 'album-art-placeholder',
+  placeholderWrapperClassName = '',
+  placeholderProps = {},
+  onError,
+  ...imageProps
+}) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  if (!src || failed) {
+    const placeholder = <CoverPlaceholder className={placeholderClassName || className} />;
+    if (placeholderWrapperClassName) {
+      return (
+        <span className={placeholderWrapperClassName} {...placeholderProps}>
+          {placeholder}
+        </span>
+      );
+    }
+    return React.cloneElement(placeholder, placeholderProps);
+  }
+
+  return (
+    <img
+      className={className}
+      src={src}
+      alt={alt}
+      onError={(event) => {
+        setFailed(true);
+        onError?.(event);
+      }}
+      {...imageProps}
+    />
   );
 }
 

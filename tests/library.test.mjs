@@ -12,6 +12,7 @@ import {
 } from '../lib/library.mjs';
 import {
   readCollectionFolderAlbumPage,
+  readLibraryAlbumPage,
   writeLibraryDatabase,
 } from '../lib/library-db.mjs';
 
@@ -59,6 +60,51 @@ test('readCollectionFolderAlbumPage sorts collection volumes naturally', async (
     const page = await readCollectionFolderAlbumPage(databasePath, 'Mega Collection', { limit: 50, offset: 0 });
 
     assert.deepEqual(page.albums.map((album) => album.title), ['Vol 1', 'Vol 2', 'Vol 10']);
+  } finally {
+    rmSync(databasePath, { force: true });
+  }
+});
+
+test('readLibraryAlbumPage searches album names with normalized tokens', async () => {
+  const databasePath = path.join(tmpdir(), `monochrome-album-search-${Date.now()}.sqlite`);
+  try {
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: new Date().toISOString(),
+      trackCount: 0,
+      albumCount: 2,
+      tracks: [],
+      albums: [
+        {
+          id: 'album-1',
+          title: "For Lover's Only IV",
+          artist: 'Various Artists',
+          albumArtist: 'Various Artists',
+          date: '',
+          year: 2000,
+          collectionName: '',
+          coverTrackId: '',
+          trackIds: [],
+          audioQuality: null,
+        },
+        {
+          id: 'album-2',
+          title: 'Different Album',
+          artist: 'Various Artists',
+          albumArtist: 'Various Artists',
+          date: '',
+          year: 2000,
+          collectionName: '',
+          coverTrackId: '',
+          trackIds: [],
+          audioQuality: null,
+        },
+      ],
+    });
+
+    const page = await readLibraryAlbumPage(databasePath, { search: 'for lovers only', limit: 50, offset: 0 });
+
+    assert.deepEqual(page.albums.map((album) => album.id), ['album-1']);
+    assert.equal(page.page.total, 1);
   } finally {
     rmSync(databasePath, { force: true });
   }

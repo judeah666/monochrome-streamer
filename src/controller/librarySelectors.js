@@ -34,12 +34,12 @@ export function getFilteredTracks(tracks, searchTerm) {
 export function getFilteredAlbums(albums, filteredTracks, searchTerm) {
   if (!searchTerm) return albums;
   const filteredAlbumIds = new Set(filteredTracks.map((track) => track.albumId).filter(Boolean));
-  if (filteredAlbumIds.size > 0) {
-    return albums.filter((album) => filteredAlbumIds.has(album.id));
-  }
-
   const filteredAlbumKeys = new Set(filteredTracks.map((track) => `${track.albumArtist || track.artist}::${track.album}`));
-  return albums.filter((album) => filteredAlbumKeys.has(`${album.albumArtist || album.artist}::${album.title}`));
+  return albums.filter((album) => (
+    albumMatchesSearch(album, searchTerm)
+    || filteredAlbumIds.has(album.id)
+    || filteredAlbumKeys.has(`${album.albumArtist || album.artist}::${album.title}`)
+  ));
 }
 
 export function getHomeAlbums({
@@ -74,14 +74,42 @@ export function getHomeAlbums({
 
 export function trackMatchesSearch(track, searchTerm) {
   if (!searchTerm) return true;
-  return String(track.title || '').toLowerCase().includes(searchTerm);
+  return fieldsMatchSearch([track.title], searchTerm);
 }
 
 export function albumMatchesSearch(album, searchTerm) {
   if (!searchTerm) return true;
-  return [album.title, album.artist, album.albumArtist].some((value) =>
-    String(value || '').toLowerCase().includes(searchTerm)
-  );
+  return fieldsMatchSearch([
+    album.title,
+    album.artist,
+    album.albumArtist,
+    album.collectionName,
+    album.year,
+  ], searchTerm);
+}
+
+export function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/gu, '')
+    .toLowerCase()
+    .replace(/['’`]/gu, '')
+    .replace(/&/gu, ' and ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+    .replace(/\s+/gu, ' ');
+}
+
+function fieldsMatchSearch(fields, searchTerm) {
+  const needle = normalizeSearchText(searchTerm);
+  if (!needle) return true;
+
+  const haystack = normalizeSearchText(fields.filter(Boolean).join(' '));
+  if (!haystack) return false;
+  if (haystack.includes(needle)) return true;
+
+  const tokens = needle.split(' ').filter(Boolean);
+  return tokens.length > 0 && tokens.every((token) => haystack.includes(token));
 }
 
 export function findAlbumByTrack(track, { albumMap, albums }) {

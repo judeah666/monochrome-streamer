@@ -1,12 +1,19 @@
 /* Top bar, browse views, album cards, tracks, album and artist detail */
 
+.topbar-shell {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
 .topbar {
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 12px;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 0;
   width: 100%;
 }
 
@@ -342,6 +349,13 @@
 .album-card-placeholder-host {
   display: block;
   width: 100%;
+  aspect-ratio: 1;
+}
+
+.album-card-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1;
 }
 
 .favorite-toggle-button,

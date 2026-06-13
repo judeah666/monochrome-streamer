@@ -8,6 +8,7 @@ import {
   getAlbumFolderPath,
   getAlbumMediaTypes,
   getFilteredTracks,
+  getFilteredAlbums,
   getHomeAlbums,
   getRandomAlbumIds,
   getTrackFolderPath,
@@ -32,6 +33,34 @@ test('track search only matches track titles', () => {
   assert.equal(trackMatchesSearch(track, 'auto'), true);
   assert.equal(trackMatchesSearch(track, 'first love'), false);
   assert.deepEqual(getFilteredTracks([track], 'utada'), []);
+});
+
+test('album search keeps direct album title matches even when tracks do not match', () => {
+  const albums = [
+    { id: 'album-1', title: 'DJ Traxx Demo Mix', artist: 'Various Artists' },
+    { id: 'album-2', title: 'Budots Dance', artist: 'Dredcore' },
+  ];
+  const tracks = [
+    { id: 'track-1', albumId: 'album-2', title: 'DJ Traxx Demo Mix', album: 'Budots Dance', artist: 'Dredcore' },
+  ];
+  const filteredTracks = getFilteredTracks(tracks, 'dj traxx demo mix');
+
+  assert.deepEqual(
+    getFilteredAlbums(albums, filteredTracks, 'dj traxx demo mix').map((album) => album.id),
+    ['album-1', 'album-2'],
+  );
+});
+
+test('album search normalizes punctuation and token spacing', () => {
+  const albums = [
+    { id: 'album-1', title: 'For Lover’s Only IV', artist: 'Various Artists', year: 2000 },
+    { id: 'album-2', title: 'Different Album', artist: 'Various Artists' },
+  ];
+
+  assert.deepEqual(
+    getFilteredAlbums(albums, [], 'for lovers only').map((album) => album.id),
+    ['album-1'],
+  );
 });
 
 test('media type helpers normalize cassette tape and default scanned albums to digital', () => {

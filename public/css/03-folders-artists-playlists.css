@@ -275,25 +275,34 @@
 }
 
 .collection-folder-card {
+  appearance: none;
   min-width: 0;
   display: grid;
   grid-template-rows: auto 1fr;
   justify-items: center;
   gap: 0;
-  overflow: hidden;
   padding: 0;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--text);
+  font: inherit;
   text-align: center;
   box-shadow: var(--shadow-card);
   backdrop-filter: blur(16px);
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease;
 }
 
 .collection-folder-card:hover {
   border-color: var(--accent);
   transform: translateY(-2px);
+}
+
+.collection-folder-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -4px;
 }
 
 .collection-folder-icon {
@@ -342,3 +351,27 @@
   overflow-wrap: anywhere;
 }
 
+.collection-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.danger-button:hover,
+.danger-button:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 55%, #ff3b30);
+  color: color-mix(in srgb, var(--accent) 35%, #ff3b30);
+}
+
+.collection-detail-actions {
+  justify-content: flex-start;
+  margin-top: 18px;
+}
+
+@media (min-width: 861px) {
+  .collection-detail-action-icon {
+    display: none;
+  }
+}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { CoverImage } from './VisualBits.jsx';
 
 const coverClassName = 'cover tw-h-full tw-w-full tw-rounded-[14px] tw-object-cover tw-cursor-pointer';
 const coverFallbackClassName = 'player-cover-fallback tw-grid tw-place-items-center tw-rounded-[14px] tw-cursor-pointer';
@@ -25,39 +26,25 @@ export function PlayerNowPlaying({
 
   return (
     <>
-      {coverUrl ? (
-        <img
-          id="player-cover"
-          className={coverClassName}
-          src={coverUrl}
-          alt={coverAlt}
-          role="button"
-          tabIndex={0}
-          onClick={() => onNowPlayingClick?.()}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              onNowPlayingClick?.();
-            }
-          }}
-        />
-      ) : (
-        <div
-          id="player-cover-fallback"
-          className={coverFallbackClassName}
-          role="button"
-          tabIndex={0}
-          onClick={() => onNowPlayingClick?.()}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              onNowPlayingClick?.();
-            }
-          }}
-        >
-          <i className="fa-solid fa-record-vinyl" aria-hidden="true" />
-        </div>
-      )}
+      <CoverImage
+        id="player-cover"
+        className={coverClassName}
+        src={coverUrl}
+        alt={coverAlt}
+        decoding="async"
+        fetchPriority="high"
+        role="button"
+        tabIndex={0}
+        placeholderClassName={coverFallbackClassName}
+        placeholderProps={{ id: 'player-cover-fallback', role: 'button', tabIndex: 0 }}
+        onClick={() => onNowPlayingClick?.()}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onNowPlayingClick?.();
+          }
+        }}
+      />
 
       <div className={detailsClassName} onClick={() => onNowPlayingClick?.()}>
         <div id="player-title" className={titleClassName}>

@@ -2,13 +2,13 @@ import React from 'react';
 
 export function LibraryIntro({
   title = 'Browse Library',
-  caption = 'Browse your scanned releases as album cards.',
+  caption = '',
 }) {
   return (
     <div className="section-heading">
       <div>
         <h3>{title}</h3>
-        <p>{caption}</p>
+        {caption ? <p>{caption}</p> : null}
       </div>
     </div>
   );

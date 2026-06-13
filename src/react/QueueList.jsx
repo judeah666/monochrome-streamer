@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { CoverImage } from './VisualBits.jsx';
 
 const REMOVE_ICON = '/player-icons/trash.svg';
 const queueItemBaseClassName = [
@@ -86,13 +87,14 @@ export function QueueList({
               <i className="fa-solid fa-grip-lines" aria-hidden="true" />
             </button>
 
-            {track.coverUrl ? (
-              <img className={queueImageClassName} src={track.coverUrl} alt={`${track.album} cover art`} loading="lazy" />
-            ) : (
-              <div className={queueFallbackClassName}>
-                <i className="fa-solid fa-record-vinyl" aria-hidden="true" />
-              </div>
-            )}
+            <CoverImage
+              className={queueImageClassName}
+              src={track.coverUrl}
+              alt={`${track.album} cover art`}
+              loading="lazy"
+              decoding="async"
+              placeholderClassName={queueFallbackClassName}
+            />
 
             <button type="button" className={queueMainClassName} aria-label={`Play ${track.title}`} onClick={() => onPlay?.(track.id)}>
               <div className={queueCopyClassName}>

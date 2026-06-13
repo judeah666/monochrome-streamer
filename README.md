@@ -1,6 +1,6 @@
 # monochrome-streamer
 
-Current release: `v0.2.1`
+Current release: `v0.2.3`
 
 `monochrome-streamer` is a self-hosted music streamer for your own local music files. It is inspired by [Monochrome](https://github.com/monochrome-music/monochrome), but the library, album edits, lyrics, covers, users, and scan data live on your own server.
 
@@ -10,11 +10,12 @@ Current release: `v0.2.1`
 - Browse albums, artists, tracks, collections, wishlist albums, and favorites.
 - Scan selected top-level folders instead of forcing a full-library scan on startup.
 - Store the library index, album overrides, artist overrides, lyrics, users, and cached covers in SQLite/data storage.
+- Cache optimized album covers as WebP images for faster loading across devices.
 - Edit album tags locally without rewriting the original audio files.
 - Save synced lyrics as `.lrc` sidecar files beside music files when possible.
 - Search MusicBrainz and Cover Art Archive for album metadata and covers.
 - Use two player layouts: Floating Player and Edge-to-Edge.
-- Manage users, download permissions, widget API keys, download settings, and scans from the Admin sidebar tab.
+- Manage users, download permissions, widget API keys, download settings, database backup/import, Excel exports, and scans from the Admin sidebar tab.
 
 ## Screenshots
 
@@ -141,6 +142,12 @@ This folder stores:
 - saved lyrics data
 
 Keep this folder when updating Docker images. If it is deleted, the app will need to rebuild the library index.
+
+## Backup And Export
+
+Admin users can export and import the SQLite database from the `Admin` sidebar tab. This is the safest way to move library metadata, users, overrides, lyrics, collections, wishlist albums, and scan state between installs.
+
+The Admin panel can also export an Excel workbook for album inventory. The Excel export supports optional filters for wishlist albums, media type, and scanned folder.
 
 ## Login And Admin
 
@@ -283,7 +290,7 @@ Build and push both the release tag and `latest`:
 
 ```powershell
 docker buildx build --platform linux/amd64 `
-  -t judeah666/monochrome-streamer:0.2.1 `
+  -t judeah666/monochrome-streamer:0.2.3 `
   -t judeah666/monochrome-streamer:latest `
   --push .
 ```

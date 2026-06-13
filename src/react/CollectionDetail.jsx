@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlbumGrid } from './AlbumGrid.jsx';
-import { CoverPlaceholder } from './VisualBits.jsx';
+import { CoverImage } from './VisualBits.jsx';
 
 const heroClassName = [
   'collection-detail-hero tw-relative tw-grid tw-grid-cols-[220px_minmax(0,1fr)] tw-items-center tw-gap-7',
@@ -22,6 +22,8 @@ export function CollectionDetail({
   albumsTitle = 'Albums',
   albumsCaption = 'Albums assigned to this collection.',
   loading = false,
+  onRename,
+  onDelete,
   onOpenAlbum,
   onPlayAlbum,
 }) {
@@ -29,17 +31,30 @@ export function CollectionDetail({
     <>
       <section className={heroClassName}>
         <div className={coverFrameClassName}>
-          {coverUrl ? (
-            <img className={coverImageClassName} src={coverUrl} alt={`${name} collection cover`} />
-          ) : (
-            <CoverPlaceholder />
-          )}
+          <CoverImage
+            className={coverImageClassName}
+            src={coverUrl}
+            alt={`${name} collection cover`}
+            loading="lazy"
+            decoding="async"
+            placeholderClassName={`${coverImageClassName} cover-fallback`}
+          />
         </div>
         <div className={copyClassName}>
           <p className="eyebrow">Collection</p>
           <h2 className={titleClassName}>{name}</h2>
           <p className="artist-detail-meta">{meta}</p>
           <p className="artist-detail-bio">{bio}</p>
+          <div className="collection-detail-actions">
+            <button className="secondary-button" type="button" onClick={() => onRename?.()}>
+              <i className="fa-solid fa-pen-to-square collection-detail-action-icon" aria-hidden="true"></i>
+              <span>Rename Collection</span>
+            </button>
+            <button className="secondary-button danger-button" type="button" onClick={() => onDelete?.()}>
+              <i className="fa-solid fa-trash collection-detail-action-icon" aria-hidden="true"></i>
+              <span>Delete Collection</span>
+            </button>
+          </div>
         </div>
       </section>
 

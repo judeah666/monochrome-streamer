@@ -1,5 +1,5 @@
 import React from 'react';
-import { AudioQualityBadge, CoverPlaceholder, FontAwesomeIcon, MediaTypeIcons } from './VisualBits.jsx';
+import { AudioQualityBadge, CoverImage, FontAwesomeIcon, MediaTypeIcons } from './VisualBits.jsx';
 
 const albumCardBaseClassName = [
   'album-card album-card-shell tw-group',
@@ -51,13 +51,15 @@ function AlbumCard({ album, compact, onOpen, onPlay }) {
       }}
     >
       <div className={albumCardMediaClassName}>
-        {album.coverUrl ? (
-          <img className={albumCardImageClassName} src={album.coverUrl} alt={`${album.title} cover art`} loading="lazy" />
-        ) : (
-          <span className={albumCardPlaceholderClassName}>
-            <CoverPlaceholder />
-          </span>
-        )}
+        <CoverImage
+          className={albumCardImageClassName}
+          src={album.coverUrl}
+          alt={`${album.title} cover art`}
+          loading="lazy"
+          decoding="async"
+          placeholderClassName="album-art-placeholder album-card-cover-placeholder"
+          placeholderWrapperClassName={albumCardPlaceholderClassName}
+        />
         <AudioQualityBadge quality={album.audioQuality} />
         <button
           type="button"

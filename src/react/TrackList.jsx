@@ -1,5 +1,5 @@
 import React from 'react';
-import { CoverPlaceholder, FontAwesomeIcon } from './VisualBits.jsx';
+import { CoverImage, FontAwesomeIcon } from './VisualBits.jsx';
 
 const albumDiscHeaderClassName = [
   'album-disc-header tw-flex tw-items-center tw-justify-between tw-gap-3.5',
@@ -86,13 +86,15 @@ export function TrackList({
 function TrackRow({ track, showAlbum, onPlay, onFavorite, onAddQueue, onArtistClick, onAlbumClick }) {
   return (
     <article className={`${trackRowBaseClassName}${track.active ? trackRowActiveClassName : ''}`} onClick={() => onPlay?.({ toggle: false })}>
-      {track.coverUrl ? (
-        <img className={trackImageClassName} src={track.coverUrl} alt={`${track.album} cover art`} loading="lazy" />
-      ) : (
-        <span className={trackPlaceholderClassName}>
-          <CoverPlaceholder className="track-thumb-placeholder" />
-        </span>
-      )}
+      <CoverImage
+        className={trackImageClassName}
+        src={track.coverUrl}
+        alt={`${track.album} cover art`}
+        loading="lazy"
+        decoding="async"
+        placeholderClassName="track-thumb-placeholder"
+        placeholderWrapperClassName={trackPlaceholderClassName}
+      />
       <div className={trackCopyClassName}>
         <h4 className={trackTitleClassName}>{track.title}</h4>
         <p className={trackMetaClassName}>

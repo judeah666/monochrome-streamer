@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { DEFAULT_SETTINGS, FONT_PRESETS, STORAGE_KEYS } from '../controller/constants.js';
 import { isLightTheme, resolveThemePreset } from '../controller/themeResolver.js';
@@ -9,6 +9,7 @@ const ADMIN_TABS = [
   ['instances', 'Instances', 'fa-key'],
   ['system', 'System', 'fa-server'],
 ];
+const EXCEL_MEDIA_TYPES = ['CD', 'Digital Media', 'Vinyl', 'Cassette Tape'];
 
 const settingGroupClassName = [
   'settings-group admin-settings-group tw-grid tw-grid-cols-[minmax(180px,0.35fr)_minmax(0,1fr)] tw-gap-[22px]',
@@ -453,6 +454,12 @@ function InstancesPanel({ widget, onReload, setStatus }) {
 }
 
 function SystemPanel({ folders, selectedFolders, setSelectedFolders, selectedLabel, scan, onRefresh, onSave, onSaveScan }) {
+  const importInputRef = useRef(null);
+  const [databaseStatus, setDatabaseStatus] = useState('');
+  const [excelStatus, setExcelStatus] = useState('');
+  const [excelWishlistOnly, setExcelWishlistOnly] = useState(false);
+  const [excelMediaTypes, setExcelMediaTypes] = useState(new Set());
+  const [excelFolders, setExcelFolders] = useState(new Set());
   const stats = useMemo(() => ({
     tracks: scan.tracks || 0,
     albums: scan.albums || 0,
@@ -466,6 +473,101 @@ function SystemPanel({ folders, selectedFolders, setSelectedFolders, selectedLab
       else next.add(folder);
       return next;
     });
+  }
+
+  function toggleExcelMediaType(mediaType) {
+    setExcelMediaTypes((current) => {
+      const next = new Set(current);
+      if (next.has(mediaType)) next.delete(mediaType);
+      else next.add(mediaType);
+      return next;
+    });
+  }
+
+  function toggleExcelFolder(folder) {
+    setExcelFolders((current) => {
+      const next = new Set(current);
+      if (next.has(folder)) next.delete(folder);
+      else next.add(folder);
+      return next;
+    });
+  }
+
+  async function exportDatabase() {
+    setDatabaseStatus('Preparing database export...');
+    const response = await fetch('/api/admin/database/export', { cache: 'no-store' });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || 'Database export failed.');
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const filename = getFilenameFromContentDisposition(disposition) || `monochrome-streamer-database-${new Date().toISOString().slice(0, 10)}.sqlite`;
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+    setDatabaseStatus('Database export downloaded.');
+  }
+
+  async function exportExcel() {
+    setExcelStatus('Preparing Excel export...');
+    const response = await fetch('/api/admin/database/export-excel', {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        wishlistOnly: excelWishlistOnly,
+        mediaTypes: [...excelMediaTypes],
+        folders: [...excelFolders],
+      }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || 'Excel export failed.');
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const filename = getFilenameFromContentDisposition(disposition) || `monochrome-streamer-albums-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+    const count = response.headers.get('X-Album-Export-Count');
+    setExcelStatus(`Excel export downloaded${count ? ` with ${count} album${count === '1' ? '' : 's'}` : ''}.`);
+  }
+
+  async function importDatabase(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!window.confirm('Importing a database will replace the current library database after creating a backup. Continue?')) {
+      return;
+    }
+    setDatabaseStatus(`Importing ${file.name}...`);
+    const response = await fetch('/api/admin/database/import', {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/vnd.sqlite3',
+      },
+      body: file,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Database import failed.');
+    }
+    setDatabaseStatus(`Database imported: ${data.albumCount || 0} albums, ${data.trackCount || 0} tracks. Refreshing folders...`);
+    await onRefresh();
+    setDatabaseStatus(`Database imported: ${data.albumCount || 0} albums, ${data.trackCount || 0} tracks.`);
   }
 
   return (
@@ -482,6 +584,95 @@ function SystemPanel({ folders, selectedFolders, setSelectedFolders, selectedLab
           <span className="tw-block tw-h-full tw-rounded-pill tw-bg-[linear-gradient(90deg,var(--accent),color-mix(in_srgb,var(--accent)_55%,#fff))] tw-transition-[width]" style={{ width: `${scan.percent}%` }} />
         </div>
         <p className={settingsHelpClassName}>Selected folders: {selectedLabel}</p>
+      </PanelGroup>
+
+      <PanelGroup title="Database Backup" description="Export or import the SQLite library database, including scanned albums and local overrides.">
+        <div className={settingRowClassName}>
+          <div>
+            <strong>Library Database</strong>
+            <span>Export creates a consistent SQLite snapshot. Import validates the file and saves a timestamped backup before replacing the current database.</span>
+            {databaseStatus ? <p className={settingsHelpClassName}>{databaseStatus}</p> : null}
+          </div>
+          <div className={settingsActionsClassName}>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => exportDatabase().catch((error) => setDatabaseStatus(error.message))}
+            >
+              Export Database
+            </button>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => importInputRef.current?.click()}
+            >
+              Import Database
+            </button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".sqlite,.sqlite3,.db,application/vnd.sqlite3,application/octet-stream"
+              hidden
+              onChange={(event) => importDatabase(event).catch((error) => setDatabaseStatus(error.message))}
+            />
+          </div>
+        </div>
+      </PanelGroup>
+
+      <PanelGroup title="Excel Export" description="Export a filtered album spreadsheet for cataloging, sharing, or checking your collection outside the app.">
+        <label className={settingRowClassName}>
+          <span>
+            <strong>Wishlist only</strong>
+            <span>Only include albums marked as Wishlist.</span>
+          </span>
+          <input
+            type="checkbox"
+            checked={excelWishlistOnly}
+            onChange={(event) => setExcelWishlistOnly(event.target.checked)}
+          />
+        </label>
+        <div className={settingRowClassName}>
+          <div>
+            <strong>Media types</strong>
+            <span>Leave everything off to export every media type.</span>
+          </div>
+          <div className={settingsActionsClassName}>
+            {EXCEL_MEDIA_TYPES.map((mediaType) => (
+              <button
+                key={mediaType}
+                type="button"
+                className={excelMediaTypes.has(mediaType) ? 'primary-button' : 'secondary-button'}
+                onClick={() => toggleExcelMediaType(mediaType)}
+              >
+                {mediaType}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className={settingsFieldStackClassName}>
+          <div>
+            <strong>Folders</strong>
+            <p className={settingsHelpClassName}>Leave all folders off to export every selected album in the database.</p>
+          </div>
+          <div className={libraryFolderListClassName}>
+            {folders.length ? folders.map((folder) => (
+              <label key={folder} className={libraryFolderOptionClassName}>
+                <input type="checkbox" checked={excelFolders.has(folder)} onChange={() => toggleExcelFolder(folder)} />
+                <span>{folder}</span>
+              </label>
+            )) : <p className={settingsHelpClassName}>No top-level folders were found in the mounted music folder.</p>}
+          </div>
+        </div>
+        <div className={settingsActionsClassName}>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => exportExcel().catch((error) => setExcelStatus(error.message))}
+          >
+            Export Excel
+          </button>
+          {excelStatus ? <span className={settingsHelpClassName}>{excelStatus}</span> : null}
+        </div>
       </PanelGroup>
 
       <PanelGroup title="Library Folders" description="Choose which top-level folders inside your mounted music folder should be indexed.">
@@ -535,6 +726,19 @@ async function api(url, options = {}) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || 'Request failed');
   return data;
+}
+
+function getFilenameFromContentDisposition(value) {
+  const utf8Match = /filename\*=UTF-8''([^;]+)/iu.exec(value || '');
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+  const asciiMatch = /filename="([^"]+)"/iu.exec(value || '');
+  return asciiMatch?.[1] || '';
 }
 
 function normalizeAvailableFolders(folders) {

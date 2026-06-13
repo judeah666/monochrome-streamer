@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { EditorModal } from './EditorModal.jsx';
 import { LyricsSuggestionResults, TagSuggestionResults } from './ScraperResults.jsx';
-import { CoverPlaceholder } from './VisualBits.jsx';
+import { CoverImage } from './VisualBits.jsx';
 
 const mediaTypeOptions = [
   { value: 'CD', label: 'CD', icon: '/media-type-icons/compact-disc.svg' },
@@ -320,6 +320,7 @@ export function AlbumTagEditorModal({
   year = '',
   genre = '',
   collectionName = '',
+  collectionOptions = [],
   mediaTypes = ['Digital Media'],
   status = 'Collection',
   coverUrl = '',
@@ -352,6 +353,7 @@ export function AlbumTagEditorModal({
   const tracksEditable = mode === 'add' || manual;
 
   const tracksByDisc = useMemo(() => groupTracksByDisc(form.tracks), [form.tracks]);
+  const collectionListId = useMemo(() => `collection-options-${Math.random().toString(36).slice(2)}`, []);
 
   const updateField = (field) => (event) => {
     const value = event.target.value;
@@ -520,11 +522,12 @@ export function AlbumTagEditorModal({
       <div className={editorBodyClassName}>
         <form className={editorFormClassName} onSubmit={(event) => event.preventDefault()}>
           <div className={coverFrameClassName}>
-            {form.coverUrl ? (
-              <img className={coverArtClassName} src={form.coverUrl} alt={`${form.title || 'Album'} cover art`} />
-            ) : (
-              <CoverPlaceholder className={coverArtClassName} />
-            )}
+            <CoverImage
+              className={coverArtClassName}
+              src={form.coverUrl}
+              alt={`${form.title || 'Album'} cover art`}
+              placeholderClassName={coverArtClassName}
+            />
           </div>
 
           <div className={editorFieldsClassName}>
@@ -546,7 +549,22 @@ export function AlbumTagEditorModal({
             </label>
             <label className={wideFieldClassName}>
               <span>Collection name</span>
-              <input className={inputClassName} type="text" placeholder="Example: 80s Album Collection" autoComplete="off" value={form.collectionName} onChange={updateField('collectionName')} />
+              <input
+                className={inputClassName}
+                type="text"
+                placeholder="Example: 80s Album Collection"
+                autoComplete="off"
+                list={collectionOptions.length ? collectionListId : undefined}
+                value={form.collectionName}
+                onChange={updateField('collectionName')}
+              />
+              {collectionOptions.length ? (
+                <datalist id={collectionListId}>
+                  {collectionOptions.map((option) => (
+                    <option key={option} value={option} />
+                  ))}
+                </datalist>
+              ) : null}
             </label>
             <fieldset className={mediaTypePickerClassName}>
               <span>Media type</span>

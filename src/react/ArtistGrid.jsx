@@ -31,7 +31,7 @@ export function ArtistGrid({ artists = [], onOpen }) {
         >
           <div className={artistImageClassName}>
             {artist.imageUrl ? (
-              <img className={artistImgClassName} src={artist.imageUrl} alt={`${artist.name} artist image`} loading="lazy" />
+              <img className={artistImgClassName} src={artist.imageUrl} alt={`${artist.name} artist image`} loading="lazy" decoding="async" />
             ) : (
               <span className={artistPlaceholderClassName}>
                 <ArtistPlaceholder name={artist.name} />

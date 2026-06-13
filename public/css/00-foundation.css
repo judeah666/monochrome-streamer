@@ -149,6 +149,10 @@ body[data-view="fullscreen"] .content {
   min-height: 100vh;
 }
 
+body[data-view="fullscreen"] {
+  overflow: hidden;
+}
+
 button,
 input,
 a,

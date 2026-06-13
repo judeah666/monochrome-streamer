@@ -1,7 +1,7 @@
 import React from 'react';
 import { AlbumGrid } from './AlbumGrid.jsx';
 import { TrackList } from './TrackList.jsx';
-import { AudioQualityBadge, CoverPlaceholder, FontAwesomeIcon, MediaTypeIcons } from './VisualBits.jsx';
+import { AudioQualityBadge, CoverImage, FontAwesomeIcon, MediaTypeIcons } from './VisualBits.jsx';
 
 const albumHeroClassName = [
   'album-hero tw-relative tw-overflow-hidden tw-rounded-[30px] tw-border tw-border-line',
@@ -66,11 +66,14 @@ export function AlbumDetail({
         <div className={albumHeroScrimClassName}></div>
         <div className={albumHeroContentClassName}>
           <div className={albumCoverFrameClassName}>
-            {album.coverUrl ? (
-              <img className={albumCoverImageClassName} src={album.coverUrl} alt={`${album.title} cover art`} />
-            ) : (
-              <CoverPlaceholder className={albumCoverFallbackClassName} />
-            )}
+            <CoverImage
+              className={albumCoverImageClassName}
+              src={album.coverUrl}
+              alt={`${album.title} cover art`}
+              decoding="async"
+              fetchPriority="high"
+              placeholderClassName={albumCoverFallbackClassName}
+            />
           </div>
 
           <div className={albumHeroCopyClassName}>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { AlbumCollection } from './AlbumCollection.jsx';
 import { LibraryFilterBar, LibraryPager } from './LibraryControls.jsx';
-import { CoverPlaceholder } from './VisualBits.jsx';
+import { CoverImage } from './VisualBits.jsx';
 
 export function CollectionBrowser({
   folders = [],
@@ -53,15 +53,16 @@ export function CollectionBrowser({
               onClick={() => onOpenFolder?.(folder.path)}
             >
               <span className="collection-folder-icon" aria-hidden="true">
-                {folder.coverUrl ? (
-                  <img src={folder.coverUrl} alt="" loading="lazy" />
-                ) : (
-                  <CoverPlaceholder />
-                )}
+                <CoverImage
+                  src={folder.coverUrl}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  placeholderClassName="album-art-placeholder collection-folder-cover-placeholder"
+                />
               </span>
               <strong>{folder.name}</strong>
               <span>{folder.albumCount || folder.trackCount || 0} album{(folder.albumCount || folder.trackCount) === 1 ? '' : 's'}</span>
-              <small>{folder.path}</small>
             </button>
           ))}
         </div>
