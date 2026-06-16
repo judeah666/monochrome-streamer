@@ -191,8 +191,25 @@ body.player-layout-floating .now-playing-bar {
   font-size: 22px;
 }
 
-.player-controls .buttons .transport-icon-button.active {
-  color: var(--accent);
+.player-controls .buttons .transport-icon-button.active,
+.player-controls .buttons .transport-icon-button.active .fa-solid,
+.player-controls .buttons .transport-icon-button[aria-pressed="true"],
+.player-controls .buttons .transport-icon-button[aria-pressed="true"] .fa-solid {
+  color: var(--accent) !important;
+}
+
+#shuffle-btn[aria-pressed="false"],
+#repeat-btn[aria-pressed="false"],
+#shuffle-btn[aria-pressed="false"] .fa-solid,
+#repeat-btn[aria-pressed="false"] .fa-solid {
+  color: var(--muted) !important;
+}
+
+#shuffle-btn[aria-pressed="true"],
+#repeat-btn[aria-pressed="true"],
+#shuffle-btn[aria-pressed="true"] .fa-solid,
+#repeat-btn[aria-pressed="true"] .fa-solid {
+  color: var(--accent) !important;
 }
 
 .repeat-one-badge {
@@ -533,6 +550,16 @@ body.player-layout-qobuz .player-controls .buttons button {
   color: var(--text);
 }
 
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button,
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button .fa-solid {
+  color: var(--muted);
+}
+
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button:hover,
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button:hover .fa-solid {
+  color: var(--text);
+}
+
 body.player-layout-qobuz .player-controls .buttons .play-pause-btn {
   width: 48px;
   height: 48px;
@@ -544,8 +571,26 @@ body.player-layout-qobuz .player-controls .buttons .play-pause-btn .fa-solid {
   font-size: 34px;
 }
 
-body.player-layout-qobuz .player-controls .buttons .transport-icon-button.active {
-  color: var(--accent);
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button.active,
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button.active .fa-solid,
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button.active:hover,
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button.active:hover .fa-solid,
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button[aria-pressed="true"],
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button[aria-pressed="true"] .fa-solid,
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button[aria-pressed="true"]:hover,
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button[aria-pressed="true"]:hover .fa-solid,
+body.player-layout-qobuz #shuffle-btn[aria-pressed="true"],
+body.player-layout-qobuz #repeat-btn[aria-pressed="true"],
+body.player-layout-qobuz #shuffle-btn[aria-pressed="true"] .fa-solid,
+body.player-layout-qobuz #repeat-btn[aria-pressed="true"] .fa-solid {
+  color: var(--accent) !important;
+}
+
+body.player-layout-qobuz #shuffle-btn[aria-pressed="false"],
+body.player-layout-qobuz #repeat-btn[aria-pressed="false"],
+body.player-layout-qobuz #shuffle-btn[aria-pressed="false"] .fa-solid,
+body.player-layout-qobuz #repeat-btn[aria-pressed="false"] .fa-solid {
+  color: var(--muted) !important;
 }
 
 body.player-layout-qobuz .volume-controls {

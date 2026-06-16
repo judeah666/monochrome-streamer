@@ -1,6 +1,6 @@
 # monochrome-streamer
 
-Current release: `v0.2.3`
+Current release: `v0.2.4`
 
 `monochrome-streamer` is a self-hosted music streamer for your own local music files. It is inspired by [Monochrome](https://github.com/monochrome-music/monochrome), but the library, album edits, lyrics, covers, users, and scan data live on your own server.
 
@@ -290,7 +290,7 @@ Build and push both the release tag and `latest`:
 
 ```powershell
 docker buildx build --platform linux/amd64 `
-  -t judeah666/monochrome-streamer:0.2.3 `
+  -t judeah666/monochrome-streamer:0.2.4 `
   -t judeah666/monochrome-streamer:latest `
   --push .
 ```

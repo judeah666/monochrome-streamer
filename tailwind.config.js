@@ -3,8 +3,9 @@ export default {
   content: [
     './public/index.html',
     './public/app.js',
+    './public/react/**/*.{js,jsx}',
     './server.mjs',
-    './src/react/**/*.{js,jsx}',
+    './src/**/*.{js,jsx}',
   ],
   safelist: [
     'tw-flex',

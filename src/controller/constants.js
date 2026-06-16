@@ -29,14 +29,14 @@ export const ICONS = {
 };
 
 export const PLAYER_ICONS = {
-  download: '/player-icons/download.svg',
-  queue: '/player-icons/list-ul.svg',
-  remove: '/player-icons/trash.svg',
-  clearQueue: '/player-icons/trash.svg',
-  volumeHigh: '/player-icons/volume-high.svg',
-  volumeMedium: '/player-icons/volume-medium.svg',
-  volumeLow: '/player-icons/volume-low.svg',
-  volumeMuted: '/player-icons/volume-xmark.svg',
+  download: '/assets/icons/player/download.svg',
+  queue: '/assets/icons/player/list-ul.svg',
+  remove: '/assets/icons/player/trash.svg',
+  clearQueue: '/assets/icons/player/trash.svg',
+  volumeHigh: '/assets/icons/player/volume-high.svg',
+  volumeMedium: '/assets/icons/player/volume-medium.svg',
+  volumeLow: '/assets/icons/player/volume-low.svg',
+  volumeMuted: '/assets/icons/player/volume-xmark.svg',
 };
 
 export const REPEAT_MODES = ['off', 'all', 'one'];
@@ -310,10 +310,10 @@ export const PALETTE_THEMES = {
 };
 
 export const MEDIA_TYPE_ICONS = {
-  CD: '/media-type-icons/compact-disc.svg',
-  'Digital Media': '/media-type-icons/file-waveform.svg',
-  Vinyl: '/media-type-icons/record-vinyl.svg',
-  'Cassette Tape': '/media-type-icons/cassette-tape.svg',
+  CD: '/assets/icons/media-type/compact-disc.svg',
+  'Digital Media': '/assets/icons/media-type/file-waveform.svg',
+  Vinyl: '/assets/icons/media-type/record-vinyl.svg',
+  'Cassette Tape': '/assets/icons/media-type/cassette-tape.svg',
 };
 
 export const MEDIA_TYPE_FILTERS = ['all', ...Object.keys(MEDIA_TYPE_ICONS)];
@@ -321,7 +321,7 @@ export const MEDIA_TYPE_FILTERS = ['all', ...Object.keys(MEDIA_TYPE_ICONS)];
 export const AUDIO_QUALITY_ICONS = {
   hires: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSjzgkp7vuwaecsDEPlp7MlW-oqGVNzD26tWA&s',
   cd: 'https://upload.wikimedia.org/wikipedia/commons/8/8b/CD_Audio_icon.png',
-  mp3: '/audio-quality-icons/file-mp3.svg',
+  mp3: '/assets/icons/audio-quality/file-mp3.svg',
 };
 
 export const RENDER_LIMITS = {

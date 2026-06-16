@@ -39,7 +39,10 @@ test('buildLibraryPagerSnapshot keeps pager metadata compact', () => {
     total: 200,
     itemLabel: 'album',
     showPageSize: true,
+    loading: false,
   });
+
+  assert.equal(buildLibraryPagerSnapshot({ loading: true }).loading, true);
 });
 
 test('buildAlbumCollectionSnapshot prepares album cards and attaches filter/pager props', () => {

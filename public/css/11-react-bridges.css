@@ -1,0 +1,446 @@
+/*
+ * Stable styles for React semantic classes.
+ * These are intentionally kept in the always-loaded CSS bundle so refactors or
+ * Tailwind content misses cannot collapse the app back to raw HTML controls.
+ */
+
+.tw-ms-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.tw-ms-control,
+.tw-ms-control-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-weight: 800;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.tw-ms-control {
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.tw-ms-control:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tw-ms-control-primary {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  box-shadow: 0 18px 55px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.library-filter-bar {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+}
+
+.alphabet-index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.library-filter-button {
+  min-width: 34px;
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 8px;
+  font-weight: 900;
+  line-height: 1;
+  transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.library-filter-button:hover {
+  background: var(--hover-surface);
+  color: var(--text);
+}
+
+.library-filter-button.is-active,
+.library-filter-button.is-active:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.media-type-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.media-type-filter-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0;
+  box-shadow: none;
+  transition: color 0.15s ease, filter 0.15s ease, transform 0.15s ease;
+}
+
+.media-type-filter-button:hover {
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.media-type-filter-button.is-active,
+.media-type-filter-button.is-active:hover {
+  color: var(--accent);
+  filter: drop-shadow(0 8px 14px color-mix(in srgb, var(--accent) 28%, transparent));
+}
+
+.folder-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+}
+
+.folder-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 12px;
+  font-size: 0.875rem;
+  font-weight: 900;
+  transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.folder-filter-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-filter-chip:hover {
+  background: var(--hover-surface);
+  color: var(--text);
+}
+
+.folder-filter-chip.is-active,
+.folder-filter-chip.is-active:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.album-card-shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0;
+  text-align: left;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.album-card-shell:hover {
+  transform: translateY(-2px);
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+.album-card-shell.compact {
+  border-radius: 20px;
+}
+
+.library-album-grid .album-card-shell {
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.album-card-media {
+  position: relative;
+  overflow: hidden;
+}
+
+.album-card-play-button {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border: 1px solid color-mix(in srgb, var(--accent) 72%, var(--text) 28%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 92%, transparent);
+  color: var(--accent-contrast);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.9);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.album-card-shell:hover .album-card-play-button,
+.album-card-shell:focus-within .album-card-play-button {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.album-card-play-button .fa-solid {
+  font-size: 24px;
+}
+
+.album-card-play-button .fa-play {
+  transform: none;
+}
+
+.album-card-meta {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  padding: 14px;
+  text-align: center;
+}
+
+.library-album-grid .album-card-meta {
+  padding: 10px;
+}
+
+.album-card-title {
+  margin: 0 0 4px;
+  font-family: var(--font-display);
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+
+.library-album-grid .album-card-title {
+  font-size: 0.92rem;
+}
+
+.album-card-text {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.library-album-grid .album-card-text {
+  font-size: 0.82rem;
+}
+
+.album-card-year-text {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.album-card-footer-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  color: var(--muted);
+}
+
+.album-card-format-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  color: inherit;
+  line-height: 1;
+}
+
+.album-card-footer-row.is-wishlist,
+.album-card-footer-row.is-wishlist .album-card-format-row,
+.album-card-footer-row.is-wishlist .fa-solid,
+.album-card-footer-row.is-wishlist .media-type-icon,
+.album-card-footer-row.is-wishlist .media-type-symbol {
+  color: var(--wishlist-text);
+}
+
+.track-list-shell {
+  display: grid;
+  gap: 10px;
+}
+
+.track-row-shell {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  padding: 14px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.album-track-row-shell {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) minmax(120px, 180px) 156px;
+  align-items: center;
+  gap: 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  padding: 16px 20px;
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.album-track-row-shell:nth-child(even) {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+}
+
+.album-track-row-shell:last-child {
+  border-bottom: 0;
+}
+
+.track-row-shell:hover,
+.album-track-row-shell:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+.track-row-shell.is-active,
+.album-track-row-shell.is-active {
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.track-copy-title {
+  overflow: hidden;
+  margin: 0 0 4px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+
+.track-copy-meta {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.track-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.track-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--glass);
+  color: var(--text);
+  padding: 0;
+  backdrop-filter: blur(12px);
+}
+
+.track-action-button:hover {
+  border-color: var(--line-strong);
+  background: var(--hover-surface);
+  color: var(--text);
+}
+
+.track-action-button.active,
+#favorite-track-button.active {
+  border-color: rgba(255, 55, 76, 0.72);
+  background: var(--favorite-red);
+  color: #fff;
+}
+
+.track-action-button .fa-solid {
+  font-size: 20px;
+}
+
+@media (max-width: 720px) {
+  .library-filter-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .alphabet-index {
+    width: 100%;
+  }
+
+  .media-type-filter {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+    padding-top: 4px;
+    border-top: 1px solid var(--line);
+  }
+
+  .media-type-filter-button {
+    width: 42px;
+    height: 42px;
+  }
+
+  .album-track-row-shell {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+  }
+}

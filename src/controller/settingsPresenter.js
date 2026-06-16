@@ -119,7 +119,7 @@ export function buildSettingsPanelSnapshot({
       ...base,
       playerLayoutOptions: [
         ['floating', 'Floating Player'],
-        ['qobuz', 'Edge-to-Edge'],
+        ['qobuz', 'Qobuz Player'],
       ],
     };
   }

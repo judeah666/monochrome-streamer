@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { AppShell } from './AppShell.jsx';
-import { installMonochromeReactBridge } from './rendererBridge.jsx';
+import { AppShell } from '../layouts/AppShell.jsx';
+import { installMonochromeReactBridge } from '../services/rendererBridge.jsx';
 
 function ReactReadySignal() {
   useEffect(() => {

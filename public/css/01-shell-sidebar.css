@@ -196,13 +196,13 @@
 }
 
 .pager-symbol-left {
-  mask: url("/ui-icons/angle-left.svg") center / contain no-repeat;
-  -webkit-mask: url("/ui-icons/angle-left.svg") center / contain no-repeat;
+  mask: url("/assets/icons/ui/angle-left.svg") center / contain no-repeat;
+  -webkit-mask: url("/assets/icons/ui/angle-left.svg") center / contain no-repeat;
 }
 
 .pager-symbol-right {
-  mask: url("/ui-icons/angle-right.svg") center / contain no-repeat;
-  -webkit-mask: url("/ui-icons/angle-right.svg") center / contain no-repeat;
+  mask: url("/assets/icons/ui/angle-right.svg") center / contain no-repeat;
+  -webkit-mask: url("/assets/icons/ui/angle-right.svg") center / contain no-repeat;
 }
 
 .eyebrow,

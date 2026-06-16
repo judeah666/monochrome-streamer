@@ -15,6 +15,8 @@ export function buildTagEditorPayload({
   mediaTypes = ['Digital Media'],
   status = 'Collection',
   coverUrl = '',
+  coverDataUrl = '',
+  coverFilename = '',
   musicBrainzId = '',
   tracks,
 } = {}) {
@@ -31,6 +33,11 @@ export function buildTagEditorPayload({
     coverUrl: String(coverUrl || '').trim(),
     musicBrainzId,
   };
+  const uploadedCoverDataUrl = String(coverDataUrl || '').trim();
+  if (uploadedCoverDataUrl) {
+    payload.coverDataUrl = uploadedCoverDataUrl;
+    payload.coverFilename = String(coverFilename || '').trim();
+  }
   if (Array.isArray(tracks)) {
     payload.tracks = tracks;
   }

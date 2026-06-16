@@ -48,6 +48,7 @@ function createHarness(overrides = {}) {
   const audioPlayer = overrides.audioPlayer ?? createAudio();
   const calls = {
     persisted: 0,
+    preload: [],
     progress: 0,
     rendered: 0,
     ui: 0,
@@ -59,6 +60,7 @@ function createHarness(overrides = {}) {
     getDefaultQueueForTrack: () => tracks,
     loadTrackLyrics: () => Promise.resolve(),
     persistPlaybackState: () => calls.persisted += 1,
+    preloadQueueTracks: (currentTrackId, queueIds) => calls.preload.push({ currentTrackId, queueIds: [...queueIds] }),
     updatePlayerUi: () => calls.ui += 1,
     updateProgressUi: () => calls.progress += 1,
     render: () => calls.rendered += 1,
@@ -87,6 +89,7 @@ test('playTrack sets the active track, source, and queue', () => {
   assert.equal(audioPlayer.src, '/stream/b');
   assert.equal(audioPlayer.playbackRate, 1);
   assert.equal(audioPlayer.playCount, 1);
+  assert.deepEqual(calls.preload, [{ currentTrackId: 'b', queueIds: ['a', 'b', 'c'] }]);
   assert.equal(calls.persisted, 1);
   assert.equal(calls.ui, 1);
   assert.equal(calls.rendered, 1);

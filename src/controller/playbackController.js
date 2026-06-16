@@ -15,6 +15,7 @@ export function createPlaybackController({
   updatePlayerUi,
   updateProgressUi,
   render,
+  preloadQueueTracks = () => {},
   onPlaybackError = console.error,
   onLyricsError = console.warn,
 }) {
@@ -31,11 +32,13 @@ export function createPlaybackController({
 
   function rebuildShuffledQueue(currentTrackId = state.currentTrackId) {
     syncShuffledQueueIds(state, currentTrackId);
+    preloadQueueTracks(currentTrackId, getPlaybackQueue());
   }
 
   function playTrack(track, queueTracks = null) {
     const nextQueueTracks = queueTracks ?? getDefaultQueueForTrack(track);
     setPlaybackQueueIds(state, nextQueueTracks.map((item) => item.id), track.id);
+    preloadQueueTracks(track.id, getPlaybackQueue());
 
     state.currentTrackId = track.id;
     state.lyricsRefreshRequestedIds.delete(track.id);

@@ -19,12 +19,14 @@ export function buildLibraryPagerSnapshot({
   total = 0,
   itemLabel = 'item',
   showPageSize = false,
+  loading = false,
 } = {}) {
   return {
     page,
     total,
     itemLabel,
     showPageSize,
+    loading,
   };
 }
 
