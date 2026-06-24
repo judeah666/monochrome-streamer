@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   getPlaybackButtonState,
   getQueueStatusText,
   getVolumeIconName,
   normalizeAudioQualityForReact,
 } from '../src/controller/playerUiState.js';
+import { AUDIO_QUALITY_ICONS } from '../src/assets/icons/audio-quality/index.js';
 
 test('getPlaybackButtonState returns the matching icon and label', () => {
   assert.deepEqual(getPlaybackButtonState(true), { iconName: 'play', label: 'Play' });
@@ -35,6 +38,13 @@ test('normalizeAudioQualityForReact maps quality labels and icons', () => {
     iconUrl: '/hires.png',
     iconAlt: 'Hi-Res Audio',
   });
+});
+
+test('audio quality icons resolve directly from local source assets', () => {
+  for (const iconUrl of Object.values(AUDIO_QUALITY_ICONS)) {
+    assert.equal(new URL(iconUrl).protocol, 'file:');
+    assert.equal(existsSync(fileURLToPath(iconUrl)), true);
+  }
 });
 
 test('getVolumeIconName follows player volume thresholds', () => {

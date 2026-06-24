@@ -48,6 +48,7 @@ export const STORAGE_KEYS = {
   favoriteAlbums: 'Monochrome-Streamer-favorite-album-ids',
   settings: 'Monochrome-Streamer-settings',
   playback: 'Monochrome-Streamer-playback-state',
+  libraryFilters: 'Monochrome-Streamer-library-filters',
   downloadSettingsSync: 'Monochrome-Streamer-download-settings-sync',
   themeCookie: 'Monochrome-Streamer-theme',
 };
@@ -317,12 +318,6 @@ export const MEDIA_TYPE_ICONS = {
 };
 
 export const MEDIA_TYPE_FILTERS = ['all', ...Object.keys(MEDIA_TYPE_ICONS)];
-
-export const AUDIO_QUALITY_ICONS = {
-  hires: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSjzgkp7vuwaecsDEPlp7MlW-oqGVNzD26tWA&s',
-  cd: 'https://upload.wikimedia.org/wikipedia/commons/8/8b/CD_Audio_icon.png',
-  mp3: '/assets/icons/audio-quality/file-mp3.svg',
-};
 
 export const RENDER_LIMITS = {
   albums: 180,

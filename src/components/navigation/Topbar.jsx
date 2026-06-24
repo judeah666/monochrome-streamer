@@ -1,4 +1,6 @@
 import React from 'react';
+import { MobileFilterSheet } from '../common/MobileFilterSheet.jsx';
+import { getFolderFilterLabel } from '../../utils/mobileFilters.js';
 
 export function Topbar({
   searchValue = '',
@@ -16,12 +18,19 @@ export function Topbar({
   onFolderFilter,
 }) {
   const inputRef = React.useRef(null);
+  const [folderSheetOpen, setFolderSheetOpen] = React.useState(false);
   const activeFolderSet = React.useMemo(() => new Set(activeFolders), [activeFolders]);
+  const folderFilterLabel = getFolderFilterLabel(activeFolders);
+  const closeFolderSheet = React.useCallback(() => setFolderSheetOpen(false), []);
 
   React.useEffect(() => {
     if (!focusNonce) return;
     inputRef.current?.focus();
   }, [focusNonce]);
+
+  React.useEffect(() => {
+    if (!showFolderFilter || folderOptions.length === 0) closeFolderSheet();
+  }, [closeFolderSheet, folderOptions.length, showFolderFilter]);
 
   return (
     <div className="topbar-shell">
@@ -74,24 +83,85 @@ export function Topbar({
       </header>
 
       {showFolderFilter && folderOptions.length > 0 ? (
-        <div className="folder-filter-row" aria-label="Filter by library folder">
-          {folderOptions.map((folder) => {
-            const active = activeFolderSet.has(folder.value);
-            return (
-              <button
-                key={folder.value}
-                type="button"
-                className={`folder-filter-chip${active ? ' is-active' : ''}`}
-                aria-pressed={active}
-                title={folder.label}
-                onClick={() => onFolderFilter?.(folder.value)}
-              >
-                <i className="fa-solid fa-folder" aria-hidden="true" />
-                <span>{folder.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <>
+          <div className="mobile-folder-filter-bar">
+            <button
+              type="button"
+              className={`mobile-filter-sheet-trigger${activeFolders.length > 0 ? ' is-active' : ''}`}
+              aria-haspopup="dialog"
+              aria-expanded={folderSheetOpen}
+              onClick={() => setFolderSheetOpen(true)}
+            >
+              <i className="fa-solid fa-folder-tree" aria-hidden="true" />
+              <span>{folderFilterLabel}</span>
+              <i className="fa-solid fa-chevron-up" aria-hidden="true" />
+            </button>
+          </div>
+
+          <div className="folder-filter-row folder-filter-row-desktop" aria-label="Filter by library folder">
+            {folderOptions.map((folder) => {
+              const active = activeFolderSet.has(folder.value);
+              return (
+                <button
+                  key={folder.value}
+                  type="button"
+                  className={`folder-filter-chip${active ? ' is-active' : ''}`}
+                  aria-pressed={active}
+                  title={folder.label}
+                  onClick={() => onFolderFilter?.(folder.value)}
+                >
+                  <i className="fa-solid fa-folder" aria-hidden="true" />
+                  <span>{folder.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <MobileFilterSheet
+            open={folderSheetOpen}
+            title="Library folders"
+            description="Choose one or more folders to include. No selection shows the full library."
+            onClose={closeFolderSheet}
+            footer={(
+              <>
+                <button
+                  type="button"
+                  className="mobile-filter-sheet-action"
+                  disabled={activeFolders.length === 0}
+                  onClick={() => activeFolders.forEach((folder) => onFolderFilter?.(folder))}
+                >
+                  Clear filters
+                </button>
+                <button
+                  type="button"
+                  className="mobile-filter-sheet-action is-primary"
+                  onClick={closeFolderSheet}
+                >
+                  Done
+                </button>
+              </>
+            )}
+          >
+            <div className="mobile-folder-filter-options">
+              {folderOptions.map((folder) => {
+                const active = activeFolderSet.has(folder.value);
+                return (
+                  <button
+                    key={folder.value}
+                    type="button"
+                    className={`mobile-folder-filter-option${active ? ' is-active' : ''}`}
+                    aria-pressed={active}
+                    onClick={() => onFolderFilter?.(folder.value)}
+                  >
+                    <i className="fa-solid fa-folder" aria-hidden="true" />
+                    <span>{folder.label}</span>
+                    <i className={`fa-solid ${active ? 'fa-circle-check' : 'fa-circle'}`} aria-hidden="true" />
+                  </button>
+                );
+              })}
+            </div>
+          </MobileFilterSheet>
+        </>
       ) : null}
     </div>
   );

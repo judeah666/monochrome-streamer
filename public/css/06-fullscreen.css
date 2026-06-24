@@ -352,6 +352,22 @@ body[data-view='fullscreen'] .now-playing-bar {
   font-size: 1.45rem;
 }
 
+.fullscreen-buttons .player-symbol {
+  display: block;
+  width: 1.65rem;
+  height: 1.65rem;
+}
+
+#fs-shuffle-btn[aria-pressed="false"],
+#fs-repeat-btn[aria-pressed="false"] {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+#fs-shuffle-btn[aria-pressed="true"],
+#fs-repeat-btn[aria-pressed="true"] {
+  color: var(--accent);
+}
+
 .fullscreen-buttons .play-pause-btn .fa-solid {
   font-size: 2rem;
 }

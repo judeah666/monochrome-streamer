@@ -17,6 +17,8 @@ export function getDomRefs() {
     libraryPanelCollections: query('#library-panel-collections'),
     libraryPanelArtists: query('#library-panel-artists'),
     libraryPanelTracks: query('#library-panel-tracks'),
+    playlistsView: query('#playlists-view'),
+    playlistsIntroRoot: query('#playlists-intro-root'),
     libraryPanelPlaylists: query('#library-panel-playlists'),
     favoritesView: query('#favorites-view'),
     wishlistView: query('#wishlist-view'),
@@ -95,5 +97,7 @@ export function getDomRefs() {
     artistEditorModal: query('#artist-editor-modal'),
     lyricsEditorOverlay: query('#lyrics-editor-overlay'),
     lyricsEditorModal: query('#lyrics-editor-modal'),
+    playlistDialogOverlay: query('#playlist-dialog-overlay'),
+    playlistDialogModal: query('#playlist-dialog-modal'),
   };
 }

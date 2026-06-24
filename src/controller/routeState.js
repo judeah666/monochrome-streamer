@@ -1,4 +1,4 @@
-export const BROWSE_VIEWS = new Set(['home', 'library', 'favorites', 'wishlist', 'settings', 'admin', 'login']);
+export const BROWSE_VIEWS = new Set(['home', 'library', 'playlists', 'favorites', 'wishlist', 'settings', 'admin', 'login']);
 
 export function parseRouteFromHash(hashValue, {
   browseView = 'home',

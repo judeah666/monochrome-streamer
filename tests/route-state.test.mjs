@@ -88,6 +88,7 @@ test('fullscreen return hash ignores already fullscreen hash', () => {
 
 test('isValidBrowseView accepts sidebar views only', () => {
   assert.equal(isValidBrowseView('home'), true);
+  assert.equal(isValidBrowseView('playlists'), true);
   assert.equal(isValidBrowseView('wishlist'), true);
   assert.equal(isValidBrowseView('album'), false);
 });

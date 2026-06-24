@@ -1,4 +1,6 @@
 import React from 'react';
+import { MobileFilterSheet } from '../common/MobileFilterSheet.jsx';
+import { getAlphabetFilterLabel } from '../../utils/mobileFilters.js';
 
 export function LibraryFilterBar({
   alphabetFilters = [],
@@ -9,11 +11,19 @@ export function LibraryFilterBar({
   onLetter,
   onMediaType,
 }) {
+  const [alphabetSheetOpen, setAlphabetSheetOpen] = React.useState(false);
   const activeMediaSet = new Set(activeMediaTypes);
+  const alphabetFilterLabel = getAlphabetFilterLabel(activeLetter);
+  const closeAlphabetSheet = React.useCallback(() => setAlphabetSheetOpen(false), []);
+
+  const selectLetter = (letter) => {
+    onLetter?.(letter);
+    setAlphabetSheetOpen(false);
+  };
 
   return (
-    <div className="library-filter-bar tw-col-span-full tw-mb-3.5 tw-flex tw-items-center tw-gap-2.5 tw-rounded-[18px] tw-border tw-border-line tw-bg-[var(--glass)] tw-p-2.5 tw-backdrop-blur-md max-[720px]:tw-flex-col max-[720px]:tw-items-start">
-      <div className="alphabet-index tw-flex tw-min-w-0 tw-flex-wrap tw-gap-1.5 max-[720px]:tw-w-full" aria-label="Alphabet filter">
+    <div className="library-filter-bar">
+      <div className="alphabet-index alphabet-index-desktop" aria-label="Alphabet filter">
         {alphabetFilters.map((letter) => {
           const active = letter === activeLetter;
           return (
@@ -30,8 +40,20 @@ export function LibraryFilterBar({
         })}
       </div>
 
+      <button
+        type="button"
+        className={`mobile-filter-sheet-trigger mobile-alphabet-filter-trigger${activeLetter !== 'all' ? ' is-active' : ''}`}
+        aria-haspopup="dialog"
+        aria-expanded={alphabetSheetOpen}
+        onClick={() => setAlphabetSheetOpen(true)}
+      >
+        <i className="fa-solid fa-arrow-down-a-z" aria-hidden="true" />
+        <span>{alphabetFilterLabel}</span>
+        <i className="fa-solid fa-chevron-up" aria-hidden="true" />
+      </button>
+
       {showMediaType ? (
-        <div className="media-type-filter tw-ml-auto tw-inline-flex tw-min-h-[34px] tw-items-center tw-gap-2.5 tw-text-muted max-[720px]:tw-ml-0 max-[720px]:tw-w-full max-[720px]:tw-justify-start max-[720px]:tw-border-t max-[720px]:tw-border-line max-[720px]:tw-pt-1" aria-label="Filter albums by media type">
+        <div className="media-type-filter" aria-label="Filter albums by media type">
           {mediaTypes.map((mediaType) => {
             const active = activeMediaSet.has(mediaType.value);
             return (
@@ -45,7 +67,7 @@ export function LibraryFilterBar({
                 onClick={() => onMediaType?.(mediaType.value)}
               >
                 <i
-                  className="media-type-symbol tw-h-[1.85rem] tw-w-[1.85rem] max-[720px]:tw-h-[2.15rem] max-[720px]:tw-w-[2.15rem]"
+                  className="media-type-symbol tw-h-[1.85rem] tw-w-[1.85rem]"
                   style={{ '--media-type-icon': `url('${mediaType.icon}')` }}
                   aria-hidden="true"
                 />
@@ -54,6 +76,30 @@ export function LibraryFilterBar({
           })}
         </div>
       ) : null}
+
+      <MobileFilterSheet
+        open={alphabetSheetOpen}
+        title="Browse by letter"
+        description="Choose the first character of the album or artist name."
+        onClose={closeAlphabetSheet}
+      >
+        <div className="mobile-alphabet-filter-grid" aria-label="Alphabet filter">
+          {alphabetFilters.map((letter) => {
+            const active = letter === activeLetter;
+            return (
+              <button
+                key={letter}
+                type="button"
+                className={`mobile-alphabet-filter-option${active ? ' is-active' : ''}`}
+                aria-pressed={active}
+                onClick={() => selectLetter(letter)}
+              >
+                {letter === 'all' ? 'All' : letter}
+              </button>
+            );
+          })}
+        </div>
+      </MobileFilterSheet>
     </div>
   );
 }

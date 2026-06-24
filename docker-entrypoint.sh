@@ -7,18 +7,13 @@ UMASK="${UMASK:-022}"
 DATA_DIR="${DATA_DIR:-/data}"
 COVER_CACHE_PATH="${COVER_CACHE_PATH:-${DATA_DIR}/covers}"
 LYRICS_SIDECAR_PATH="${LYRICS_SIDECAR_PATH:-${DATA_DIR}/lyrics}"
-NOAUTH="${NOAUTH:-false}"
+NOAUTH="${NOAUTH:-true}"
 
 umask "$UMASK"
 
 if [ "$NOAUTH" != "true" ] && [ "${REQUIRE_ADMIN_CREDENTIALS:-true}" != "false" ]; then
   if [ -z "${ADMIN_USERNAME:-}" ] || [ -z "${ADMIN_PASSWORD:-}" ]; then
     echo "ADMIN_USERNAME and ADMIN_PASSWORD must be set in .env before starting Monochrome-Streamer." >&2
-    exit 1
-  fi
-
-  if [ "${ADMIN_PASSWORD}" = "admin" ] || [ "${ADMIN_PASSWORD}" = "change-this-admin-password" ]; then
-    echo "Change ADMIN_PASSWORD in .env before starting Monochrome-Streamer." >&2
     exit 1
   fi
 fi

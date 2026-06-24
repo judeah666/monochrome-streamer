@@ -4,8 +4,8 @@ import test from 'node:test';
 
 test('admin folder panel handles string folder names and saves folders payload', async () => {
   const source = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
-  const appShellSource = await readFile(new URL('../src/react/AppShell.jsx', import.meta.url), 'utf8');
-  const rendererSource = await readFile(new URL('../src/react/rendererBridge.jsx', import.meta.url), 'utf8');
+  const appShellSource = await readFile(new URL('../src/layouts/AppShell.jsx', import.meta.url), 'utf8');
+  const rendererSource = await readFile(new URL('../src/services/rendererBridge.jsx', import.meta.url), 'utf8');
 
   assert.match(source, /typeof folder === 'string' \? folder : folder\?\.name/u);
   assert.match(source, /JSON\.stringify\(\{ folders \}\)/u);

@@ -46,6 +46,7 @@ test('buildPlayerSnapshot creates the now-playing, transport, and utility view m
   });
   assert.equal('downloadUrl' in snapshot.utility, false);
   assert.equal(snapshot.utility.downloadName, 'Song One.flac');
+  assert.equal(snapshot.utility.canDownload, true);
   assert.equal(snapshot.utility.favorite, true);
   assert.equal(snapshot.utility.showQuality, true);
 });
@@ -62,7 +63,17 @@ test('buildPlayerSnapshot hides quality and playback state when no track is acti
   assert.equal(snapshot.transport.playing, false);
   assert.equal(snapshot.utility.hasTrack, false);
   assert.equal(snapshot.utility.showQuality, false);
+  assert.equal(snapshot.utility.canDownload, true);
   assert.equal('downloadUrl' in snapshot.utility, false);
+});
+
+test('buildPlayerSnapshot carries explicit download availability state', () => {
+  const snapshot = buildPlayerSnapshot({
+    track,
+    canDownload: false,
+  });
+
+  assert.equal(snapshot.utility.canDownload, false);
 });
 
 test('createPlayerStore publishes player snapshot changes', () => {

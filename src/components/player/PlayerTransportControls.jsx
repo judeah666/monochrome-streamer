@@ -1,5 +1,6 @@
 import React from 'react';
-import { FontAwesomeIcon } from '../common/VisualBits.jsx';
+import { getRepeatIcon, getShuffleIcon } from '../../assets/icons/player/index.js';
+import { FontAwesomeIcon, PlayerIcon } from '../common/VisualBits.jsx';
 
 const transportButtonClassName = 'transport-icon-button tw-inline-flex tw-items-center tw-justify-center tw-border-0 tw-bg-transparent tw-p-0 tw-text-inherit tw-cursor-pointer tw-transition hover:tw-text-accent';
 const activeTransportClassName = ' active';
@@ -28,7 +29,7 @@ export function PlayerTransportControls({
         aria-pressed={shuffleActive}
         onClick={() => onShuffle?.()}
       >
-        <FontAwesomeIcon name="shuffle" />
+        <PlayerIcon src={getShuffleIcon(shuffleActive)} />
       </button>
       <button
         id="prev-btn"
@@ -69,8 +70,7 @@ export function PlayerTransportControls({
         aria-pressed={repeatActive}
         onClick={() => onRepeat?.()}
       >
-        <FontAwesomeIcon name="repeat" />
-        {repeatMode === 'one' ? <span className="repeat-one-badge">1</span> : null}
+        <PlayerIcon src={getRepeatIcon(repeatMode)} />
       </button>
     </>
   );

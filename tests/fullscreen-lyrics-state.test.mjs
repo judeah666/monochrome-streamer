@@ -8,7 +8,13 @@ import {
   getSyncedLyricLines,
   parseSyncedLyrics,
   updateSyncedLyricsHighlight,
+  shouldHideFullscreenLyricsByDefault,
 } from '../src/controller/fullscreenLyricsState.js';
+
+test('defaults fullscreen lyrics by viewport without changing later toggle state', () => {
+  assert.equal(shouldHideFullscreenLyricsByDefault(false), false);
+  assert.equal(shouldHideFullscreenLyricsByDefault(true), true);
+});
 
 function createLine(time) {
   const classes = new Set();

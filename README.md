@@ -1,6 +1,6 @@
 # monochrome-streamer
 
-Current release: `v0.2.4`
+Current release: `v0.3.0`
 
 `monochrome-streamer` is a self-hosted music streamer for your own local music files. It is inspired by [Monochrome](https://github.com/monochrome-music/monochrome), but the library, album edits, lyrics, covers, users, and scan data live on your own server.
 
@@ -72,14 +72,14 @@ APP_DATA_DIR=D:\Monochrome-Streamer\data
 APP_TITLE=Monochrome-Streamer
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=change-this-admin-password
-NOAUTH=false
-DOWNLOADS=true
+NOAUTH=true
+DOWNLOADS=false
 PUID=1000
 PGID=1000
 UMASK=022
 CHOWN_DATA=true
-WIDGET_API_KEY=change-this-widget-key
-WIDGET_CORS_ORIGIN=*
+WIDGET_API_KEY=
+WIDGET_CORS_ORIGIN=
 ```
 
 Start the app:
@@ -94,7 +94,7 @@ Open:
 http://localhost:8888
 ```
 
-Sign in with the admin account from `.env`, open the `Admin` sidebar tab, then select folders in `System` and click `Save & Scan`.
+Guest browsing is enabled by default. Visit `/login` when you want to sign in as admin or as a managed user, then open the `Admin` sidebar tab, select folders in `System`, and click `Save & Scan`.
 
 ## Dockge / Server Compose
 
@@ -151,23 +151,23 @@ The Admin panel can also export an Excel workbook for album inventory. The Excel
 
 ## Login And Admin
 
-The first admin account comes from `.env`:
+Guest browsing is now the default startup posture:
+
+```env
+NOAUTH=true
+DOWNLOADS=false
+```
+
+That means the main app opens without a login wall, but downloads stay locked behind a signed-in non-guest account. Guests can still visit `/login` manually if you want to sign in as admin or as a managed user.
+
+If you want a login wall from first launch, set `NOAUTH=false` and provide an admin account in `.env`:
 
 ```env
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=change-this-admin-password
 ```
 
-Change the password before exposing the app on your network. The Docker entrypoint refuses unsafe default passwords.
-
-Optional anonymous mode:
-
-```env
-NOAUTH=true
-DOWNLOADS=true
-```
-
-When `NOAUTH=true`, the main app opens without a login wall. Guests can still visit `/login` manually if you want to sign in as admin or as a managed user. `DOWNLOADS` only affects guest access in this mode.
+When auth is enabled in Docker, the entrypoint requires both values but does not force a specific password policy. Use a strong password before exposing the app on your network.
 
 Admin users can:
 
@@ -180,6 +180,14 @@ Admin users can:
 - view scan status
 
 Regular users only see the main app.
+
+## Security Defaults
+
+- Anonymous browsing is enabled by default with `NOAUTH=true`.
+- Anonymous downloads are disabled by default with `DOWNLOADS=false`.
+- All downloads now require a signed-in non-guest session.
+- Admin and download mutations are protected with same-origin checks and CSRF tokens.
+- Widget stats should be enabled only with a real API key and a specific allowed browser origin.
 
 ## Scanning
 
@@ -215,15 +223,15 @@ Common variables:
 | `MUSIC_DIR` | Host path mounted to `/music` by compose |
 | `APP_DATA_DIR` | Host path mounted to `/data` by compose |
 | `APP_TITLE` | Browser/app/sidebar title |
-| `ADMIN_USERNAME` | First admin username |
-| `ADMIN_PASSWORD` | First admin password |
-| `NOAUTH` | `true` lets guests open the app without the login wall |
+| `ADMIN_USERNAME` | First admin username when auth is enabled |
+| `ADMIN_PASSWORD` | First admin password when auth is enabled |
+| `NOAUTH` | `true` enables guest browsing without the login wall |
 | `DOWNLOADS` | Guest download access when `NOAUTH=true` |
 | `PUID` / `PGID` | Linux owner for Docker-created files |
 | `UMASK` | File permission mask |
 | `CHOWN_DATA` | Fix `/data` ownership on startup |
-| `WIDGET_API_KEY` | API key for external stats widgets |
-| `WIDGET_CORS_ORIGIN` | Allowed browser origin for widget API |
+| `WIDGET_API_KEY` | API key for external stats widgets; leave empty unless enabled |
+| `WIDGET_CORS_ORIGIN` | Allowed browser origin for widget API when enabled |
 
 Advanced variables:
 
@@ -238,7 +246,7 @@ Advanced variables:
 | `SCAN_METADATA` | `tags` |
 | `SCAN_DURATIONS` | `false` |
 | `AUTO_SCAN_ON_START` | `false` |
-| `REQUIRE_ADMIN_CREDENTIALS` | `true` in Docker entrypoint |
+| `REQUIRE_ADMIN_CREDENTIALS` | `true`; requires admin creds at container startup when `NOAUTH=false` |
 
 ## Local Development
 
@@ -290,7 +298,7 @@ Build and push both the release tag and `latest`:
 
 ```powershell
 docker buildx build --platform linux/amd64 `
-  -t judeah666/monochrome-streamer:0.2.4 `
+  -t judeah666/monochrome-streamer:0.3.0 `
   -t judeah666/monochrome-streamer:latest `
   --push .
 ```
@@ -306,13 +314,13 @@ GET /api/widget/stats
 Header auth:
 
 ```bash
-curl -H "x-api-key: change-this-widget-key" http://127.0.0.1:8888/api/widget/stats
+curl -H "x-api-key: your-real-widget-key" http://127.0.0.1:8888/api/widget/stats
 ```
 
 Query auth:
 
 ```bash
-curl "http://127.0.0.1:8888/api/widget/stats?apiKey=change-this-widget-key"
+curl "http://127.0.0.1:8888/api/widget/stats?apiKey=your-real-widget-key"
 ```
 
 Example response:

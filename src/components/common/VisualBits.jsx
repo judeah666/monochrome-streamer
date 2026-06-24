@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { AUDIO_QUALITY_ICONS } from '../../assets/icons/audio-quality/index.js';
+import { PLAYBACK_MODE_ICONS } from '../../assets/icons/player/index.js';
 
 const ICONS = {
   addQueue: 'fa-plus',
@@ -10,6 +12,7 @@ const ICONS = {
   pause: 'fa-pause',
   play: 'fa-play',
   repeat: 'fa-repeat',
+  remove: 'fa-trash-can',
   shuffle: 'fa-shuffle',
   skipBack: 'fa-backward-step',
   skipForward: 'fa-forward-step',
@@ -25,11 +28,7 @@ const MEDIA_TYPE_ICONS = {
 const PLAYER_ICONS = {
   clearQueue: '/assets/icons/player/trash.svg',
   download: '/assets/icons/player/download.svg',
-};
-
-const AUDIO_QUALITY_ICONS = {
-  hires: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSjzgkp7vuwaecsDEPlp7MlW-oqGVNzD26tWA&s',
-  mp3: '/assets/icons/audio-quality/file-mp3.svg',
+  ...PLAYBACK_MODE_ICONS,
 };
 
 export function FontAwesomeIcon({ name, className = '' }) {
@@ -37,8 +36,8 @@ export function FontAwesomeIcon({ name, className = '' }) {
   return <i className={`fa-solid ${iconClass}${className ? ` ${className}` : ''}`} aria-hidden="true"></i>;
 }
 
-export function PlayerIcon({ name, className = '' }) {
-  const iconUrl = PLAYER_ICONS[name];
+export function PlayerIcon({ name, src = '', className = '' }) {
+  const iconUrl = src || PLAYER_ICONS[name];
   if (!iconUrl) return <FontAwesomeIcon name={name} className={className} />;
 
   return (

@@ -13,6 +13,7 @@ export function QueuePanel({
   tracks = [],
   total = 0,
   limit = 0,
+  canDownload = true,
   currentTrackId = '',
   favoriteTrackIds = [],
   onClose,
@@ -37,7 +38,7 @@ export function QueuePanel({
             type="button"
             className={queueIconButtonClassName}
             aria-label="Download queue"
-            disabled={tracks.length === 0}
+            disabled={tracks.length === 0 || !canDownload}
             onClick={() => onDownload?.()}
           >
             <PlayerIcon name="download" />

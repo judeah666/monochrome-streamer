@@ -32,6 +32,7 @@ test('buildQueuePanelSnapshot maps visible queue tracks and preserves queue tota
   assert.equal(snapshot.open, true);
   assert.equal(snapshot.total, 3);
   assert.equal(snapshot.limit, 2);
+  assert.equal(snapshot.canDownload, true);
   assert.equal(snapshot.currentTrackId, 'two');
   assert.deepEqual(snapshot.favoriteTrackIds, ['one', 'three']);
   assert.deepEqual(snapshot.tracks.map((track) => track.id), ['one', 'two']);
@@ -45,6 +46,16 @@ test('buildQueuePanelSnapshot treats zero limit as unlimited', () => {
   });
 
   assert.deepEqual(snapshot.tracks.map((track) => track.id), ['one', 'two', 'three']);
+});
+
+test('buildQueuePanelSnapshot preserves disabled download state', () => {
+  const snapshot = buildQueuePanelSnapshot({
+    queueIds: ['one'],
+    trackMap: tracks,
+    canDownload: false,
+  });
+
+  assert.equal(snapshot.canDownload, false);
 });
 
 test('createQueuePanelStore publishes snapshot updates to subscribers', () => {

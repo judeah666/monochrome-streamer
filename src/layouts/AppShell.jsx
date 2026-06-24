@@ -1,10 +1,12 @@
+import { getRepeatIcon, getShuffleIcon } from '../assets/icons/player/index.js';
+import { PlayerIcon } from '../components/common/VisualBits.jsx';
+
 const staticLibraryTabs = [
   ['folders', 'Folders', false],
   ['albums', 'Albums', true],
   ['collections', 'Collections', false],
   ['artists', 'Artists', false],
   ['tracks', 'Tracks', false],
-  ['playlists', 'Playlists', false],
 ];
 
 function SidebarShell() {
@@ -58,6 +60,17 @@ function LibraryView() {
             hidden={!active}
           />
         ))}
+      </section>
+    </section>
+  );
+}
+
+function PlaylistsView() {
+  return (
+    <section id="playlists-view" className="view" hidden>
+      <section className="content-section library-browser">
+        <div id="playlists-intro-root" />
+        <div id="library-panel-playlists" className="library-panel" />
       </section>
     </section>
   );
@@ -243,6 +256,7 @@ function ContentShell() {
         <LoginView />
         <HomeView />
         <LibraryView />
+        <PlaylistsView />
         <FavoritesView />
         <WishlistView />
         <SettingsView />
@@ -352,8 +366,8 @@ function FullscreenOverlay() {
                 <span id="fs-total-duration">0:00</span>
               </div>
               <div className="fullscreen-buttons">
-                <button id="fs-shuffle-btn" type="button" title="Shuffle" aria-label="Shuffle">
-                  <i className="fa-solid fa-shuffle" aria-hidden="true" />
+                <button id="fs-shuffle-btn" type="button" title="Shuffle off" aria-label="Shuffle off" aria-pressed="false">
+                  <PlayerIcon src={getShuffleIcon(false)} />
                 </button>
                 <button id="fs-prev-btn" type="button" title="Previous" aria-label="Previous">
                   <i className="fa-solid fa-backward-step" aria-hidden="true" />
@@ -364,8 +378,8 @@ function FullscreenOverlay() {
                 <button id="fs-next-btn" type="button" title="Next" aria-label="Next">
                   <i className="fa-solid fa-forward-step" aria-hidden="true" />
                 </button>
-                <button id="fs-repeat-btn" type="button" title="Repeat" aria-label="Repeat">
-                  <i className="fa-solid fa-repeat" aria-hidden="true" />
+                <button id="fs-repeat-btn" type="button" title="Repeat off" aria-label="Repeat off" aria-pressed="false">
+                  <PlayerIcon src={getRepeatIcon('off')} />
                 </button>
               </div>
               <div className="fullscreen-volume-container">
@@ -481,6 +495,22 @@ function LyricsEditorShell() {
   );
 }
 
+function PlaylistDialogShell() {
+  return (
+    <>
+      <div id="playlist-dialog-overlay" className="modal-overlay" hidden />
+      <section
+        id="playlist-dialog-modal"
+        className="playlist-dialog-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Playlist"
+        hidden
+      />
+    </>
+  );
+}
+
 export function AppShell() {
   return (
     <div className="app-react-shell">
@@ -495,6 +525,7 @@ export function AppShell() {
       <TagEditorShell />
       <ArtistEditorShell />
       <LyricsEditorShell />
+      <PlaylistDialogShell />
     </div>
   );
 }

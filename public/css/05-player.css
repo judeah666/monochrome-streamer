@@ -187,51 +187,42 @@ body.player-layout-floating .now-playing-bar {
   background: transparent;
 }
 
-.player-controls .buttons .transport-icon-button .fa-solid {
+.player-controls .buttons .transport-icon-button .fa-solid,
+.player-controls .buttons .transport-icon-button .player-symbol {
   font-size: 22px;
+}
+
+.player-controls .buttons .transport-icon-button .player-symbol {
+  display: block;
+  width: 26px;
+  height: 26px;
 }
 
 .player-controls .buttons .transport-icon-button.active,
 .player-controls .buttons .transport-icon-button.active .fa-solid,
+.player-controls .buttons .transport-icon-button.active .player-symbol,
 .player-controls .buttons .transport-icon-button[aria-pressed="true"],
-.player-controls .buttons .transport-icon-button[aria-pressed="true"] .fa-solid {
+.player-controls .buttons .transport-icon-button[aria-pressed="true"] .fa-solid,
+.player-controls .buttons .transport-icon-button[aria-pressed="true"] .player-symbol {
   color: var(--accent) !important;
 }
 
 #shuffle-btn[aria-pressed="false"],
 #repeat-btn[aria-pressed="false"],
 #shuffle-btn[aria-pressed="false"] .fa-solid,
-#repeat-btn[aria-pressed="false"] .fa-solid {
+#repeat-btn[aria-pressed="false"] .fa-solid,
+#shuffle-btn[aria-pressed="false"] .player-symbol,
+#repeat-btn[aria-pressed="false"] .player-symbol {
   color: var(--muted) !important;
 }
 
 #shuffle-btn[aria-pressed="true"],
 #repeat-btn[aria-pressed="true"],
 #shuffle-btn[aria-pressed="true"] .fa-solid,
-#repeat-btn[aria-pressed="true"] .fa-solid {
+#repeat-btn[aria-pressed="true"] .fa-solid,
+#shuffle-btn[aria-pressed="true"] .player-symbol,
+#repeat-btn[aria-pressed="true"] .player-symbol {
   color: var(--accent) !important;
-}
-
-.repeat-one-badge {
-  position: absolute;
-  top: 2px;
-  right: 1px;
-  min-width: 13px;
-  height: 13px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-size: 0.58rem;
-  font-weight: 900;
-  line-height: 1;
-}
-
-body.player-layout-qobuz .repeat-one-badge {
-  top: 0;
-  right: -2px;
 }
 
 .progress-container {
@@ -401,12 +392,8 @@ body.player-layout-floating .queue-status {
   background: transparent;
 }
 
-body:not(.light-ui) .audio-quality-info.is-mp3 img {
-  filter: invert(1) brightness(1.25);
-}
-
-body.light-ui .audio-quality-info.is-mp3 img {
-  filter: none;
+.audio-quality-info.is-mp3 img {
+  filter: hue-rotate(var(--mp3-quality-hue-rotate, 0deg));
 }
 
 .audio-quality-info .fa-solid {
@@ -551,12 +538,14 @@ body.player-layout-qobuz .player-controls .buttons button {
 }
 
 body.player-layout-qobuz .player-controls .buttons .transport-icon-button,
-body.player-layout-qobuz .player-controls .buttons .transport-icon-button .fa-solid {
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button .fa-solid,
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button .player-symbol {
   color: var(--muted);
 }
 
 body.player-layout-qobuz .player-controls .buttons .transport-icon-button:hover,
-body.player-layout-qobuz .player-controls .buttons .transport-icon-button:hover .fa-solid {
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button:hover .fa-solid,
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button:hover .player-symbol {
   color: var(--text);
 }
 
@@ -573,23 +562,31 @@ body.player-layout-qobuz .player-controls .buttons .play-pause-btn .fa-solid {
 
 body.player-layout-qobuz .player-controls .buttons .transport-icon-button.active,
 body.player-layout-qobuz .player-controls .buttons .transport-icon-button.active .fa-solid,
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button.active .player-symbol,
 body.player-layout-qobuz .player-controls .buttons .transport-icon-button.active:hover,
 body.player-layout-qobuz .player-controls .buttons .transport-icon-button.active:hover .fa-solid,
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button.active:hover .player-symbol,
 body.player-layout-qobuz .player-controls .buttons .transport-icon-button[aria-pressed="true"],
 body.player-layout-qobuz .player-controls .buttons .transport-icon-button[aria-pressed="true"] .fa-solid,
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button[aria-pressed="true"] .player-symbol,
 body.player-layout-qobuz .player-controls .buttons .transport-icon-button[aria-pressed="true"]:hover,
 body.player-layout-qobuz .player-controls .buttons .transport-icon-button[aria-pressed="true"]:hover .fa-solid,
+body.player-layout-qobuz .player-controls .buttons .transport-icon-button[aria-pressed="true"]:hover .player-symbol,
 body.player-layout-qobuz #shuffle-btn[aria-pressed="true"],
 body.player-layout-qobuz #repeat-btn[aria-pressed="true"],
 body.player-layout-qobuz #shuffle-btn[aria-pressed="true"] .fa-solid,
-body.player-layout-qobuz #repeat-btn[aria-pressed="true"] .fa-solid {
+body.player-layout-qobuz #repeat-btn[aria-pressed="true"] .fa-solid,
+body.player-layout-qobuz #shuffle-btn[aria-pressed="true"] .player-symbol,
+body.player-layout-qobuz #repeat-btn[aria-pressed="true"] .player-symbol {
   color: var(--accent) !important;
 }
 
 body.player-layout-qobuz #shuffle-btn[aria-pressed="false"],
 body.player-layout-qobuz #repeat-btn[aria-pressed="false"],
 body.player-layout-qobuz #shuffle-btn[aria-pressed="false"] .fa-solid,
-body.player-layout-qobuz #repeat-btn[aria-pressed="false"] .fa-solid {
+body.player-layout-qobuz #repeat-btn[aria-pressed="false"] .fa-solid,
+body.player-layout-qobuz #shuffle-btn[aria-pressed="false"] .player-symbol,
+body.player-layout-qobuz #repeat-btn[aria-pressed="false"] .player-symbol {
   color: var(--muted) !important;
 }
 

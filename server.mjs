@@ -2,7 +2,7 @@ import { createReadStream, existsSync, promises as fs } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scryptSync } from 'node:crypto';
 import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import yazl from 'yazl';
@@ -14,6 +14,10 @@ import {
   scanMusicLibrary,
 } from './lib/library.mjs';
 import {
+  addPlaylistTrack,
+  createPlaylist,
+  deletePlaylist,
+  deletePlaylistsForOwner,
   deleteCollectionInDatabase,
   exportLibraryDatabaseSnapshot,
   readAlbumOverridesDatabase,
@@ -25,6 +29,8 @@ import {
   readLibraryDatabase,
   readLibraryDatabaseSummary,
   readLyricsOverridesDatabase,
+  readPlaylist,
+  readPlaylists,
   readExcelAlbumExportRows,
   readRandomAlbumPage,
   readArtistLibrary,
@@ -34,6 +40,7 @@ import {
   readTrackPage,
   readTrackFromDatabase,
   renameCollectionInDatabase,
+  removePlaylistTrack,
   validateLibraryDatabaseFile,
   writeAlbumOverridesDatabase,
   writeArtistOverridesDatabase,
@@ -41,6 +48,22 @@ import {
   writeLibraryDatabase,
   writeLyricsOverridesDatabase,
 } from './lib/library-db.mjs';
+import {
+  DEFAULT_MAX_CONCURRENT_MP3_DOWNLOADS,
+  DOWNLOAD_MAX_REQUESTS,
+  DOWNLOAD_WINDOW_MS,
+  isPlaceholderWidgetApiKey,
+  isWeakAdminCredentials,
+  LOGIN_LOCKOUT_MS,
+  LOGIN_MAX_FAILURES,
+  LOGIN_WINDOW_MS,
+  MAX_BULK_DOWNLOAD_TRACKS,
+  normalizeCorsOrigin,
+  refreshSessionRecord,
+  timingSafeStringEqual,
+  timingSafeTextEqual,
+  createSessionRecord,
+} from './src/server/securityPolicy.js';
 import {
   DEFAULT_SETTINGS,
   PALETTE_THEMES,
@@ -77,18 +100,22 @@ const defaultConfig = {
   scanMetadata: 'tags',
   scanDurations: false,
   autoScanOnStart: false,
-  noAuth: false,
-  anonymousDownloadsEnabled: true,
+  noAuth: true,
+  anonymousDownloadsEnabled: false,
   adminUsername: 'admin',
   adminPassword: 'admin',
   widgetApiKey: '',
   widgetCorsOrigin: '*',
+  trustProxy: false,
+  requireHttpsForAuth: false,
+  maxConcurrentMp3Downloads: DEFAULT_MAX_CONCURRENT_MP3_DOWNLOADS,
   host: '0.0.0.0',
   port: 8888,
 };
 
 await loadEnvironmentFile(envPath);
 const config = await loadConfig();
+validateAdminConfiguration(config);
 const libraryRoot = config.libraryPath ? path.resolve(config.libraryPath) : '';
 const artistInfoPath = config.artistInfoPath ? path.resolve(__dirname, config.artistInfoPath) : '';
 const artistOverridesPath = config.artistOverridesPath ? path.resolve(__dirname, config.artistOverridesPath) : '';
@@ -143,6 +170,9 @@ let widgetSettingsCache = await readWidgetSettings();
 let authStoreCache = null;
 let homeAlbumPageCache = new Map();
 const sessions = new Map();
+const loginAttempts = new Map();
+const downloadAttempts = new Map();
+let activeMp3DownloadRequests = 0;
 
 await initializeScanStateFromStore();
 
@@ -207,12 +237,17 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (url.pathname === '/logout' || url.pathname === '/logout/') {
+      if (request.method !== 'POST') {
+        return respondJson(response, 405, { error: 'Method Not Allowed' });
+      }
+      assertPrivilegedMutation(request, authUser);
       const token = getSessionToken(request);
       if (token) sessions.delete(token);
       response.writeHead(303, {
         Location: config.noAuth ? '/' : getLoginAppRedirectPath('/'),
-        'Set-Cookie': createSessionCookie('', { maxAge: 0 }),
+        'Set-Cookie': createSessionCookie('', request, { maxAge: 0 }),
         'Cache-Control': 'no-store',
+        ...getSecurityHeaders(),
       });
       response.end();
       return;
@@ -223,7 +258,10 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (url.pathname === '/api/auth/me') {
-      return respondJson(response, 200, { user: createPublicUser(authUser) });
+      return respondJson(response, 200, {
+        user: createPublicUser(authUser),
+        csrfToken: getCsrfTokenForUser(authUser),
+      });
     }
 
     if (url.pathname === '/admin' || url.pathname === '/admin/') {
@@ -234,7 +272,45 @@ const server = http.createServer(async (request, response) => {
       if (!isAdminUser(authUser)) {
         return respondJson(response, 403, { error: 'Admin access required.' });
       }
+      if (isStateChangingMethod(request.method)) {
+        assertPrivilegedMutation(request, authUser, { requireAdmin: true });
+      }
       return handleAdminApi(request, response, url);
+    }
+
+    if (url.pathname === '/api/playlists') {
+      return await handlePlaylistsCollectionApi(request, response, authUser);
+    }
+
+    const playlistTrackMatch = /^\/api\/playlists\/([^/]+)\/tracks\/([^/]+)$/u.exec(url.pathname);
+    if (playlistTrackMatch) {
+      return await handlePlaylistTrackApi(
+        request,
+        response,
+        authUser,
+        decodeURIComponent(playlistTrackMatch[1]),
+        decodeURIComponent(playlistTrackMatch[2]),
+      );
+    }
+
+    const playlistTracksMatch = /^\/api\/playlists\/([^/]+)\/tracks$/u.exec(url.pathname);
+    if (playlistTracksMatch) {
+      return await handlePlaylistTracksApi(
+        request,
+        response,
+        authUser,
+        decodeURIComponent(playlistTracksMatch[1]),
+      );
+    }
+
+    const playlistMatch = /^\/api\/playlists\/([^/]+)$/u.exec(url.pathname);
+    if (playlistMatch) {
+      return await handlePlaylistApi(
+        request,
+        response,
+        authUser,
+        decodeURIComponent(playlistMatch[1]),
+      );
     }
 
     if (url.pathname === '/api/widget/settings') {
@@ -245,6 +321,7 @@ const server = http.createServer(async (request, response) => {
         return respondJson(response, 200, getWidgetSettingsPayload(request));
       }
       if (request.method === 'POST') {
+        assertPrivilegedMutation(request, authUser, { requireAdmin: true });
         const payload = await updateWidgetSettings(request);
         return respondJson(response, 200, payload);
       }
@@ -262,6 +339,7 @@ const server = http.createServer(async (request, response) => {
         albumCount: librarySummary.albumCount,
         scan: scanState,
         user: createPublicUser(authUser),
+        csrfToken: getCsrfTokenForUser(authUser),
         downloadSettings: await getDownloadSettings(),
       });
     }
@@ -335,6 +413,7 @@ const server = http.createServer(async (request, response) => {
       if (!isAdminUser(authUser)) {
         return respondJson(response, 403, { error: 'Admin access required.' });
       }
+      assertPrivilegedMutation(request, authUser, { requireAdmin: true });
       return respondJson(response, 200, await renameCollectionName(request));
     }
 
@@ -345,6 +424,7 @@ const server = http.createServer(async (request, response) => {
       if (!isAdminUser(authUser)) {
         return respondJson(response, 403, { error: 'Admin access required.' });
       }
+      assertPrivilegedMutation(request, authUser, { requireAdmin: true });
       return respondJson(response, 200, await deleteCollectionName(request));
     }
 
@@ -355,6 +435,7 @@ const server = http.createServer(async (request, response) => {
       if (!isAdminUser(authUser)) {
         return respondJson(response, 403, { error: 'Admin access required.' });
       }
+      assertPrivilegedMutation(request, authUser, { requireAdmin: true });
       return respondJson(response, 200, await updateCollectionCoverOverride(request));
     }
 
@@ -498,6 +579,7 @@ const server = http.createServer(async (request, response) => {
       if (!isAdminUser(authUser)) {
         return respondJson(response, 403, { error: 'Admin access required.' });
       }
+      assertPrivilegedMutation(request, authUser, { requireAdmin: true });
       const scan = await startLibraryScan();
       return respondJson(response, 202, { scan });
     }
@@ -507,6 +589,7 @@ const server = http.createServer(async (request, response) => {
         if (!isAdminUser(authUser)) {
           return respondJson(response, 403, { error: 'Admin access required.' });
         }
+        assertPrivilegedMutation(request, authUser, { requireAdmin: true });
         const result = await updateSelectedLibraryFolders(request);
         return respondJson(response, 200, result);
       }
@@ -517,6 +600,7 @@ const server = http.createServer(async (request, response) => {
     if (artistInfoMatch) {
       const artistName = decodeURIComponent(artistInfoMatch[1]);
       if (request.method === 'POST') {
+        assertPrivilegedMutation(request, authUser, { requireAdmin: true });
         const artistInfo = await updateArtistInfo(artistName, request);
         return respondJson(response, 200, artistInfo);
       }
@@ -537,6 +621,7 @@ const server = http.createServer(async (request, response) => {
       if (!isAdminUser(authUser)) {
         return respondJson(response, 403, { error: 'Admin access required.' });
       }
+      assertPrivilegedMutation(request, authUser, { requireAdmin: true });
       const albumId = decodeURIComponent(albumCoverMatch[1]);
       const result = await updateAlbumCoverOverride(albumId, request);
       const library = await ensureLibrary();
@@ -551,6 +636,7 @@ const server = http.createServer(async (request, response) => {
       if (!isAdminUser(authUser)) {
         return respondJson(response, 403, { error: 'Admin access required.' });
       }
+      assertPrivilegedMutation(request, authUser, { requireAdmin: true });
       const albumId = decodeURIComponent(albumTagsMatch[1]);
       const result = await updateAlbumTagOverride(albumId, request);
       const library = result.manual
@@ -565,6 +651,7 @@ const server = http.createServer(async (request, response) => {
       if (!isAdminUser(authUser)) {
         return respondJson(response, 403, { error: 'Admin access required.' });
       }
+      assertPrivilegedMutation(request, authUser, { requireAdmin: true });
       const albumId = decodeURIComponent(albumTagsMatch[1]);
       const result = await deleteAlbumFromLibrary(albumId);
       const library = result.manual ? await createManualWishlistLibrary() : await ensureLibrary();
@@ -578,6 +665,7 @@ const server = http.createServer(async (request, response) => {
       if (!isAdminUser(authUser)) {
         return respondJson(response, 403, { error: 'Admin access required.' });
       }
+      assertPrivilegedMutation(request, authUser, { requireAdmin: true });
       const result = await createManualAlbum(request);
       return respondJson(response, 201, result);
     }
@@ -608,16 +696,23 @@ const server = http.createServer(async (request, response) => {
 
     const downloadMatch = /^\/api\/tracks\/([^/]+)\/download$/u.exec(url.pathname);
     if (downloadMatch) {
+      if (request.method !== 'POST') {
+        return respondJson(response, 405, { error: 'Method Not Allowed' });
+      }
       if (!canUserDownload(authUser)) {
         return respondJson(response, 403, { error: 'Downloads are disabled for this account.' });
       }
-      return downloadTrack(response, decodeURIComponent(downloadMatch[1]), url);
+      assertPrivilegedMutation(request, authUser);
+      enforceDownloadRateLimit(request, authUser);
+      return downloadTrack(response, request, decodeURIComponent(downloadMatch[1]));
     }
 
     if (url.pathname === '/api/downloads/bulk' && request.method === 'POST') {
       if (!canUserDownload(authUser)) {
         return respondJson(response, 403, { error: 'Downloads are disabled for this account.' });
       }
+      assertPrivilegedMutation(request, authUser);
+      enforceDownloadRateLimit(request, authUser);
       return downloadBulkTracks(response, request);
     }
 
@@ -625,6 +720,7 @@ const server = http.createServer(async (request, response) => {
     if (lyricsMatch) {
       const trackId = decodeURIComponent(lyricsMatch[1]);
       if (request.method === 'POST') {
+        assertPrivilegedMutation(request, authUser, { requireAdmin: true });
         const lyrics = await updateTrackLyrics(trackId, request);
         return respondJson(response, 200, lyrics);
       }
@@ -703,9 +799,28 @@ async function loadConfig() {
     adminPassword: process.env.ADMIN_PASSWORD || fileConfig.adminPassword || defaultConfig.adminPassword,
     widgetApiKey: process.env.WIDGET_API_KEY || fileConfig.widgetApiKey || defaultConfig.widgetApiKey,
     widgetCorsOrigin: process.env.WIDGET_CORS_ORIGIN || fileConfig.widgetCorsOrigin || defaultConfig.widgetCorsOrigin,
+    trustProxy: parseBoolean(process.env.TRUST_PROXY ?? fileConfig.trustProxy ?? defaultConfig.trustProxy),
+    requireHttpsForAuth: parseBoolean(process.env.REQUIRE_HTTPS_FOR_AUTH ?? fileConfig.requireHttpsForAuth ?? defaultConfig.requireHttpsForAuth),
+    maxConcurrentMp3Downloads: Math.max(
+      1,
+      Number.parseInt(
+        process.env.MAX_CONCURRENT_MP3_DOWNLOADS
+        || fileConfig.maxConcurrentMp3Downloads
+        || defaultConfig.maxConcurrentMp3Downloads,
+        10,
+      ) || DEFAULT_MAX_CONCURRENT_MP3_DOWNLOADS,
+    ),
     host: process.env.HOST || fileConfig.host || defaultConfig.host,
     port: Number.parseInt(process.env.PORT || fileConfig.port || defaultConfig.port, 10),
   };
+}
+
+function validateAdminConfiguration(currentConfig) {
+  if (!currentConfig) return;
+  if (!isWeakAdminCredentials(currentConfig.adminUsername, currentConfig.adminPassword)) return;
+  console.warn(
+    'Warning: admin credentials are weak or default. The server will start, but internet-facing deployments should use a stronger ADMIN_USERNAME and ADMIN_PASSWORD pair.',
+  );
 }
 
 async function loadEnvironmentFile(filePath) {
@@ -750,32 +865,70 @@ function createGuestUser() {
   return {
     username: 'Guest',
     role: 'guest',
-    downloadsEnabled: config.anonymousDownloadsEnabled,
+    downloadsEnabled: false,
     authDisabled: true,
+    csrfToken: '',
   };
 }
 
+function shouldRequireSecureAuth() {
+  return config.requireHttpsForAuth === true;
+}
+
+function isSecureRequest(request) {
+  if (request.socket?.encrypted) return true;
+  if (!config.trustProxy) return false;
+  const forwardedProto = String(request.headers['x-forwarded-proto'] || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+  return forwardedProto === 'https';
+}
+
+function getRequestOrigin(request) {
+  const host = String(request.headers.host || `${config.host}:${config.port}`).trim();
+  const protocol = isSecureRequest(request) ? 'https' : 'http';
+  return `${protocol}://${host}`;
+}
+
+function getRequestClientIp(request) {
+  if (config.trustProxy) {
+    const forwardedFor = String(request.headers['x-forwarded-for'] || '')
+      .split(',')[0]
+      .trim();
+    if (forwardedFor) return forwardedFor;
+  }
+  return request.socket?.remoteAddress || 'unknown';
+}
+
+function assertSecureAuthRequest(request) {
+  if (!shouldRequireSecureAuth() || isSecureRequest(request)) return;
+  throw new HttpError(403, 'Secure HTTPS is required for login and authenticated actions.');
+}
+
 async function getSessionUser(request) {
+  if (shouldRequireSecureAuth() && !isSecureRequest(request)) return null;
   const token = getSessionToken(request);
   if (!token) return null;
 
   const session = sessions.get(token);
-  if (!session || session.expiresAt < Date.now()) {
+  const activeSession = refreshSessionRecord(session, Date.now());
+  if (!activeSession) {
     sessions.delete(token);
     return null;
   }
 
-  session.expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
-  if (session.role === 'admin') {
+  if (activeSession.role === 'admin') {
     return {
       username: config.adminUsername,
       role: 'admin',
       downloadsEnabled: true,
+      csrfToken: activeSession.csrfToken,
     };
   }
 
   const store = await readAuthStore();
-  const user = store.users.find((candidate) => candidate.username === session.username);
+  const user = store.users.find((candidate) => candidate.username === activeSession.username);
   if (!user) {
     sessions.delete(token);
     return null;
@@ -785,6 +938,7 @@ async function getSessionUser(request) {
     username: user.username,
     role: 'user',
     downloadsEnabled: user.downloadsEnabled !== false,
+    csrfToken: activeSession.csrfToken,
   };
 }
 
@@ -796,21 +950,26 @@ async function getAuthenticatedUser(request) {
 }
 
 async function handleLogin(request, response, url) {
+  assertSecureAuthRequest(request);
   const body = await readRequestPayload(request, 64 * 1024);
   const username = cleanText(body.username);
   const password = String(body.password || '');
+  enforceLoginRateLimit(request, username);
   const user = await authenticateUser(username, password);
   const next = cleanRedirectPath(body.next || url.searchParams.get('next') || '/');
 
   if (!user) {
+    registerFailedLogin(request, username);
     return redirect(response, getLoginAppRedirectPath(next, { error: 'invalid' }), 303);
   }
 
+  clearLoginAttempts(request, username);
   const token = createSession(user);
   response.writeHead(303, {
     Location: next,
-    'Set-Cookie': createSessionCookie(token),
+    'Set-Cookie': createSessionCookie(token, request),
     'Cache-Control': 'no-store',
+    ...getSecurityHeaders(),
   });
   response.end();
 }
@@ -837,11 +996,10 @@ async function authenticateUser(username, password) {
 
 function createSession(user) {
   const token = randomBytes(32).toString('hex');
-  sessions.set(token, {
+  sessions.set(token, createSessionRecord({
     username: user.username,
     role: user.role,
-    expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
-  });
+  }));
   return token;
 }
 
@@ -859,8 +1017,138 @@ function isAdminUser(user) {
 }
 
 function canUserDownload(user) {
-  if (user?.role === 'guest') return config.anonymousDownloadsEnabled;
+  if (user?.role === 'guest') return false;
   return isAdminUser(user) || user?.downloadsEnabled !== false;
+}
+
+function getCsrfTokenForUser(user) {
+  return user?.csrfToken || '';
+}
+
+function enforceLoginRateLimit(request, username) {
+  const key = `${getRequestClientIp(request)}:${normalizeUsername(username) || 'unknown'}`;
+  const now = Date.now();
+  const entry = loginAttempts.get(key);
+  if (!entry) return;
+  if (entry.blockedUntil && entry.blockedUntil > now) {
+    throw new HttpError(429, 'Too many failed login attempts. Try again later.');
+  }
+  if (entry.windowStartedAt && now - entry.windowStartedAt > LOGIN_WINDOW_MS) {
+    loginAttempts.delete(key);
+  }
+}
+
+function registerFailedLogin(request, username) {
+  const key = `${getRequestClientIp(request)}:${normalizeUsername(username) || 'unknown'}`;
+  const now = Date.now();
+  const entry = loginAttempts.get(key);
+  if (!entry || now - entry.windowStartedAt > LOGIN_WINDOW_MS) {
+    loginAttempts.set(key, {
+      failures: 1,
+      windowStartedAt: now,
+      blockedUntil: 0,
+    });
+    return;
+  }
+  entry.failures += 1;
+  if (entry.failures >= LOGIN_MAX_FAILURES) {
+    entry.blockedUntil = now + LOGIN_LOCKOUT_MS;
+  }
+}
+
+function clearLoginAttempts(request, username) {
+  const key = `${getRequestClientIp(request)}:${normalizeUsername(username) || 'unknown'}`;
+  loginAttempts.delete(key);
+}
+
+function requireSessionUser(user) {
+  if (!user || user.role === 'guest') {
+    throw new HttpError(401, 'Login required.');
+  }
+}
+
+function assertSameOriginRequest(request) {
+  const expectedOrigin = getRequestOrigin(request);
+  const origin = String(request.headers.origin || '').trim();
+  if (origin) {
+    if (origin !== expectedOrigin) {
+      throw new HttpError(403, 'Origin check failed.');
+    }
+    return;
+  }
+
+  const referer = String(request.headers.referer || '').trim();
+  if (!referer) {
+    throw new HttpError(403, 'Origin check failed.');
+  }
+
+  try {
+    const refererOrigin = new URL(referer).origin;
+    if (refererOrigin !== expectedOrigin) {
+      throw new HttpError(403, 'Origin check failed.');
+    }
+  } catch {
+    throw new HttpError(403, 'Origin check failed.');
+  }
+}
+
+function assertCsrfToken(request, user) {
+  const providedToken = String(
+    request.headers['x-csrf-token']
+    || request.headers['x-monochrome-csrf-token']
+    || '',
+  ).trim();
+  if (!providedToken || !timingSafeStringEqual(providedToken, getCsrfTokenForUser(user))) {
+    throw new HttpError(403, 'CSRF token is missing or invalid.');
+  }
+}
+
+function assertPrivilegedMutation(request, user, { requireAdmin = false } = {}) {
+  if (!isStateChangingMethod(request.method)) return;
+  assertSecureAuthRequest(request);
+  requireSessionUser(user);
+  if (requireAdmin && !isAdminUser(user)) {
+    throw new HttpError(403, 'Admin access required.');
+  }
+  assertSameOriginRequest(request);
+  assertCsrfToken(request, user);
+}
+
+function isStateChangingMethod(method) {
+  return method === 'POST' || method === 'PATCH' || method === 'DELETE' || method === 'PUT';
+}
+
+function enforceDownloadRateLimit(request, user) {
+  if (!user || user.role === 'guest') {
+    throw new HttpError(403, 'Downloads are disabled for this account.');
+  }
+  const key = `${user.role}:${user.username}:${getSessionToken(request)}`;
+  const now = Date.now();
+  const entry = downloadAttempts.get(key);
+  if (!entry || now - entry.windowStartedAt > DOWNLOAD_WINDOW_MS) {
+    downloadAttempts.set(key, {
+      count: 1,
+      windowStartedAt: now,
+    });
+    return;
+  }
+  entry.count += 1;
+  if (entry.count > DOWNLOAD_MAX_REQUESTS) {
+    throw new HttpError(429, 'Too many download requests. Please wait a moment and try again.');
+  }
+}
+
+function acquireMp3DownloadSlot() {
+  if (activeMp3DownloadRequests >= config.maxConcurrentMp3Downloads) {
+    throw new HttpError(429, 'Too many MP3 conversions are already running. Please try again soon.');
+  }
+  activeMp3DownloadRequests += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    activeMp3DownloadRequests = Math.max(0, activeMp3DownloadRequests - 1);
+  };
 }
 
 async function handleAdminApi(request, response, url) {
@@ -893,8 +1181,11 @@ async function handleAdminApi(request, response, url) {
     }
   }
 
-  if (url.pathname === '/api/admin/database/export' && request.method === 'GET') {
-    return exportDatabaseBackup(response);
+  if (url.pathname === '/api/admin/database/export') {
+    if (request.method === 'POST') {
+      return exportDatabaseBackup(response);
+    }
+    return respondJson(response, 405, { error: 'Method Not Allowed' });
   }
 
   if (url.pathname === '/api/admin/database/export-excel' && request.method === 'POST') {
@@ -974,7 +1265,136 @@ async function deleteManagedUser(username) {
   for (const [token, session] of sessions.entries()) {
     if (session.username === normalizedUsername) sessions.delete(token);
   }
+  await deletePlaylistsForOwner(libraryDatabasePath, `user:${normalizedUsername}`);
   return getAdminUsersPayload();
+}
+
+async function handlePlaylistsCollectionApi(request, response, authUser) {
+  const ownerKey = requirePlaylistOwner(authUser);
+  if (request.method === 'GET') {
+    return respondJson(response, 200, {
+      playlists: await readPlaylists(libraryDatabasePath, ownerKey),
+    });
+  }
+  if (request.method === 'POST') {
+    assertPrivilegedMutation(request, authUser);
+    const payload = await readRequestJson(request, 64 * 1024);
+    try {
+      const playlist = await createPlaylist(
+        libraryDatabasePath,
+        ownerKey,
+        `playlist-${randomBytes(16).toString('hex')}`,
+        payload.name,
+      );
+      return respondJson(response, 201, { playlist });
+    } catch (error) {
+      throw mapPlaylistDatabaseError(error);
+    }
+  }
+  return respondJson(response, 405, { error: 'Method Not Allowed' });
+}
+
+async function handlePlaylistApi(request, response, authUser, playlistId) {
+  const ownerKey = requirePlaylistOwner(authUser);
+  if (request.method === 'GET') {
+    const playlist = await getPlaylistPayload(ownerKey, playlistId);
+    if (!playlist) throw new HttpError(404, 'Playlist not found.');
+    return respondJson(response, 200, { playlist });
+  }
+  if (request.method === 'DELETE') {
+    assertPrivilegedMutation(request, authUser);
+    const deleted = await deletePlaylist(libraryDatabasePath, ownerKey, playlistId);
+    if (!deleted) throw new HttpError(404, 'Playlist not found.');
+    return respondJson(response, 200, { deleted: true });
+  }
+  return respondJson(response, 405, { error: 'Method Not Allowed' });
+}
+
+async function handlePlaylistTracksApi(request, response, authUser, playlistId) {
+  const ownerKey = requirePlaylistOwner(authUser);
+  if (request.method !== 'POST') {
+    return respondJson(response, 405, { error: 'Method Not Allowed' });
+  }
+  assertPrivilegedMutation(request, authUser);
+  const payload = await readRequestJson(request, 64 * 1024);
+  try {
+    const result = await addPlaylistTrack(
+      libraryDatabasePath,
+      ownerKey,
+      playlistId,
+      String(payload.trackId || ''),
+    );
+    return respondJson(response, 200, {
+      added: result.added,
+      playlist: await createPlaylistPayload(result.playlist),
+    });
+  } catch (error) {
+    throw mapPlaylistDatabaseError(error);
+  }
+}
+
+async function handlePlaylistTrackApi(request, response, authUser, playlistId, trackId) {
+  const ownerKey = requirePlaylistOwner(authUser);
+  if (request.method !== 'DELETE') {
+    return respondJson(response, 405, { error: 'Method Not Allowed' });
+  }
+  assertPrivilegedMutation(request, authUser);
+  try {
+    const result = await removePlaylistTrack(
+      libraryDatabasePath,
+      ownerKey,
+      playlistId,
+      trackId,
+    );
+    return respondJson(response, 200, {
+      removed: result.removed,
+      playlist: await createPlaylistPayload(result.playlist),
+    });
+  } catch (error) {
+    throw mapPlaylistDatabaseError(error);
+  }
+}
+
+function requirePlaylistOwner(authUser) {
+  if (!authUser || authUser.role === 'guest') {
+    throw new HttpError(403, 'Sign in to use playlists.');
+  }
+  if (authUser.role === 'admin') return 'admin';
+  const username = normalizeUsername(authUser.username);
+  if (!username) throw new HttpError(403, 'Sign in to use playlists.');
+  return `user:${username}`;
+}
+
+async function getPlaylistPayload(ownerKey, playlistId) {
+  const playlist = await readPlaylist(libraryDatabasePath, ownerKey, playlistId);
+  return createPlaylistPayload(playlist);
+}
+
+async function createPlaylistPayload(playlist) {
+  if (!playlist) return null;
+  const orderedIds = playlist.tracks.map((track) => track.id);
+  if (orderedIds.length === 0) return { ...playlist, tracks: [] };
+  const library = await readTrackPage(libraryDatabasePath, { trackIds: orderedIds });
+  primeTrackMap(library.tracks);
+  const payload = await createLibraryPayload(library);
+  const trackMapById = new Map(payload.tracks.map((track) => [track.id, track]));
+  return {
+    ...playlist,
+    tracks: orderedIds.map((trackId) => trackMapById.get(trackId)).filter(Boolean),
+  };
+}
+
+function mapPlaylistDatabaseError(error) {
+  const statusByCode = {
+    PLAYLIST_NAME_REQUIRED: 400,
+    PLAYLIST_NAME_TOO_LONG: 400,
+    PLAYLIST_INVALID: 400,
+    PLAYLIST_NAME_EXISTS: 409,
+    PLAYLIST_NOT_FOUND: 404,
+    TRACK_NOT_FOUND: 404,
+  };
+  const statusCode = statusByCode[error?.code];
+  return statusCode ? new HttpError(statusCode, error.message) : error;
 }
 
 async function getDownloadSettings() {
@@ -1396,12 +1816,6 @@ function verifyPassword(password, passwordHash) {
   return timingSafeTextEqual(actualHash, expectedHash);
 }
 
-function timingSafeTextEqual(left, right) {
-  const leftHash = createHash('sha256').update(String(left)).digest();
-  const rightHash = createHash('sha256').update(String(right)).digest();
-  return timingSafeEqual(leftHash, rightHash);
-}
-
 function normalizeUsername(value) {
   return String(value || '')
     .trim()
@@ -1426,15 +1840,19 @@ function parseCookies(cookieHeader) {
   return cookies;
 }
 
-function createSessionCookie(token, options = {}) {
+function createSessionCookie(token, request, options = {}) {
   const maxAge = Number.isFinite(options.maxAge) ? options.maxAge : 7 * 24 * 60 * 60;
-  return [
+  const parts = [
     `ms_session=${encodeURIComponent(token)}`,
     'Path=/',
     'HttpOnly',
-    'SameSite=Lax',
+    'SameSite=Strict',
     `Max-Age=${maxAge}`,
-  ].join('; ');
+  ];
+  if (shouldRequireSecureAuth() || isSecureRequest(request)) {
+    parts.push('Secure');
+  }
+  return parts.join('; ');
 }
 
 function cleanRedirectPath(value) {
@@ -2093,7 +2511,7 @@ async function updateWidgetSettings(request) {
   const apiKey = shouldGenerate
     ? createWidgetApiKey()
     : String(payload.apiKey ?? current.apiKey ?? '').trim();
-  const widgetCorsOrigin = String(payload.widgetCorsOrigin ?? current.widgetCorsOrigin ?? '*').trim() || '*';
+  const widgetCorsOrigin = String(payload.widgetCorsOrigin ?? current.widgetCorsOrigin ?? '').trim();
 
   const settings = normalizeWidgetSettings({
     enabled,
@@ -2113,7 +2531,7 @@ async function writeWidgetSettings(settings) {
 
 function getWidgetSettingsPayload(request) {
   const settings = getEffectiveWidgetSettings();
-  const origin = `http://${request.headers.host || `${config.host}:${config.port}`}`;
+  const origin = getRequestOrigin(request);
   return {
     enabled: settings.enabled,
     apiKey: settings.apiKey,
@@ -2135,19 +2553,34 @@ function getEffectiveWidgetSettings() {
   const storedApiKey = String(widgetSettingsCache?.apiKey || '').trim();
   const envApiKey = String(config.widgetApiKey || '').trim();
   const apiKey = storedApiKey || envApiKey;
+  const widgetCorsOrigin = normalizeCorsOrigin(widgetSettingsCache?.widgetCorsOrigin || config.widgetCorsOrigin || '');
+  const hasSafeApiKey = !isPlaceholderWidgetApiKey(apiKey);
   return {
-    enabled: storedEnabled ?? Boolean(apiKey),
+    enabled: Boolean(storedEnabled ?? Boolean(apiKey)) && hasSafeApiKey && Boolean(widgetCorsOrigin),
     apiKey,
-    widgetCorsOrigin: String(widgetSettingsCache?.widgetCorsOrigin || config.widgetCorsOrigin || '*').trim() || '*',
+    widgetCorsOrigin,
     source: storedApiKey ? 'settings' : (envApiKey ? 'environment' : 'none'),
   };
 }
 
 function normalizeWidgetSettings(settings) {
+  const enabled = Boolean(settings?.enabled);
+  const apiKey = String(settings?.apiKey || '').trim();
+  const widgetCorsOrigin = String(settings?.widgetCorsOrigin || '').trim();
+
+  if (enabled && isPlaceholderWidgetApiKey(apiKey)) {
+    throw new HttpError(400, 'Enable the widget API only after setting a real API key.');
+  }
+
+  const normalizedOrigin = normalizeCorsOrigin(widgetCorsOrigin);
+  if (enabled && !normalizedOrigin) {
+    throw new HttpError(400, 'Widget CORS origin must be a specific http:// or https:// origin.');
+  }
+
   return {
-    enabled: Boolean(settings?.enabled),
-    apiKey: String(settings?.apiKey || '').trim(),
-    widgetCorsOrigin: String(settings?.widgetCorsOrigin || '*').trim() || '*',
+    enabled,
+    apiKey,
+    widgetCorsOrigin: normalizedOrigin,
   };
 }
 
@@ -2526,20 +2959,75 @@ async function createCollectionFoldersPayload({ search = '', letter = 'all', lim
 }
 
 async function createCollectionOptionsPayload(options = {}) {
-  const payload = await createCollectionFoldersPayload({
-    ...options,
-    all: true,
-    letter: 'all',
+  const search = cleanText(options.search).toLowerCase();
+  const folderFilters = parseFolderFilters(options.folders);
+  const payload = await readCollectionFolders(libraryDatabasePath, {
+    search,
+    folders: folderFilters,
   });
+  const foldersByName = new Map();
+  const albumFolderKeys = new Map();
+
+  for (const folder of payload.folders || []) {
+    const albumIds = new Set(folder.albumIds || []);
+    const folderKey = normalizeCollectionName(folder.name);
+    foldersByName.set(folderKey, {
+      path: folder.path,
+      name: folder.name,
+      albumIds,
+    });
+    for (const albumId of albumIds) {
+      albumFolderKeys.set(albumId, folderKey);
+    }
+  }
+
+  const overrides = await getAlbumOverrides();
+  const deletedAlbumIds = getDeletedAlbumIdSet(overrides);
+  for (const albumId of deletedAlbumIds) {
+    const previousFolderKey = albumFolderKeys.get(albumId);
+    if (!previousFolderKey || !foldersByName.has(previousFolderKey)) continue;
+    foldersByName.get(previousFolderKey).albumIds.delete(albumId);
+    albumFolderKeys.delete(albumId);
+  }
+
+  for (const [albumId, override] of Object.entries(overrides.albums || {})) {
+    if (folderFilters.length > 0) continue;
+    if (override?.deleted) continue;
+    if (!Object.hasOwn(override || {}, 'collectionName')) continue;
+
+    const collectionName = cleanText(override?.collectionName);
+    const previousFolderKey = albumFolderKeys.get(albumId);
+    if (previousFolderKey && foldersByName.has(previousFolderKey)) {
+      foldersByName.get(previousFolderKey).albumIds.delete(albumId);
+      albumFolderKeys.delete(albumId);
+    }
+    if (!collectionName) continue;
+    if (search && !collectionName.toLowerCase().includes(search)) continue;
+
+    const normalizedName = normalizeCollectionName(collectionName);
+    if (!foldersByName.has(normalizedName)) {
+      foldersByName.set(normalizedName, {
+        path: collectionName,
+        name: collectionName,
+        albumIds: new Set(),
+      });
+    }
+    foldersByName.get(normalizedName).albumIds.add(albumId);
+    albumFolderKeys.set(albumId, normalizedName);
+  }
+
   return {
     generatedAt: payload.generatedAt,
-    collections: (payload.folders || []).map((folder) => ({
-      name: folder.name,
-      path: folder.path,
-      albumCount: folder.albumCount,
-      coverUrl: folder.coverUrl,
-      coverOverrideUrl: folder.coverOverrideUrl || '',
-    })),
+    collections: [...foldersByName.values()]
+      .filter((folder) => folder.albumIds.size > 0)
+      .sort((left, right) => left.name.localeCompare(right.name))
+      .map((folder) => ({
+        name: folder.name,
+        path: folder.path,
+        albumCount: folder.albumIds.size,
+        coverUrl: '',
+        coverOverrideUrl: '',
+      })),
   };
 }
 
@@ -2547,6 +3035,14 @@ async function getCollectionFolderCoverUrl(folder, overrides, collectionOverride
   const collectionName = cleanText(folder.name || folder.path);
   const overrideCoverUrl = getCollectionCoverOverrideUrl(collectionName, collectionOverrides);
   if (overrideCoverUrl) return overrideCoverUrl;
+
+  const albumIds = folder.albumIds instanceof Set
+    ? [...folder.albumIds]
+    : Array.isArray(folder.albumIds) ? folder.albumIds : [];
+  const albumOverrideCoverUrl = albumIds
+    .map((albumId) => overrides.albums?.[albumId])
+    .find((override) => !override?.deleted && cleanText(override?.coverUrl))?.coverUrl;
+  if (albumOverrideCoverUrl) return cleanText(albumOverrideCoverUrl);
 
   if (folder.coverTrackId) {
     return createVersionedApiUrl(`/api/tracks/${encodeURIComponent(folder.coverTrackId)}/cover`, '', { size: COVER_CACHE_THUMBNAIL_SIZE });
@@ -2729,17 +3225,20 @@ async function streamTrack(response, trackId, rangeHeader) {
   createReadStream(track.path, { start: range.start, end: range.end }).pipe(response);
 }
 
-async function downloadTrack(response, trackId, url) {
+async function downloadTrack(response, request, trackId) {
   const track = await getTrackById(trackId);
   if (!track) {
     return respondJson(response, 404, { error: 'Track not found' });
   }
 
-  const quality = normalizeDownloadQuality(url.searchParams.get('quality'));
-  const requestedName = sanitizeDownloadFilename(url.searchParams.get('filename'));
+  const payload = await readRequestPayload(request, 64 * 1024);
+  const quality = normalizeDownloadQuality(payload.quality);
+  const requestedName = sanitizeDownloadFilename(payload.filename);
 
   if (quality === 'mp3') {
-    return downloadTrackAsMp3(response, track, requestedName);
+    const releaseSlot = acquireMp3DownloadSlot();
+    response.on('close', releaseSlot);
+    return downloadTrackAsMp3(response, track, requestedName, releaseSlot);
   }
 
   return downloadOriginalTrack(response, track, requestedName);
@@ -2753,10 +3252,21 @@ async function downloadBulkTracks(response, request) {
   if (trackRequests.length === 0) {
     return respondJson(response, 400, { error: 'No tracks selected for download.' });
   }
+  if (trackRequests.length > MAX_BULK_DOWNLOAD_TRACKS) {
+    return respondJson(response, 400, {
+      error: `Bulk downloads are limited to ${MAX_BULK_DOWNLOAD_TRACKS} tracks per request.`,
+    });
+  }
   if (quality === 'mp3' && !await isFfmpegAvailable()) {
     return respondJson(response, 503, {
       error: 'MP3 conversion requires ffmpeg. Rebuild the Docker image or install ffmpeg on the server.',
     });
+  }
+
+  let releaseSlot = null;
+  if (quality === 'mp3') {
+    releaseSlot = acquireMp3DownloadSlot();
+    response.on('close', releaseSlot);
   }
 
   const tracks = [];
@@ -2795,6 +3305,7 @@ async function downloadBulkTracks(response, request) {
     for (const ffmpeg of activeConversions) {
       if (!ffmpeg.killed) ffmpeg.kill('SIGKILL');
     }
+    releaseSlot?.();
   });
 
   for (const { track, entryName } of tracks) {
@@ -2832,7 +3343,7 @@ async function downloadOriginalTrack(response, track, requestedName) {
   createReadStream(track.path).pipe(response);
 }
 
-async function downloadTrackAsMp3(response, track, requestedName) {
+async function downloadTrackAsMp3(response, track, requestedName, releaseSlot = null) {
   if (!await isFfmpegAvailable()) {
     return respondJson(response, 503, {
       error: 'MP3 conversion requires ffmpeg. Rebuild the Docker image or install ffmpeg on the server.',
@@ -2884,9 +3395,11 @@ async function downloadTrackAsMp3(response, track, requestedName) {
       console.error(`ffmpeg exited with code ${code}: ${stderr.trim()}`);
       response.destroy(new Error('MP3 conversion failed'));
     }
+    releaseSlot?.();
   });
   response.on('close', () => {
     if (!ffmpeg.killed) ffmpeg.kill('SIGKILL');
+    releaseSlot?.();
   });
 
   ffmpeg.stdout.pipe(response);
@@ -2958,7 +3471,7 @@ function normalizeBulkTrackRequests(value) {
       seen.add(item.id);
       return true;
     })
-    .slice(0, 1200);
+    .slice(0, MAX_BULK_DOWNLOAD_TRACKS);
 }
 
 function createZipEntryName(track, trackRequest, quality) {
@@ -4514,6 +5027,7 @@ async function serveStaticAsset(requestPath, response) {
   if (!isSourceAsset && normalizedPath === '/styles.css') {
     const stylesheet = await renderVersionedStylesheet(resolvedPath);
     response.writeHead(200, {
+      ...getSecurityHeaders(),
       'Content-Type': contentType,
       'Cache-Control': cacheControl,
     });
@@ -4531,6 +5045,7 @@ async function serveStaticAsset(requestPath, response) {
       }
     })
     .pipe(response.writeHead(200, {
+      ...getSecurityHeaders(),
       'Content-Type': contentType,
       'Cache-Control': cacheControl,
     }));
@@ -5070,6 +5585,7 @@ function guessStaticContentType(filePath) {
 function respondJson(response, statusCode, body) {
   const payload = JSON.stringify(body);
   response.writeHead(statusCode, {
+    ...getSecurityHeaders(),
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(payload),
     'Cache-Control': 'no-store',
@@ -5079,6 +5595,7 @@ function respondJson(response, statusCode, body) {
 
 function respondHtml(response, statusCode, html) {
   response.writeHead(statusCode, {
+    ...getSecurityHeaders(),
     'Content-Type': 'text/html; charset=utf-8',
     'Content-Length': Buffer.byteLength(html),
     'Cache-Control': 'no-store',
@@ -5088,16 +5605,26 @@ function respondHtml(response, statusCode, html) {
 
 function redirect(response, location) {
   response.writeHead(303, {
+    ...getSecurityHeaders(),
     Location: location,
     'Cache-Control': 'no-store',
   });
   response.end();
 }
 
+function getSecurityHeaders() {
+  return {
+    'Content-Security-Policy': "frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+    'Referrer-Policy': 'same-origin',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+  };
+}
+
 function getWidgetCorsHeaders() {
   const settings = getEffectiveWidgetSettings();
   return {
-    'Access-Control-Allow-Origin': settings.widgetCorsOrigin || '*',
+    'Access-Control-Allow-Origin': settings.widgetCorsOrigin || 'null',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, X-API-Key, Content-Type',
     'Vary': 'Origin',
@@ -5106,13 +5633,17 @@ function getWidgetCorsHeaders() {
 }
 
 function respondWidgetOptions(response) {
-  response.writeHead(204, getWidgetCorsHeaders());
+  response.writeHead(204, {
+    ...getSecurityHeaders(),
+    ...getWidgetCorsHeaders(),
+  });
   response.end();
 }
 
 function respondWidgetJson(response, statusCode, body) {
   const payload = JSON.stringify(body);
   response.writeHead(statusCode, {
+    ...getSecurityHeaders(),
     ...getWidgetCorsHeaders(),
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(payload),
@@ -5137,11 +5668,4 @@ function isWidgetRequestAuthorized(request, url) {
 function parseBearerToken(value) {
   const match = /^Bearer\s+(.+)$/iu.exec(String(value || '').trim());
   return match ? match[1] : '';
-}
-
-function timingSafeStringEqual(left, right) {
-  const leftBuffer = Buffer.from(String(left));
-  const rightBuffer = Buffer.from(String(right));
-  if (leftBuffer.length !== rightBuffer.length) return false;
-  return timingSafeEqual(leftBuffer, rightBuffer);
 }

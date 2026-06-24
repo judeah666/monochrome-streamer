@@ -1,5 +1,6 @@
 import React from 'react';
 import { CoverImage, FontAwesomeIcon } from '../common/VisualBits.jsx';
+import addToPlaylistIconUrl from '../../assets/icons/actions/add-to-playlist.svg';
 
 const albumDiscHeaderClassName = [
   'album-disc-header tw-flex tw-items-center tw-justify-between tw-gap-3.5',
@@ -31,21 +32,27 @@ export function TrackList({
   tracks = [],
   variant = 'standard',
   showAlbum = true,
+  showDiscHeaders = true,
   onPlay,
   onFavorite,
   onAddQueue,
+  onAddPlaylist,
+  onRemove,
   onArtistClick,
   onAlbumClick,
 }) {
   if (variant === 'album') {
+    const groups = showDiscHeaders ? groupTracksByDisc(tracks) : [['playlist', tracks]];
     return (
       <>
-        {groupTracksByDisc(tracks).map(([discNumber, discTracks]) => (
+        {groups.map(([discNumber, discTracks]) => (
           <React.Fragment key={discNumber}>
-            <div className={albumDiscHeaderClassName}>
-              <span className="tw-text-[0.78rem] tw-font-black">Disc {discNumber}</span>
-              <small className="tw-text-[0.72rem] tw-normal-case tw-tracking-[0.02em] tw-text-muted">{discTracks.length} track{discTracks.length === 1 ? '' : 's'}</small>
-            </div>
+            {showDiscHeaders ? (
+              <div className={albumDiscHeaderClassName}>
+                <span className="tw-text-[0.78rem] tw-font-black">Disc {discNumber}</span>
+                <small className="tw-text-[0.72rem] tw-normal-case tw-tracking-[0.02em] tw-text-muted">{discTracks.length} track{discTracks.length === 1 ? '' : 's'}</small>
+              </div>
+            ) : null}
             {discTracks.map((track) => (
               <AlbumTrackRow
                 key={track.id}
@@ -53,6 +60,8 @@ export function TrackList({
                 onPlay={(options) => onPlay?.(track.id, options)}
                 onFavorite={() => onFavorite?.(track.id)}
                 onAddQueue={() => onAddQueue?.(track.id)}
+                onAddPlaylist={onAddPlaylist ? () => onAddPlaylist(track.id) : null}
+                onRemove={onRemove ? () => onRemove(track.id) : null}
                 onArtistClick={() => onArtistClick?.(track.artist)}
                 onAlbumClick={() => onAlbumClick?.(track.id)}
               />
@@ -74,6 +83,8 @@ export function TrackList({
             onPlay={(options) => onPlay?.(track.id, options)}
             onFavorite={() => onFavorite?.(track.id)}
             onAddQueue={() => onAddQueue?.(track.id)}
+            onAddPlaylist={onAddPlaylist ? () => onAddPlaylist(track.id) : null}
+            onRemove={onRemove ? () => onRemove(track.id) : null}
             onArtistClick={() => onArtistClick?.(track.artist)}
             onAlbumClick={() => onAlbumClick?.(track.id)}
           />
@@ -83,7 +94,7 @@ export function TrackList({
   );
 }
 
-function TrackRow({ track, showAlbum, onPlay, onFavorite, onAddQueue, onArtistClick, onAlbumClick }) {
+function TrackRow({ track, showAlbum, onPlay, onFavorite, onAddQueue, onAddPlaylist, onRemove, onArtistClick, onAlbumClick }) {
   return (
     <article className={`${trackRowBaseClassName}${track.active ? trackRowActiveClassName : ''}`} onClick={() => onPlay?.({ toggle: false })}>
       <CoverImage
@@ -108,12 +119,19 @@ function TrackRow({ track, showAlbum, onPlay, onFavorite, onAddQueue, onArtistCl
         </p>
         {track.folderPath ? <p className={trackFolderClassName}>{track.folderPath}</p> : null}
       </div>
-      <TrackActions track={track} onFavorite={onFavorite} onAddQueue={onAddQueue} onPlay={onPlay} />
+      <TrackActions
+        track={track}
+        onFavorite={onFavorite}
+        onAddQueue={onAddQueue}
+        onAddPlaylist={onAddPlaylist}
+        onRemove={onRemove}
+        onPlay={onPlay}
+      />
     </article>
   );
 }
 
-function AlbumTrackRow({ track, onPlay, onFavorite, onAddQueue, onArtistClick, onAlbumClick }) {
+function AlbumTrackRow({ track, onPlay, onFavorite, onAddQueue, onAddPlaylist, onRemove, onArtistClick, onAlbumClick }) {
   return (
     <article className={`${albumTrackRowBaseClassName}${track.active ? trackRowActiveClassName : ''}`} onClick={() => onPlay?.({ toggle: false })}>
       <span className={trackIndexClassName}>{track.trackNumber ?? '•'}</span>
@@ -122,7 +140,14 @@ function AlbumTrackRow({ track, onPlay, onFavorite, onAddQueue, onArtistClick, o
         <ArtistInlineButton artist={track.artist} onArtistClick={onArtistClick} />
       </div>
       <AlbumInlineButton className="track-album-name tw-text-muted" album={track.album} onAlbumClick={onAlbumClick} />
-      <TrackActions track={track} onFavorite={onFavorite} onAddQueue={onAddQueue} onPlay={onPlay} />
+      <TrackActions
+        track={track}
+        onFavorite={onFavorite}
+        onAddQueue={onAddQueue}
+        onAddPlaylist={onAddPlaylist}
+        onRemove={onRemove}
+        onPlay={onPlay}
+      />
     </article>
   );
 }
@@ -161,7 +186,7 @@ function AlbumInlineButton({ album, className = '', onAlbumClick }) {
   );
 }
 
-function TrackActions({ track, onFavorite, onAddQueue, onPlay }) {
+function TrackActions({ track, onFavorite, onAddQueue, onAddPlaylist, onRemove, onPlay }) {
   return (
     <div className={rowActionsClassName}>
       <button
@@ -186,6 +211,36 @@ function TrackActions({ track, onFavorite, onAddQueue, onPlay }) {
       >
         <FontAwesomeIcon name="addQueue" />
       </button>
+      {onAddPlaylist ? (
+        <button
+          type="button"
+          className={`playlist-track-button ${rowIconButtonClassName}`}
+          aria-label={`Add ${track.title} to a playlist`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onAddPlaylist();
+          }}
+        >
+          <span
+            className="add-to-playlist-icon"
+            style={{ '--add-to-playlist-icon': `url("${addToPlaylistIconUrl}")` }}
+            aria-hidden="true"
+          />
+        </button>
+      ) : null}
+      {onRemove ? (
+        <button
+          type="button"
+          className={`playlist-remove-track-button ${rowIconButtonClassName}`}
+          aria-label={`Remove ${track.title} from playlist`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemove();
+          }}
+        >
+          <FontAwesomeIcon name="remove" />
+        </button>
+      ) : null}
       <button
         type="button"
         className={`row-play-button ${rowIconButtonClassName}`}

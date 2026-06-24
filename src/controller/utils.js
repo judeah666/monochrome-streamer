@@ -83,15 +83,72 @@ export function writeStoredIdSet(key, values) {
   localStorage.setItem(key, JSON.stringify([...values]));
 }
 
+let csrfToken = '';
+
+export function setCsrfToken(value) {
+  csrfToken = String(value || '').trim();
+  if (typeof window !== 'undefined') {
+    window.__MONOCHROME_CSRF_TOKEN__ = csrfToken;
+  }
+}
+
+export function getCsrfToken() {
+  if (csrfToken) return csrfToken;
+  if (typeof window !== 'undefined') {
+    return String(window.__MONOCHROME_CSRF_TOKEN__ || '').trim();
+  }
+  return '';
+}
+
+export function isStateChangingMethod(method) {
+  const normalizedMethod = String(method || '').toUpperCase();
+  return normalizedMethod === 'POST' || normalizedMethod === 'PUT' || normalizedMethod === 'PATCH' || normalizedMethod === 'DELETE';
+}
+
 export async function fetchJson(url, options = {}) {
+  const method = options.method || (options.body != null ? 'POST' : 'GET');
+  const headers = new Headers(options.headers || {});
+  if (options.body != null && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (isStateChangingMethod(method)) {
+    const currentCsrfToken = getCsrfToken();
+    if (currentCsrfToken) headers.set('X-CSRF-Token', currentCsrfToken);
+  }
   const response = await fetch(url, {
     cache: 'no-store',
+    credentials: 'same-origin',
     ...options,
+    method,
+    headers,
   });
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.error || `Request failed: ${response.status}`);
   }
   return response.json();
+}
+
+export async function postBlob(url, body, options = {}) {
+  const headers = new Headers(options.headers || {});
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  const currentCsrfToken = getCsrfToken();
+  if (currentCsrfToken) headers.set('X-CSRF-Token', currentCsrfToken);
+  const response = await fetch(url, {
+    method: 'POST',
+    cache: 'no-store',
+    credentials: 'same-origin',
+    ...options,
+    headers,
+    body: typeof body === 'string' ? body : JSON.stringify(body || {}),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.error || `Request failed: ${response.status}`);
+  }
+  return response;
 }
 
 export function escapeHtml(value) {

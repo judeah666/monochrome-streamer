@@ -44,6 +44,7 @@ export function AlbumDetail({
   epAlbums = [],
   favorite = false,
   canQueue = false,
+  canDownload = true,
   onPlayAlbum,
   onQueueAlbum,
   onDownloadAlbum,
@@ -53,6 +54,7 @@ export function AlbumDetail({
   onPlayTrack,
   onFavoriteTrack,
   onAddTrackQueue,
+  onAddTrackPlaylist,
   onArtistClick,
   onAlbumClick,
   onOpenAlbum,
@@ -96,7 +98,7 @@ export function AlbumDetail({
                 <i className={`fa-solid fa-list-ul ${albumActionIconClassName}`} aria-hidden="true"></i>
                 <span className="album-action-label">Add to queue</span>
               </button>
-              <button className={`secondary-button ${albumActionButtonClassName}`} type="button" disabled={!canQueue} aria-label="Download album" title="Download album" onClick={() => onDownloadAlbum?.(album.id)}>
+              <button className={`secondary-button ${albumActionButtonClassName}`} type="button" disabled={!canQueue || !canDownload} aria-label="Download album" title="Download album" onClick={() => onDownloadAlbum?.(album.id)}>
                 <i className={`fa-solid fa-download ${albumActionIconClassName}`} aria-hidden="true"></i>
                 <span className="album-action-label">Download</span>
               </button>
@@ -148,6 +150,7 @@ export function AlbumDetail({
                 onPlay={onPlayTrack}
                 onFavorite={onFavoriteTrack}
                 onAddQueue={onAddTrackQueue}
+                onAddPlaylist={onAddTrackPlaylist}
                 onArtistClick={onArtistClick}
                 onAlbumClick={onAlbumClick}
               />

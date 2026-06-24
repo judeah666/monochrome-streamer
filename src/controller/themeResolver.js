@@ -50,6 +50,12 @@ export function getThemePreview(themeName = DEFAULT_SETTINGS.theme, settings = D
   };
 }
 
+export function getHueRotationDegrees(targetColor, sourceColor = '#e44b4d') {
+  const targetHue = getHue(parseHex(targetColor));
+  const sourceHue = getHue(parseHex(sourceColor));
+  return Math.round((targetHue - sourceHue + 360) % 360);
+}
+
 function createPairedTheme(palette, base) {
   const light = palette.light;
   const dark = palette.dark;
@@ -155,6 +161,24 @@ function parseHex(hexColor) {
     green: Number.parseInt(expanded.slice(2, 4), 16),
     blue: Number.parseInt(expanded.slice(4, 6), 16),
   };
+}
+
+function getHue({ red, green, blue }) {
+  const normalized = [red, green, blue].map((value) => value / 255);
+  const maximum = Math.max(...normalized);
+  const minimum = Math.min(...normalized);
+  const difference = maximum - minimum;
+  if (difference === 0) return 0;
+
+  let hue;
+  if (maximum === normalized[0]) {
+    hue = ((normalized[1] - normalized[2]) / difference) % 6;
+  } else if (maximum === normalized[1]) {
+    hue = (normalized[2] - normalized[0]) / difference + 2;
+  } else {
+    hue = (normalized[0] - normalized[1]) / difference + 4;
+  }
+  return (hue * 60 + 360) % 360;
 }
 
 function toHex({ red, green, blue }) {

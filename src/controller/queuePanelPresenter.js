@@ -15,6 +15,7 @@ export function buildQueuePanelSnapshot({
   currentTrackId = '',
   favoriteTrackIds = [],
   limit = 0,
+  canDownload = true,
 } = {}) {
   const queue = queueIds.map((id) => trackMap?.get(id)).filter(Boolean);
   const visibleLimit = Math.max(0, Number(limit) || 0);
@@ -25,6 +26,7 @@ export function buildQueuePanelSnapshot({
     tracks: visibleQueue.map(createQueueTrackView),
     total: queue.length,
     limit: visibleLimit,
+    canDownload: Boolean(canDownload),
     currentTrackId: currentTrackId || '',
     favoriteTrackIds: [...favoriteTrackIds],
   };

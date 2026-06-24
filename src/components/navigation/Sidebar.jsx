@@ -3,6 +3,7 @@ import React from 'react';
 const NAV_ITEMS = [
   { id: 'home', label: 'Home', icon: '/assets/icons/sidebar/house.svg' },
   { id: 'library', label: 'Library', icon: '/assets/icons/sidebar/album-collection.svg' },
+  { id: 'playlists', label: 'Playlists', faIcon: 'fa-list-ul' },
   { id: 'favorites', label: 'Favorites', icon: '/assets/icons/sidebar/heart-pulse.svg' },
   { id: 'wishlist', label: 'Wishlist', icon: '/assets/icons/sidebar/bookmark.svg' },
   { id: 'settings', label: 'Settings', icon: '/assets/icons/sidebar/gear.svg' },
@@ -126,7 +127,6 @@ function AccountBlock({ user }) {
   const downloadLabel = user?.canDownload === false ? 'Downloads off' : 'Downloads on';
   const accountTitle = `${username} • ${role} • ${downloadLabel}`;
   const authDisabled = user?.authDisabled === true;
-  const actionHref = authDisabled ? '/login' : '/logout';
   const actionLabel = authDisabled ? 'Login' : 'Logout';
   const actionIcon = authDisabled ? 'fa-arrow-right-to-bracket' : 'fa-arrow-right-from-bracket';
 
@@ -139,9 +139,21 @@ function AccountBlock({ user }) {
         <strong>{username}</strong>
       </div>
       <div className={accountActionsClassName}>
-        <a className={accountActionClassName} href={actionHref} title={actionLabel} aria-label={actionLabel}>
-          <i className={`fa-solid ${actionIcon}`} aria-hidden="true"></i>
-        </a>
+        {authDisabled ? (
+          <a className={accountActionClassName} href="/login" title={actionLabel} aria-label={actionLabel}>
+            <i className={`fa-solid ${actionIcon}`} aria-hidden="true"></i>
+          </a>
+        ) : (
+          <button
+            className={accountActionClassName}
+            type="button"
+            data-logout-button="true"
+            title={actionLabel}
+            aria-label={actionLabel}
+          >
+            <i className={`fa-solid ${actionIcon}`} aria-hidden="true"></i>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -149,15 +161,20 @@ function AccountBlock({ user }) {
 
 function NavIcon({ item }) {
   if (item.faIcon) {
-    return <i className={`fa-solid ${item.faIcon}`} aria-hidden="true"></i>;
+    return (
+      <span className="sidebar-nav-icon" aria-hidden="true">
+        <i className={`fa-solid ${item.faIcon}`}></i>
+      </span>
+    );
   }
 
   return (
-    <i
-      className="sidebar-symbol"
-      style={{ '--sidebar-icon': `url('${item.icon}')` }}
-      aria-hidden="true"
-    ></i>
+    <span className="sidebar-nav-icon" aria-hidden="true">
+      <i
+        className="sidebar-symbol"
+        style={{ '--sidebar-icon': `url('${item.icon}')` }}
+      ></i>
+    </span>
   );
 }
 

@@ -23,6 +23,10 @@ export function createPlainLyricsSignature(trackId, lines) {
   return `${trackId}:${lines.length}:${lines[0] || ''}:${lines.at(-1) || ''}`;
 }
 
+export function shouldHideFullscreenLyricsByDefault(isMobileViewport) {
+  return Boolean(isMobileViewport);
+}
+
 export function parseSyncedLyrics(value) {
   const lines = [];
   let offset = 0;

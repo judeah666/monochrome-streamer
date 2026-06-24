@@ -11,8 +11,15 @@
   "scanMetadata": "tags",
   "scanDurations": false,
   "autoScanOnStart": false,
-  "widgetApiKey": "change-this-widget-key",
-  "widgetCorsOrigin": "*",
+  "noAuth": true,
+  "anonymousDownloadsEnabled": false,
+  "adminUsername": "change-me-admin",
+  "adminPassword": "change-this-password-123",
+  "widgetApiKey": "",
+  "widgetCorsOrigin": "https://your-dashboard.example",
+  "trustProxy": false,
+  "requireHttpsForAuth": false,
+  "maxConcurrentMp3Downloads": 2,
   "host": "0.0.0.0",
   "port": 8888
 }

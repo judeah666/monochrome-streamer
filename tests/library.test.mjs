@@ -13,7 +13,10 @@ import {
 } from '../lib/library.mjs';
 import {
   readCollectionFolderAlbumPage,
+  readCollectionFolders,
   readLibraryAlbumPage,
+  readTrackPage,
+  renameCollectionInDatabase,
   writeLibraryDatabase,
 } from '../lib/library-db.mjs';
 
@@ -136,6 +139,7 @@ test('writeLibraryDatabase clears single-album collection-name false positives',
     const db = new DatabaseSync(databasePath);
     try {
       db.prepare("UPDATE metadata SET value = '2' WHERE key = 'collectionInferenceVersion'").run();
+      db.exec('PRAGMA user_version = 0');
     } finally {
       db.close();
     }
@@ -144,6 +148,167 @@ test('writeLibraryDatabase clears single-album collection-name false positives',
 
     assert.equal(page.albums.length, 1);
     assert.equal(page.albums[0].collectionName, '');
+  } finally {
+    rmSync(databasePath, { force: true });
+  }
+});
+
+test('library database migrations install stable paging indexes once', async () => {
+  const databasePath = path.join(tmpdir(), `monochrome-database-indexes-${Date.now()}.sqlite`);
+  try {
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: new Date().toISOString(),
+      trackCount: 1,
+      albumCount: 1,
+      tracks: [{
+        id: 'track-indexed',
+        title: 'Indexed Song',
+        artist: 'Indexed Artist',
+        albumArtist: 'Indexed Artist',
+        album: 'Indexed Album',
+        trackNumber: 1,
+        discNumber: 1,
+        date: '2026',
+        year: 2026,
+        relativePath: 'Indexed Artist/Indexed Album/01 - Indexed Song.flac',
+        path: '/music/Indexed Artist/Indexed Album/01 - Indexed Song.flac',
+        fileSize: 1,
+        mtimeMs: 1,
+        scanMetadata: true,
+        scanDurations: false,
+        coverArtPath: '',
+        cachedCoverPath: '',
+        cachedCoverFormat: '',
+        hasEmbeddedCover: false,
+        duration: 180,
+        audioQuality: null,
+      }],
+      albums: [{
+        id: 'album-indexed',
+        title: 'Indexed Album',
+        artist: 'Indexed Artist',
+        albumArtist: 'Indexed Artist',
+        date: '2026',
+        year: 2026,
+        collectionName: 'Indexed Collection',
+        coverTrackId: '',
+        trackIds: ['track-indexed'],
+        audioQuality: null,
+      }],
+    });
+
+    const db = new DatabaseSync(databasePath);
+    try {
+      const userVersion = Object.values(db.prepare('PRAGMA user_version').get())[0];
+      const indexes = new Set(db.prepare(`
+        SELECT name FROM sqlite_master WHERE type = 'index'
+      `).all().map((row) => row.name));
+      const albumPlan = db.prepare(`
+        EXPLAIN QUERY PLAN SELECT * FROM albums ORDER BY artist, title LIMIT 50
+      `).all().map((row) => row.detail).join(' ');
+      const trackPlan = db.prepare(`
+        EXPLAIN QUERY PLAN
+        SELECT * FROM tracks ORDER BY artist, album, disc_number, track_number, title LIMIT 50
+      `).all().map((row) => row.detail).join(' ');
+      const collectionPlan = db.prepare(`
+        EXPLAIN QUERY PLAN
+        SELECT * FROM albums
+        WHERE collection_name = ? COLLATE NOCASE
+        ORDER BY artist, title
+      `).all('indexed collection').map((row) => row.detail).join(' ');
+
+      const searchTables = new Set(db.prepare(`
+        SELECT name FROM sqlite_master
+        WHERE type = 'table' AND name IN ('albums_fts', 'tracks_fts')
+      `).all().map((row) => row.name));
+      const albumSearchCount = db.prepare(`
+        SELECT COUNT(*) AS count FROM albums_fts WHERE albums_fts MATCH ?
+      `).get('{title artist} : "indexed"').count;
+      const trackSearchCount = db.prepare(`
+        SELECT COUNT(*) AS count FROM tracks_fts WHERE tracks_fts MATCH ?
+      `).get('title : "indexed"').count;
+
+      assert.equal(userVersion, 2);
+      assert.ok(indexes.has('idx_albums_library_order'));
+      assert.ok(indexes.has('idx_albums_collection_order'));
+      assert.ok(indexes.has('idx_tracks_library_order'));
+      assert.ok(indexes.has('idx_tracks_artist_albums'));
+      assert.deepEqual(searchTables, new Set(['albums_fts', 'tracks_fts']));
+      assert.equal(albumSearchCount, 1);
+      assert.equal(trackSearchCount, 1);
+      assert.doesNotMatch(albumPlan, /TEMP B-TREE/u);
+      assert.doesNotMatch(trackPlan, /TEMP B-TREE/u);
+      assert.match(collectionPlan, /idx_albums_collection_order/u);
+      assert.doesNotMatch(collectionPlan, /TEMP B-TREE/u);
+    } finally {
+      db.close();
+    }
+  } finally {
+    rmSync(databasePath, { force: true });
+  }
+});
+
+test('FTS search preserves normalized album and title-only track matching', async () => {
+  const databasePath = path.join(tmpdir(), `monochrome-fts-search-${Date.now()}.sqlite`);
+  try {
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: new Date().toISOString(),
+      trackCount: 2,
+      albumCount: 2,
+      tracks: [
+        createDatabaseTrack({
+          id: 'track-beyonce',
+          title: "Beyoncé's Déjà-Vu Anthem",
+          artist: 'Search Artist',
+          album: 'First Search Album',
+          relativePath: "Search Artist/First Search Album/01 - Beyoncé's Déjà-Vu Anthem.flac",
+        }),
+        createDatabaseTrack({
+          id: 'track-album-only',
+          title: 'Unrelated Song',
+          artist: 'Search Artist',
+          album: 'Beyonce Deja Collection',
+          relativePath: 'Search Artist/Beyonce Deja Collection/01 - Unrelated Song.flac',
+        }),
+      ],
+      albums: [
+        createDatabaseAlbum({
+          id: 'album-beyonce',
+          title: "For Lover's Only",
+          collectionName: 'Old Collection',
+          trackIds: ['track-beyonce'],
+        }),
+        createDatabaseAlbum({
+          id: 'album-other',
+          title: 'Different Album',
+          trackIds: ['track-album-only'],
+        }),
+      ],
+    });
+
+    const albums = await readLibraryAlbumPage(databasePath, {
+      search: 'for lovers only',
+      limit: 50,
+      offset: 0,
+      includeTracks: false,
+    });
+    const tracks = await readTrackPage(databasePath, {
+      search: 'beyonce deja',
+      limit: 50,
+      offset: 0,
+    });
+    const shortSearch = await readTrackPage(databasePath, {
+      search: 'un',
+      limit: 50,
+      offset: 0,
+    });
+    await renameCollectionInDatabase(databasePath, 'Old Collection', 'Renamed Archive');
+    const renamedCollections = await readCollectionFolders(databasePath, { search: 'renamed archive' });
+
+    assert.deepEqual(albums.albums.map((album) => album.id), ['album-beyonce']);
+    assert.deepEqual(tracks.tracks.map((track) => track.id), ['track-beyonce']);
+    assert.deepEqual(shortSearch.tracks.map((track) => track.id), ['track-album-only']);
+    assert.deepEqual(renamedCollections.folders.map((folder) => folder.name), ['Renamed Archive']);
   } finally {
     rmSync(databasePath, { force: true });
   }
@@ -292,6 +457,47 @@ function createCollectionAlbum(id, title) {
     collectionName: 'Mega Collection',
     coverTrackId: '',
     trackIds: [],
+    audioQuality: null,
+  };
+}
+
+function createDatabaseTrack({ id, title, artist, album, relativePath }) {
+  return {
+    id,
+    title,
+    artist,
+    albumArtist: artist,
+    album,
+    trackNumber: 1,
+    discNumber: 1,
+    date: '2026',
+    year: 2026,
+    relativePath,
+    path: `/music/${relativePath}`,
+    fileSize: 1,
+    mtimeMs: 1,
+    scanMetadata: true,
+    scanDurations: false,
+    coverArtPath: '',
+    cachedCoverPath: '',
+    cachedCoverFormat: '',
+    hasEmbeddedCover: false,
+    duration: 180,
+    audioQuality: null,
+  };
+}
+
+function createDatabaseAlbum({ id, title, collectionName = '', trackIds }) {
+  return {
+    id,
+    title,
+    artist: 'Search Artist',
+    albumArtist: 'Search Artist',
+    date: '2026',
+    year: 2026,
+    collectionName,
+    coverTrackId: '',
+    trackIds,
     audioQuality: null,
   };
 }

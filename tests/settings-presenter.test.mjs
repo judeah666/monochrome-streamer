@@ -10,6 +10,7 @@ import {
 } from '../src/controller/settingsPresenter.js';
 import { DEFAULT_SETTINGS, SETTINGS_TABS } from '../src/controller/constants.js';
 import { createSettingsPanelStore } from '../src/controller/settingsPanelStore.js';
+import { getHueRotationDegrees } from '../src/controller/themeResolver.js';
 
 test('buildSettingsTabsSnapshot marks the active settings tab', () => {
   assert.deepEqual(buildSettingsTabsSnapshot({ tabs: SETTINGS_TABS, activeTab: 'audio' }), {
@@ -96,6 +97,12 @@ test('settings presenter helper functions stay deterministic', () => {
   assert.equal(getThemeAccent('custom', { customAccent: '#123456' }), '#123456');
   assert.equal(createDefaultWidgetSettings('http://x').exampleUrl, 'http://x/api/widget/stats?apiKey=YOUR_KEY');
   assert.equal(getAlbumCardSizePreviewData('Streamer').artist, 'Streamer');
+});
+
+test('MP3 quality hue rotation follows the theme accent without flattening the icon', () => {
+  assert.equal(getHueRotationDegrees('#e44b4d'), 0);
+  assert.equal(getHueRotationDegrees('#00ff00'), 121);
+  assert.equal(getHueRotationDegrees('#0000ff'), 241);
 });
 
 test('settings panel store publishes combined snapshots', () => {

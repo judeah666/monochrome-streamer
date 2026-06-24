@@ -1,4 +1,5 @@
 import React from 'react';
+import { AUDIO_QUALITY_ICONS } from '../../assets/icons/audio-quality/index.js';
 
 const PLAYER_ICONS = {
   download: '/assets/icons/player/download.svg',
@@ -16,6 +17,7 @@ export function PlayerUtilityControls({
   hasTrack = false,
   currentTrackTitle = '',
   downloadName = '',
+  canDownload = true,
   favorite = false,
   queueOpen = false,
   volume = 1,
@@ -28,6 +30,7 @@ export function PlayerUtilityControls({
 }) {
   const volumeIcon = getVolumeIcon(volume);
   const favoriteLabel = favorite ? 'Unfavorite current track' : 'Favorite current track';
+  const downloadDisabled = !hasTrack || !canDownload;
 
   return (
     <>
@@ -51,10 +54,10 @@ export function PlayerUtilityControls({
         className={`icon-link ${playerIconControlClassName}`}
         type="button"
         aria-label={hasTrack ? `Download ${currentTrackTitle}` : 'Download current track'}
-        aria-disabled={hasTrack ? undefined : 'true'}
-        disabled={!hasTrack}
+        aria-disabled={downloadDisabled ? 'true' : undefined}
+        disabled={downloadDisabled}
         onClick={() => {
-          if (hasTrack) onDownload?.();
+          if (!downloadDisabled) onDownload?.();
         }}
       >
         <PlayerSymbol icon={PLAYER_ICONS.download} />
@@ -90,9 +93,9 @@ function AudioQualityInfo({ quality }) {
   const label = quality?.label || 'Audio quality unknown';
   const labelTop = quality?.labelTop || label;
   const labelBottom = quality?.labelBottom || '';
-  const iconUrl = quality?.iconUrl || '';
-  const iconAlt = quality?.iconAlt || '';
   const iconType = quality?.iconType || '';
+  const iconUrl = AUDIO_QUALITY_ICONS[iconType] || quality?.iconUrl || '';
+  const iconAlt = quality?.iconAlt || '';
   const qualityClassName = [
     audioQualityClassName,
     iconType ? `is-${iconType}` : '',

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { DEFAULT_SETTINGS, FONT_PRESETS, STORAGE_KEYS } from '../controller/constants.js';
 import { isLightTheme, resolveThemePreset } from '../controller/themeResolver.js';
+import { getCsrfToken } from '../controller/utils.js';
 
 const ADMIN_TABS = [
   ['users', 'Users', 'fa-users'],
@@ -107,6 +108,19 @@ export function AdminSettingsPanel({ embedded = false }) {
     if (!quiet) setStatus('Folders refreshed.');
   }
 
+  async function logout() {
+    const headers = new Headers();
+    const csrfToken = getCsrfToken();
+    if (csrfToken) headers.set('X-CSRF-Token', csrfToken);
+    await fetch('/logout', {
+      method: 'POST',
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers,
+    });
+    window.location.assign('/login');
+  }
+
   async function saveSelectedFolders({ scan = false } = {}) {
     const chosen = [...selectedFolders];
     await api('/api/library/folders', { method: 'POST', body: JSON.stringify({ folders: chosen }) });
@@ -205,7 +219,15 @@ export function AdminSettingsPanel({ embedded = false }) {
             </div>
             <div className="sidebar-account-actions tw-flex tw-gap-1.5">
               <a className="sidebar-account-action tw-inline-grid tw-h-8 tw-w-8 tw-place-items-center tw-rounded-pill tw-border tw-border-line tw-bg-[color-mix(in_srgb,var(--surface)_70%,transparent)] tw-text-muted" href="/" title="Open app" aria-label="Open app"><i className="fa-solid fa-house"></i></a>
-              <a className="sidebar-account-action tw-inline-grid tw-h-8 tw-w-8 tw-place-items-center tw-rounded-pill tw-border tw-border-line tw-bg-[color-mix(in_srgb,var(--surface)_70%,transparent)] tw-text-muted" href="/logout" title="Logout" aria-label="Logout"><i className="fa-solid fa-arrow-right-from-bracket"></i></a>
+              <button
+                className="sidebar-account-action tw-inline-grid tw-h-8 tw-w-8 tw-place-items-center tw-rounded-pill tw-border tw-border-line tw-bg-[color-mix(in_srgb,var(--surface)_70%,transparent)] tw-text-muted"
+                type="button"
+                title="Logout"
+                aria-label="Logout"
+                onClick={() => logout().catch((error) => setStatus(error.message))}
+              >
+                <i className="fa-solid fa-arrow-right-from-bracket"></i>
+              </button>
             </div>
           </div>
         </div>
@@ -495,7 +517,12 @@ function SystemPanel({ folders, selectedFolders, setSelectedFolders, selectedLab
 
   async function exportDatabase() {
     setDatabaseStatus('Preparing database export...');
-    const response = await fetch('/api/admin/database/export', { cache: 'no-store' });
+    const response = await fetch('/api/admin/database/export', {
+      method: 'POST',
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers: buildProtectedHeaders(),
+    });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       throw new Error(data.error || 'Database export failed.');
@@ -519,7 +546,8 @@ function SystemPanel({ folders, selectedFolders, setSelectedFolders, selectedLab
     const response = await fetch('/api/admin/database/export-excel', {
       method: 'POST',
       cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      headers: buildProtectedHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         wishlistOnly: excelWishlistOnly,
         mediaTypes: [...excelMediaTypes],
@@ -715,17 +743,27 @@ function LoadingPanel() {
 }
 
 async function api(url, options = {}) {
+  const method = options.method || (options.body != null ? 'POST' : 'GET');
   const response = await fetch(url, {
     ...options,
+    method,
     cache: 'no-store',
+    credentials: 'same-origin',
     headers: {
-      'Content-Type': 'application/json',
+      ...buildProtectedHeaders(options.body != null ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers || {}),
     },
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || 'Request failed');
   return data;
+}
+
+function buildProtectedHeaders(headers = {}) {
+  const result = { ...headers };
+  const csrfToken = getCsrfToken();
+  if (csrfToken) result['X-CSRF-Token'] = csrfToken;
+  return result;
 }
 
 function getFilenameFromContentDisposition(value) {
