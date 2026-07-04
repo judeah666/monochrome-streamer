@@ -15,6 +15,8 @@ import {
   readCollectionFolderAlbumPage,
   readCollectionFolders,
   readLibraryAlbumPage,
+  readRandomAlbumPage,
+  readRecentlyAddedAlbumPage,
   readTrackPage,
   renameCollectionInDatabase,
   writeLibraryDatabase,
@@ -84,6 +86,34 @@ test('scanMusicLibrary incremental refresh reuses unchanged cached tracks', asyn
     assert.equal(progressEvents[0].totalFiles, 2);
     assert.equal(progressEvents.at(-1).reusedFiles, 2);
     assert.equal(progressEvents.at(-1).parsedFiles, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('scanMusicLibrary forced metadata refresh reparses unchanged cached tracks', async () => {
+  const root = path.join(tmpdir(), `monochrome-force-tag-scan-${Date.now()}`);
+  try {
+    const albumPath = path.join(root, 'Artist', 'Album');
+    mkdirSync(albumPath, { recursive: true });
+    writeFileSync(path.join(albumPath, '01 - First.mp3'), '');
+    writeFileSync(path.join(albumPath, '02 - Second.mp3'), '');
+
+    const firstScan = await scanMusicLibrary(root, { scanMetadata: 'filename', scanDurations: false });
+    const progressEvents = [];
+    const secondScan = await scanMusicLibrary(root, {
+      scanMetadata: 'filename',
+      scanDurations: false,
+      cachedTracks: firstScan.tracks,
+      forceMetadataRefresh: true,
+      skipInitialCount: true,
+      onProgress: (event) => progressEvents.push(event),
+    });
+
+    assert.equal(secondScan.trackCount, 2);
+    assert.equal(progressEvents[0].totalFiles, 2);
+    assert.equal(progressEvents.at(-1).reusedFiles, 0);
+    assert.equal(progressEvents.at(-1).parsedFiles, 2);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -228,9 +258,10 @@ test('library database migrations install stable paging indexes once', async () 
         SELECT COUNT(*) AS count FROM tracks_fts WHERE tracks_fts MATCH ?
       `).get('title : "indexed"').count;
 
-      assert.equal(userVersion, 2);
+      assert.equal(userVersion, 4);
       assert.ok(indexes.has('idx_albums_library_order'));
       assert.ok(indexes.has('idx_albums_collection_order'));
+      assert.ok(indexes.has('idx_albums_recently_added'));
       assert.ok(indexes.has('idx_tracks_library_order'));
       assert.ok(indexes.has('idx_tracks_artist_albums'));
       assert.deepEqual(searchTables, new Set(['albums_fts', 'tracks_fts']));
@@ -337,6 +368,133 @@ test('readCollectionFolderAlbumPage sorts collection volumes naturally', async (
   }
 });
 
+test('readCollectionFolders exposes the first sorted album cover separately from fallback covers', async () => {
+  const databasePath = path.join(tmpdir(), `monochrome-collection-folder-cover-${Date.now()}.sqlite`);
+  try {
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: new Date().toISOString(),
+      trackCount: 2,
+      albumCount: 2,
+      tracks: [
+        createDatabaseTrack({
+          id: 'track-first',
+          title: 'First Track',
+          artist: 'Search Artist',
+          album: 'A First Album',
+          relativePath: 'Search Artist/A First Album/01 - First.flac',
+        }),
+        {
+          ...createDatabaseTrack({
+            id: 'track-fallback',
+            title: 'Fallback Track',
+            artist: 'Search Artist',
+            album: 'B Fallback Album',
+            relativePath: 'Search Artist/B Fallback Album/01 - Fallback.flac',
+          }),
+          hasEmbeddedCover: true,
+        },
+      ],
+      albums: [
+        createDatabaseAlbum({
+          id: 'album-first',
+          title: 'A First Album',
+          collectionName: 'Cover Collection',
+          trackIds: ['track-first'],
+        }),
+        createDatabaseAlbum({
+          id: 'album-fallback',
+          title: 'B Fallback Album',
+          collectionName: 'Cover Collection',
+          coverTrackId: 'track-fallback',
+          trackIds: ['track-fallback'],
+        }),
+      ],
+    });
+
+    const folders = await readCollectionFolders(databasePath, {});
+    const [folder] = folders.folders;
+
+    assert.equal(folder.name, 'Cover Collection');
+    assert.equal(folder.firstAlbumId, 'album-first');
+    assert.equal(folder.firstAlbumCoverTrackId, '');
+    assert.equal(folder.coverTrackId, 'track-fallback');
+  } finally {
+    rmSync(databasePath, { force: true });
+  }
+});
+
+test('collection pages include albums from comma and tab delimited collection names', async () => {
+  const databasePath = path.join(tmpdir(), `monochrome-multi-collection-${Date.now()}.sqlite`);
+  try {
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: new Date().toISOString(),
+      trackCount: 1,
+      albumCount: 1,
+      tracks: [
+        createDatabaseTrack({
+          id: 'track-multi-collection',
+          title: 'Shared Song',
+          artist: 'Search Artist',
+          album: 'Shared Album',
+          relativePath: 'Search Artist/Shared Album/01 - Shared Song.flac',
+        }),
+      ],
+      albums: [
+        createDatabaseAlbum({
+          id: 'album-multi-collection',
+          title: 'Shared Album',
+          collectionName: '80s Hits, Road Trip\tFavorites, road trip',
+          trackIds: ['track-multi-collection'],
+        }),
+      ],
+    });
+
+    const folders = await readCollectionFolders(databasePath, {});
+    const roadTrip = await readCollectionFolderAlbumPage(databasePath, 'Road Trip', { limit: 50, offset: 0 });
+    const favorites = await readCollectionFolderAlbumPage(databasePath, 'Favorites', { limit: 50, offset: 0 });
+
+    assert.deepEqual(folders.folders.map((folder) => folder.name), ['80s Hits', 'Favorites', 'Road Trip']);
+    assert.deepEqual(folders.folders.map((folder) => folder.albumCount), [1, 1, 1]);
+    assert.deepEqual(roadTrip.albums.map((album) => album.id), ['album-multi-collection']);
+    assert.deepEqual(favorites.albums.map((album) => album.collectionNames), [['80s Hits', 'Road Trip', 'Favorites']]);
+  } finally {
+    rmSync(databasePath, { force: true });
+  }
+});
+
+test('renaming and deleting one collection preserves other album memberships', async () => {
+  const databasePath = path.join(tmpdir(), `monochrome-multi-collection-rename-${Date.now()}.sqlite`);
+  try {
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: new Date().toISOString(),
+      trackCount: 0,
+      albumCount: 1,
+      tracks: [],
+      albums: [
+        createDatabaseAlbum({
+          id: 'album-multi-rename',
+          title: 'Shared Album',
+          collectionName: 'Road Trip, Favorites',
+          trackIds: [],
+        }),
+      ],
+    });
+
+    await renameCollectionInDatabase(databasePath, 'Road Trip', 'Car Mix');
+    let folders = await readCollectionFolders(databasePath, {});
+    assert.deepEqual(folders.folders.map((folder) => folder.name), ['Car Mix', 'Favorites']);
+
+    const carMix = await readCollectionFolderAlbumPage(databasePath, 'Car Mix', { limit: 50, offset: 0 });
+    assert.deepEqual(carMix.albums[0].collectionNames, ['Car Mix', 'Favorites']);
+
+    await renameCollectionInDatabase(databasePath, 'Car Mix', '');
+    folders = await readCollectionFolders(databasePath, {});
+    assert.deepEqual(folders.folders.map((folder) => folder.name), ['Favorites']);
+  } finally {
+    rmSync(databasePath, { force: true });
+  }
+});
+
 test('readLibraryAlbumPage searches album names with normalized tokens', async () => {
   const databasePath = path.join(tmpdir(), `monochrome-album-search-${Date.now()}.sqlite`);
   try {
@@ -377,6 +535,98 @@ test('readLibraryAlbumPage searches album names with normalized tokens', async (
 
     assert.deepEqual(page.albums.map((album) => album.id), ['album-1']);
     assert.equal(page.page.total, 1);
+  } finally {
+    rmSync(databasePath, { force: true });
+  }
+});
+
+test('readRecentlyAddedAlbumPage sorts albums by newest track mtime and caps the page', async () => {
+  const databasePath = path.join(tmpdir(), `monochrome-recently-added-${Date.now()}.sqlite`);
+  try {
+    const tracks = Array.from({ length: 55 }, (_, index) => createDatabaseTrack({
+      id: `track-recent-${index}`,
+      title: `Recent Track ${index}`,
+      artist: 'Recent Artist',
+      album: `Recent Album ${index}`,
+      relativePath: `Recent Artist/Recent Album ${index}/01 - Song.flac`,
+      mtimeMs: index + 1,
+    }));
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: new Date().toISOString(),
+      trackCount: tracks.length,
+      albumCount: tracks.length,
+      tracks,
+      albums: tracks.map((track, index) => createDatabaseAlbum({
+        id: `album-recent-${index}`,
+        title: `Recent Album ${index}`,
+        trackIds: [track.id],
+      })),
+    });
+
+    const page = await readRecentlyAddedAlbumPage(databasePath, { limit: 50 });
+    const db = new DatabaseSync(databasePath);
+    const recentPlan = db.prepare(`
+      EXPLAIN QUERY PLAN
+      SELECT * FROM albums
+      ORDER BY latest_mtime_ms DESC, artist, title
+      LIMIT 50
+    `).all().map((row) => row.detail).join(' ');
+    db.close();
+
+    assert.equal(page.albums.length, 50);
+    assert.deepEqual(page.albums.slice(0, 3).map((album) => album.id), [
+      'album-recent-54',
+      'album-recent-53',
+      'album-recent-52',
+    ]);
+    assert.equal(page.albumCount, 55);
+    assert.match(recentPlan, /idx_albums_recently_added/u);
+    assert.doesNotMatch(recentPlan, /TEMP B-TREE/u);
+  } finally {
+    rmSync(databasePath, { force: true });
+  }
+});
+
+test('random and recently added album card pages can stay lightweight', async () => {
+  const databasePath = path.join(tmpdir(), `monochrome-lightweight-card-pages-${Date.now()}.sqlite`);
+  try {
+    const tracks = [
+      createDatabaseTrack({
+        id: 'track-a',
+        title: 'Track A',
+        artist: 'Artist',
+        album: 'Album A',
+        relativePath: 'Artist/Album A/01 - Track A.flac',
+        mtimeMs: 10,
+      }),
+      createDatabaseTrack({
+        id: 'track-b',
+        title: 'Track B',
+        artist: 'Artist',
+        album: 'Album B',
+        relativePath: 'Artist/Album B/01 - Track B.flac',
+        mtimeMs: 20,
+      }),
+    ];
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: new Date().toISOString(),
+      trackCount: tracks.length,
+      albumCount: tracks.length,
+      tracks,
+      albums: [
+        createDatabaseAlbum({ id: 'album-a', title: 'Album A', trackIds: ['track-a'] }),
+        createDatabaseAlbum({ id: 'album-b', title: 'Album B', trackIds: ['track-b'] }),
+      ],
+    });
+
+    const randomPage = await readRandomAlbumPage(databasePath, { limit: 50, includeTracks: false, includeCoverTracks: true });
+    const recentPage = await readRecentlyAddedAlbumPage(databasePath, { limit: 50, includeTracks: false, includeCoverTracks: true });
+
+    assert.equal(randomPage.lightweight, true);
+    assert.equal(recentPage.lightweight, true);
+    assert.equal(randomPage.tracks.length, 0);
+    assert.equal(recentPage.tracks.length, 0);
+    assert.deepEqual(recentPage.albums.map((album) => album.trackCount), [1, 1]);
   } finally {
     rmSync(databasePath, { force: true });
   }
@@ -461,7 +711,7 @@ function createCollectionAlbum(id, title) {
   };
 }
 
-function createDatabaseTrack({ id, title, artist, album, relativePath }) {
+function createDatabaseTrack({ id, title, artist, album, relativePath, mtimeMs = 1 }) {
   return {
     id,
     title,
@@ -475,7 +725,7 @@ function createDatabaseTrack({ id, title, artist, album, relativePath }) {
     relativePath,
     path: `/music/${relativePath}`,
     fileSize: 1,
-    mtimeMs: 1,
+    mtimeMs,
     scanMetadata: true,
     scanDurations: false,
     coverArtPath: '',
@@ -487,7 +737,7 @@ function createDatabaseTrack({ id, title, artist, album, relativePath }) {
   };
 }
 
-function createDatabaseAlbum({ id, title, collectionName = '', trackIds }) {
+function createDatabaseAlbum({ id, title, collectionName = '', coverTrackId = '', trackIds }) {
   return {
     id,
     title,
@@ -496,7 +746,7 @@ function createDatabaseAlbum({ id, title, collectionName = '', trackIds }) {
     date: '2026',
     year: 2026,
     collectionName,
-    coverTrackId: '',
+    coverTrackId,
     trackIds,
     audioQuality: null,
   };

@@ -7,18 +7,22 @@ export function setPlaybackQueueIds(state, trackIds, currentTrackId = state.curr
   syncShuffledQueueIds(state, currentTrackId);
 }
 
+function shuffleQueueIds(trackIds) {
+  const shuffled = [...trackIds];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
 export function syncShuffledQueueIds(state, currentTrackId = state.currentTrackId) {
   if (!state.shuffleActive) {
     state.shuffledQueueIds = [...state.queueIds];
     return;
   }
 
-  const remaining = state.queueIds.filter((id) => id !== currentTrackId);
-  for (let index = remaining.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
-    [remaining[index], remaining[randomIndex]] = [remaining[randomIndex], remaining[index]];
-  }
-
+  const remaining = shuffleQueueIds(state.queueIds.filter((id) => id !== currentTrackId));
   state.shuffledQueueIds = currentTrackId ? [currentTrackId, ...remaining] : remaining;
 }
 
@@ -28,7 +32,14 @@ export function addTrackIdsToQueue(state, trackIds) {
   if (uniqueNewIds.length === 0) return false;
 
   state.queueIds = [...state.queueIds, ...uniqueNewIds];
-  syncShuffledQueueIds(state);
+  if (!state.shuffleActive) {
+    state.shuffledQueueIds = [...state.queueIds];
+    return true;
+  }
+
+  const shuffledSet = new Set(state.shuffledQueueIds);
+  const missingIds = state.queueIds.filter((id) => !shuffledSet.has(id));
+  state.shuffledQueueIds = [...state.shuffledQueueIds, ...missingIds];
   return true;
 }
 

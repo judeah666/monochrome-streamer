@@ -72,6 +72,14 @@ test('buildTagEditorPayload can create manual wishlist albums with no media type
   assert.equal(payload.status, 'Wishlist');
 });
 
+test('buildTagEditorPayload preserves numeric track numbers', () => {
+  const payload = buildTagEditorPayload({
+    tracks: [{ id: 'track-1', title: 'One', trackNumber: '1', discNumber: '1' }],
+  });
+
+  assert.deepEqual(payload.tracks, [{ id: 'track-1', title: 'One', trackNumber: '1', discNumber: '1' }]);
+});
+
 test('buildLyricsPayload stores timestamped plain input as synced lyrics', () => {
   const parseSyncedLyrics = (value) => String(value).includes('[00:01.00]') ? [{ time: 1, text: 'Line' }] : [];
 

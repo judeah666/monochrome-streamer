@@ -45,6 +45,9 @@ export function buildAlbumDetailSnapshot({
   sameArtistAlbums = [],
   relatedAlbumLimit = 50,
   favorite = false,
+  shareCopied = false,
+  downloadActive = false,
+  downloadBusy = false,
   playing = false,
   currentTrackId = '',
   helpers = {},
@@ -101,6 +104,9 @@ export function buildAlbumDetailSnapshot({
       isWishlistAlbum,
     })),
     favorite,
+    shareCopied,
+    downloadActive,
+    downloadBusy,
     canQueue: albumTracks.length > 0,
   };
 }

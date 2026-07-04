@@ -1,6 +1,6 @@
 {
   "name": "monochrome-streamer",
-  "version": "0.3.0",
+  "version": "0.3.3",
   "private": true,
   "type": "module",
   "description": "monochrome-streamer: a self-hosted music streamer for your own server files.",

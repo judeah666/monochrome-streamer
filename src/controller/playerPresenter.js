@@ -12,6 +12,8 @@ export function buildPlayerSnapshot({
   favorite = false,
   downloadName = '',
   canDownload = true,
+  downloadActive = false,
+  downloadBusy = false,
 } = {}) {
   const hasTrack = Boolean(track);
   const albumView = album ? { id: album.id } : null;
@@ -38,6 +40,8 @@ export function buildPlayerSnapshot({
       currentTrackTitle: track?.title || '',
       downloadName: hasTrack ? downloadName : '',
       canDownload: Boolean(canDownload),
+      downloadActive: Boolean(downloadActive),
+      downloadBusy: Boolean(downloadBusy),
       favorite: Boolean(favorite),
       queueOpen: Boolean(queueOpen),
       volume,

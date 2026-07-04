@@ -28,6 +28,12 @@ const MEDIA_TYPE_ICONS = {
 const PLAYER_ICONS = {
   clearQueue: '/assets/icons/player/trash.svg',
   download: '/assets/icons/player/download.svg',
+  queue: '/assets/icons/player/list-ul.svg',
+  remove: '/assets/icons/player/trash.svg',
+  volumeHigh: '/assets/icons/player/volume-high.svg',
+  volumeLow: '/assets/icons/player/volume-low.svg',
+  volumeMedium: '/assets/icons/player/volume-medium.svg',
+  volumeMuted: '/assets/icons/player/volume-xmark.svg',
   ...PLAYBACK_MODE_ICONS,
 };
 

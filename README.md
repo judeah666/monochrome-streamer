@@ -1,6 +1,6 @@
 # monochrome-streamer
 
-Current release: `v0.3.0`
+Current release: `v0.3.3`
 
 `monochrome-streamer` is a self-hosted music streamer for your own local music files. It is inspired by [Monochrome](https://github.com/monochrome-music/monochrome), but the library, album edits, lyrics, covers, users, and scan data live on your own server.
 
@@ -16,6 +16,16 @@ Current release: `v0.3.0`
 - Search MusicBrainz and Cover Art Archive for album metadata and covers.
 - Use two player layouts: Floating Player and Edge-to-Edge.
 - Manage users, download permissions, widget API keys, download settings, database backup/import, Excel exports, and scans from the Admin sidebar tab.
+
+## Release Highlights In `v0.3.3`
+
+- Faster album-card responses and cheaper Home/Recently Added loading for large libraries.
+- Playback quality selection with `Original`, `CD FLAC (16-Bit / 44.1 KHz)`, and `MP3 320 kbps`.
+- Near-end Gapless Autoplay that prepares only the next queued track shortly before the current track ends.
+- Stable shuffle progression so autoplay follows the same shuffled queue order.
+- Drag-and-drop cover upload support for album and collection cover editing.
+- Clear download feedback with busy buttons and a global download status toast.
+- Horizontal sidebar scan progress and Qobuz player layout fixes.
 
 ## Screenshots
 
@@ -77,7 +87,7 @@ DOWNLOADS=false
 PUID=1000
 PGID=1000
 UMASK=022
-CHOWN_DATA=true
+CHOWN_DATA=auto
 WIDGET_API_KEY=
 WIDGET_CORS_ORIGIN=
 ```
@@ -229,7 +239,7 @@ Common variables:
 | `DOWNLOADS` | Guest download access when `NOAUTH=true` |
 | `PUID` / `PGID` | Linux owner for Docker-created files |
 | `UMASK` | File permission mask |
-| `CHOWN_DATA` | Fix `/data` ownership on startup |
+| `CHOWN_DATA` | `auto` checks write access first; `true` forces recursive ownership repair; `false` skips it |
 | `WIDGET_API_KEY` | API key for external stats widgets; leave empty unless enabled |
 | `WIDGET_CORS_ORIGIN` | Allowed browser origin for widget API when enabled |
 
@@ -298,7 +308,7 @@ Build and push both the release tag and `latest`:
 
 ```powershell
 docker buildx build --platform linux/amd64 `
-  -t judeah666/monochrome-streamer:0.3.0 `
+  -t judeah666/monochrome-streamer:0.3.3 `
   -t judeah666/monochrome-streamer:latest `
   --push .
 ```

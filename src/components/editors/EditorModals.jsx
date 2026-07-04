@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { EditorModal } from './EditorModal.jsx';
 import { LyricsSuggestionResults, TagSuggestionResults } from './ScraperResults.jsx';
 import { CoverImage } from '../common/VisualBits.jsx';
@@ -67,20 +67,32 @@ const textareaClassName = [
 const artistFormClassName = 'artist-editor-form tw-grid tw-gap-4';
 const artistTextareaClassName = `${inputClassName} tw-min-h-[150px] tw-resize-y tw-leading-normal`;
 const editorStatusClassName = 'tw-m-0 tw-text-[0.86rem] tw-text-muted';
-const coverUploadLimitBytes = 16 * 1024 * 1024;
+export const coverUploadLimitBytes = 16 * 1024 * 1024;
 
-function readImageFileAsDataUrl(file) {
+export function getCoverUploadFileError(file) {
+  if (!file) return '';
+  if (!String(file.type || '').startsWith('image/')) {
+    return 'Choose an image file for the cover.';
+  }
+  if (file.size > coverUploadLimitBytes) {
+    return 'Cover image is too large. Choose an image under 16 MB.';
+  }
+  return '';
+}
+
+export function getFirstCoverUploadFile(files) {
+  return files?.[0] || null;
+}
+
+export function readImageFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     if (!file) {
       resolve('');
       return;
     }
-    if (!String(file.type || '').startsWith('image/')) {
-      reject(new Error('Choose an image file for the cover.'));
-      return;
-    }
-    if (file.size > coverUploadLimitBytes) {
-      reject(new Error('Cover image is too large. Choose an image under 16 MB.'));
+    const validationError = getCoverUploadFileError(file);
+    if (validationError) {
+      reject(new Error(validationError));
       return;
     }
     const reader = new FileReader();
@@ -88,6 +100,83 @@ function readImageFileAsDataUrl(file) {
     reader.addEventListener('error', () => reject(new Error('Unable to read the selected cover image.')), { once: true });
     reader.readAsDataURL(file);
   });
+}
+
+export function CoverUploadDropzone({
+  id = '',
+  label = 'Upload local cover',
+  filename = '',
+  disabled = false,
+  onFile,
+}) {
+  const inputRef = useRef(null);
+  const [dragging, setDragging] = useState(false);
+  const inputId = useMemo(() => id || `cover-upload-${Math.random().toString(36).slice(2)}`, [id]);
+
+  const chooseFile = () => {
+    if (disabled) return;
+    inputRef.current?.click();
+  };
+
+  const handleFileInputChange = (event) => {
+    const file = getFirstCoverUploadFile(event.target.files);
+    event.target.value = '';
+    if (file) onFile?.(file);
+  };
+
+  const handleDrag = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!disabled) setDragging(true);
+  };
+
+  const handleDragLeave = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.relatedTarget && event.currentTarget.contains(event.relatedTarget)) return;
+    setDragging(false);
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragging(false);
+    if (disabled) return;
+    const file = getFirstCoverUploadFile(event.dataTransfer?.files);
+    if (file) onFile?.(file);
+  };
+
+  return (
+    <div className="cover-upload-field">
+      <span className="cover-upload-label">{label}</span>
+      <button
+        className={`cover-upload-dropzone${dragging ? ' is-dragging' : ''}${filename ? ' has-file' : ''}`}
+        type="button"
+        disabled={disabled}
+        aria-label={filename ? `Change selected cover image ${filename}` : 'Drop image here or browse for a cover image'}
+        aria-describedby={`${inputId}-hint`}
+        onClick={chooseFile}
+        onDragEnter={handleDrag}
+        onDragOver={handleDrag}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <i className="fa-solid fa-image cover-upload-icon" aria-hidden="true"></i>
+        <strong>{filename ? 'Cover image selected' : 'Drop image here'}</strong>
+        <span id={`${inputId}-hint`}>{filename || 'or click to browse your files'}</span>
+      </button>
+      <input
+        ref={inputRef}
+        id={inputId}
+        className="cover-upload-input"
+        type="file"
+        accept="image/*"
+        tabIndex="-1"
+        aria-hidden="true"
+        onChange={handleFileInputChange}
+      />
+    </div>
+  );
 }
 
 export function ArtistEditorModal({
@@ -396,14 +485,13 @@ export function AlbumTagEditorModal({
     }));
   };
 
-  const handleCoverFileChange = async (event) => {
-    const file = event.target.files?.[0] || null;
-    event.target.value = '';
+  const applyCoverFile = async (file) => {
     if (!file) return;
     try {
       const coverDataUrl = await readImageFileAsDataUrl(file);
       setForm((current) => ({
         ...current,
+        coverUrl: '',
         coverDataUrl,
         coverFilename: file.name,
       }));
@@ -638,6 +726,7 @@ export function AlbumTagEditorModal({
                   ))}
                 </datalist>
               ) : null}
+              <small className="tw-normal-case tw-tracking-normal tw-text-muted">Separate multiple collections with commas or tabs.</small>
             </label>
             <fieldset className={mediaTypePickerClassName}>
               <span>Media type</span>
@@ -670,11 +759,13 @@ export function AlbumTagEditorModal({
               <span>Cover URL</span>
               <input className={inputClassName} type="url" placeholder="https://..." autoComplete="off" value={form.coverUrl} onChange={updateCoverUrl} />
             </label>
-            <label className={wideFieldClassName}>
-              <span>Upload local cover</span>
-              <input className={inputClassName} type="file" accept="image/*" onChange={handleCoverFileChange} />
-              {form.coverFilename ? <small className="tw-normal-case tw-tracking-normal tw-text-muted">Selected: {form.coverFilename}</small> : null}
-            </label>
+            <div className={wideFieldClassName}>
+              <CoverUploadDropzone
+                id="album-cover-upload"
+                filename={form.coverFilename}
+                onFile={applyCoverFile}
+              />
+            </div>
           </div>
         </form>
 
@@ -780,6 +871,136 @@ export function AlbumTagEditorModal({
             ))}
           </div>
         </section>
+      </div>
+    </EditorModal>
+  );
+}
+
+export function CollectionCoverEditorModal({
+  collectionName = '',
+  currentCoverUrl = '',
+  coverUrl = '',
+  onClose,
+  onSave,
+}) {
+  const [form, setForm] = useState(() => ({
+    coverUrl,
+    coverDataUrl: '',
+    coverFilename: '',
+  }));
+  const [busy, setBusy] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('Drop a local image, browse your files, or paste a cover URL.');
+  const previewUrl = form.coverDataUrl || form.coverUrl || currentCoverUrl;
+
+  const updateCoverUrl = (event) => {
+    const value = event.target.value;
+    setForm((current) => ({
+      ...current,
+      coverUrl: value,
+      coverDataUrl: '',
+      coverFilename: '',
+    }));
+  };
+
+  const applyCoverFile = async (file) => {
+    if (!file) return;
+    try {
+      const coverDataUrl = await readImageFileAsDataUrl(file);
+      setForm((current) => ({
+        ...current,
+        coverUrl: '',
+        coverDataUrl,
+        coverFilename: file.name,
+      }));
+      setStatusMessage(`Selected local cover: ${file.name}`);
+    } catch (error) {
+      setStatusMessage(error?.message || 'Unable to read the selected cover image.');
+    }
+  };
+
+  const savePayload = async (payload, message) => {
+    if (!onSave) return;
+    setBusy(true);
+    setStatusMessage(message);
+    try {
+      await onSave(payload);
+    } catch (error) {
+      setStatusMessage(error?.message || 'Unable to save the collection cover.');
+      setBusy(false);
+    }
+  };
+
+  const handleSave = () => {
+    const uploadedCoverDataUrl = String(form.coverDataUrl || '').trim();
+    if (uploadedCoverDataUrl) {
+      savePayload({
+        coverDataUrl: uploadedCoverDataUrl,
+        coverFilename: form.coverFilename,
+      }, 'Saving uploaded collection cover...');
+      return;
+    }
+    savePayload({
+      coverUrl: String(form.coverUrl || '').trim(),
+    }, 'Saving collection cover...');
+  };
+
+  const handleReset = () => {
+    savePayload({ coverUrl: '' }, 'Resetting collection cover...');
+  };
+
+  return (
+    <EditorModal
+      eyebrow="Collection Cover"
+      title={`Edit ${collectionName || 'Collection'} Cover`}
+      titleId="collection-cover-title"
+      caption="Choose a local image, paste a URL, or reset to the first album cover."
+      closeButtonId="collection-cover-close-button"
+      closeLabel="Close collection cover editor"
+      resetButtonId="collection-cover-reset-button"
+      resetLabel="Use first album cover"
+      cancelButtonId="collection-cover-cancel-button"
+      saveButtonId="collection-cover-save-button"
+      saveLabel="Save cover"
+      onClose={onClose}
+      onCancel={onClose}
+      onReset={handleReset}
+      onSave={handleSave}
+      resetDisabled={busy}
+      saveDisabled={busy}
+    >
+      <div className="tag-editor-body collection-cover-editor-body">
+        <div className="collection-cover-preview">
+          <CoverImage
+            className="collection-cover-preview-image"
+            src={previewUrl}
+            alt={`${collectionName || 'Collection'} cover preview`}
+            placeholderClassName="collection-cover-preview-image"
+          />
+        </div>
+        <form className="collection-cover-form" onSubmit={(event) => event.preventDefault()}>
+          <label className={wideFieldClassName}>
+            <span>Cover URL</span>
+            <input
+              className={inputClassName}
+              type="url"
+              placeholder="https://..."
+              autoComplete="off"
+              value={form.coverUrl}
+              onChange={updateCoverUrl}
+              disabled={busy}
+            />
+          </label>
+          <div className={wideFieldClassName}>
+            <CoverUploadDropzone
+              id="collection-cover-upload"
+              label="Upload collection cover"
+              filename={form.coverFilename}
+              disabled={busy}
+              onFile={applyCoverFile}
+            />
+          </div>
+          <p className={editorStatusClassName} role="status">{statusMessage}</p>
+        </form>
       </div>
     </EditorModal>
   );

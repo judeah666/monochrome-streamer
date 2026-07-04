@@ -84,6 +84,7 @@ test('buildAlbumDetailSnapshot uses hero track cover, filters tracks, and create
     ],
     relatedAlbumLimit: 1,
     favorite: true,
+    shareCopied: true,
     currentTrackId: 'track-2',
     playing: false,
     helpers: {
@@ -103,6 +104,7 @@ test('buildAlbumDetailSnapshot uses hero track cover, filters tracks, and create
   assert.deepEqual(snapshot.tracks.map((track) => track.id), ['track-2']);
   assert.equal(snapshot.tracks[0].favorite, true);
   assert.equal(snapshot.favorite, true);
+  assert.equal(snapshot.shareCopied, true);
   assert.equal(snapshot.canQueue, true);
   assert.deepEqual(snapshot.relatedAlbums.map((related) => related.id), ['full-1']);
   assert.deepEqual(snapshot.epAlbums.map((ep) => ep.id), ['ep-1']);

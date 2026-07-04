@@ -75,11 +75,17 @@ export function normalizeSettings(settings) {
   if (typeof normalized.libraryTitle === 'string' && normalized.libraryTitle.trim() === '') {
     delete normalized.libraryTitle;
   }
+  if (normalized.showRecentlyAdded != null) {
+    normalized.showRecentlyAdded = normalized.showRecentlyAdded !== false && normalized.showRecentlyAdded !== 'false';
+  }
   if (normalized.albumCardSize != null) {
     normalized.albumCardSize = clampAlbumCardSize(normalized.albumCardSize);
   }
   if (normalized.bulkDownloadMethod && !['browser', 'zip'].includes(normalized.bulkDownloadMethod)) {
     normalized.bulkDownloadMethod = DEFAULT_SETTINGS.bulkDownloadMethod;
+  }
+  if (normalized.playbackQuality && !['original', 'cd', 'mp3'].includes(normalized.playbackQuality)) {
+    normalized.playbackQuality = DEFAULT_SETTINGS.playbackQuality;
   }
 
   return normalized;

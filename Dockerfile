@@ -1,6 +1,6 @@
 FROM node:24-alpine
 
-ARG APP_VERSION=0.3.0
+ARG APP_VERSION=0.3.3
 LABEL org.opencontainers.image.title="monochrome-streamer" \
   org.opencontainers.image.description="A self-hosted music streamer for local server files." \
   org.opencontainers.image.version="${APP_VERSION}" \
@@ -40,7 +40,7 @@ ENV AUTO_SCAN_ON_START=false
 ENV PUID=1000
 ENV PGID=1000
 ENV UMASK=022
-ENV CHOWN_DATA=true
+ENV CHOWN_DATA=auto
 
 EXPOSE 8888
 

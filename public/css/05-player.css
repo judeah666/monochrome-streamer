@@ -235,6 +235,12 @@ body.player-layout-floating .now-playing-bar {
   font-size: 0.8rem;
 }
 
+body.player-layout-floating .progress-container {
+  max-width: 520px;
+  min-width: 0;
+  justify-self: center;
+}
+
 .progress-container span {
   min-width: 36px;
   font-variant-numeric: tabular-nums;
@@ -340,6 +346,108 @@ body.player-layout-floating .now-playing-bar {
   color: var(--favorite-red);
 }
 
+.download-busy-spinner,
+.download-status-spinner {
+  display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: download-spin 0.72s linear infinite;
+}
+
+.is-download-busy {
+  cursor: wait !important;
+}
+
+.is-download-busy .player-symbol,
+.is-download-busy .fa-solid {
+  display: none;
+}
+
+#download-status-root {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: calc(var(--player-height, 96px) + 18px + env(safe-area-inset-bottom));
+  z-index: 1600;
+  pointer-events: none;
+}
+
+.download-status-toast {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: min(380px, calc(100vw - 28px));
+  padding: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 42%),
+    color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.36);
+  color: var(--text);
+  backdrop-filter: blur(22px);
+  pointer-events: auto;
+}
+
+.download-status-toast.is-complete .download-status-spinner {
+  animation: none;
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: inset 0 0 0 3px var(--surface);
+}
+
+.download-status-toast.is-failed {
+  border-color: color-mix(in srgb, var(--favorite-red) 52%, var(--line-strong));
+}
+
+.download-status-toast.is-failed .download-status-spinner {
+  animation: none;
+  border-color: var(--favorite-red);
+}
+
+.download-status-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.download-status-copy strong,
+.download-status-copy span,
+.download-status-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-status-copy small {
+  color: var(--muted);
+}
+
+.download-status-toast button {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--glass);
+  color: var(--muted);
+}
+
+.download-status-toast button:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+@keyframes download-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .queue-status {
   text-align: right;
   min-width: 48px;
@@ -423,7 +531,7 @@ body.player-layout-floating .queue-status {
 }
 
 body.player-layout-qobuz {
-  --player-height: 76px;
+  --player-height: 100px;
 }
 
 body.player-layout-qobuz .app-shell {
@@ -431,7 +539,7 @@ body.player-layout-qobuz .app-shell {
 }
 
 body.player-layout-qobuz .sidebar {
-  height: calc(100vh - var(--player-height));
+  height: 100vh;
 }
 
 body.player-layout-qobuz .page-shell {
@@ -440,7 +548,7 @@ body.player-layout-qobuz .page-shell {
 
 body.player-layout-qobuz .now-playing-bar {
   position: fixed;
-  left: 0;
+  left: var(--sidebar-width);
   right: 0;
   bottom: 0;
   min-height: var(--player-height);
@@ -507,10 +615,10 @@ body.player-layout-qobuz .player-controls .buttons {
 body.player-layout-qobuz .progress-container {
   order: initial;
   position: absolute;
-  inset: -1px 0 auto 0;
+  inset: 0 0 auto 0;
   width: 100%;
   min-width: 0;
-  height: 3px;
+  height: 12px;
   gap: 0;
   color: var(--muted);
   font-size: 0;
@@ -524,12 +632,23 @@ body.player-layout-qobuz .progress-container span {
 body.player-layout-qobuz .progress-bar {
   display: block;
   width: 100%;
-  height: 3px;
-  border-radius: 0;
+  height: 12px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+body.player-layout-qobuz .progress-bar::before {
+  content: "";
+  position: absolute;
+  inset: 3px 0;
+  border-radius: inherit;
   background: color-mix(in srgb, var(--accent) 18%, var(--glass-strong));
 }
 
 body.player-layout-qobuz .progress-fill {
+  top: 3px;
+  bottom: 3px;
+  border-radius: inherit;
   background: var(--accent);
 }
 
@@ -618,11 +737,22 @@ body.player-layout-qobuz .queue-status {
 
 body.player-layout-qobuz .volume-bar {
   width: 96px;
-  height: 2px;
+  height: 12px;
+  background: transparent;
+}
+
+body.player-layout-qobuz .volume-bar::before {
+  content: "";
+  position: absolute;
+  inset: 3px 0;
+  border-radius: inherit;
   background: var(--glass-strong);
 }
 
 body.player-layout-qobuz .volume-fill {
+  top: 3px;
+  bottom: 3px;
+  border-radius: inherit;
   background: var(--accent);
 }
 

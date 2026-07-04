@@ -92,7 +92,7 @@
 
   body.sidebar-collapsed .sidebar-eyebrow-row .eyebrow,
   body.sidebar-collapsed .sidebar-brand h1,
-  body.sidebar-collapsed .nav-link span,
+  body.sidebar-collapsed .nav-link .sidebar-nav-label,
   body.sidebar-collapsed .stat-card strong,
   body.sidebar-collapsed .sidebar-status-state,
   body.sidebar-collapsed .sidebar-status-indexed {
@@ -206,7 +206,7 @@
 
   body.sidebar-collapsed .sidebar-eyebrow-row .eyebrow,
   body.sidebar-collapsed .sidebar-brand h1,
-  body.sidebar-collapsed .nav-link span,
+  body.sidebar-collapsed .nav-link .sidebar-nav-label,
   body.sidebar-collapsed .stat-card strong,
   body.sidebar-collapsed .sidebar-status-state,
   body.sidebar-collapsed .sidebar-status-indexed {
@@ -256,8 +256,8 @@
     padding: 14px 16px;
   }
 
-  .nav-link span,
-  body.sidebar-collapsed .nav-link span {
+  .nav-link .sidebar-nav-label,
+  body.sidebar-collapsed .nav-link .sidebar-nav-label {
     display: inline;
   }
 
@@ -319,20 +319,20 @@
     border-radius: 0;
   }
 
-  .sidebar-progress-ring,
-  body.sidebar-collapsed .sidebar-progress-ring {
-    width: 72px;
-    height: 72px;
+  .sidebar-progress-bar,
+  body.sidebar-collapsed .sidebar-progress-bar {
+    width: min(156px, 100%);
+    height: 18px;
   }
 
-  .sidebar-progress-ring circle,
-  body.sidebar-collapsed .sidebar-progress-ring circle {
-    stroke-width: 12;
+  .sidebar-progress-fill,
+  body.sidebar-collapsed .sidebar-progress-fill {
+    min-width: 16px;
   }
 
-  .sidebar-progress-ring > strong,
-  body.sidebar-collapsed .sidebar-progress-ring > strong {
-    font-size: 0.88rem;
+  .sidebar-progress-percent,
+  body.sidebar-collapsed .sidebar-progress-percent {
+    font-size: 0.82rem;
     letter-spacing: -0.05em;
   }
 
@@ -479,8 +479,17 @@
 
   body.player-layout-qobuz .progress-bar {
     display: block;
-    height: 5px;
+    height: 11px;
     border-radius: 999px;
+  }
+
+  body.player-layout-qobuz .progress-bar::before {
+    inset: 3px 0;
+  }
+
+  body.player-layout-qobuz .progress-fill {
+    top: 3px;
+    bottom: 3px;
   }
 
   body.player-layout-qobuz .volume-controls {
@@ -697,8 +706,13 @@
   .tag-scraper-search,
   .tag-disc-track-header,
   .tag-track-row,
+  .collection-cover-editor-body,
   .lyrics-editor-form {
     grid-template-columns: 1fr;
+  }
+
+  .collection-cover-preview {
+    justify-self: center;
   }
 
   .tag-disc-card-header {
@@ -779,7 +793,7 @@
   }
 
   body.player-layout-qobuz .sidebar {
-    height: calc(100vh - var(--player-height));
+    height: 100vh;
     max-height: none;
   }
 
@@ -815,11 +829,40 @@
   }
 
   body.player-layout-qobuz .now-playing-bar {
-    left: 0;
+    left: var(--sidebar-width);
   }
 }
 
 @media (max-width: 720px) {
+  .home-album-sections {
+    gap: 26px;
+  }
+
+  .home-album-section-header {
+    margin-bottom: 12px;
+  }
+
+  .home-album-rail {
+    gap: 14px;
+    margin-inline: -2px;
+    padding-inline: 2px;
+  }
+
+  .home-album-rail .album-card {
+    flex-basis: clamp(128px, 42vw, 168px);
+    width: clamp(128px, 42vw, 168px);
+  }
+
+  #download-status-root {
+    right: 14px;
+    left: 14px;
+    bottom: calc(var(--player-height, 96px) + 14px + env(safe-area-inset-bottom));
+  }
+
+  .download-status-toast {
+    width: 100%;
+  }
+
   #mobile-sidebar-button {
     display: inline-flex;
   }

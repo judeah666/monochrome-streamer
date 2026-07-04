@@ -134,7 +134,7 @@ function TrackRow({ track, showAlbum, onPlay, onFavorite, onAddQueue, onAddPlayl
 function AlbumTrackRow({ track, onPlay, onFavorite, onAddQueue, onAddPlaylist, onRemove, onArtistClick, onAlbumClick }) {
   return (
     <article className={`${albumTrackRowBaseClassName}${track.active ? trackRowActiveClassName : ''}`} onClick={() => onPlay?.({ toggle: false })}>
-      <span className={trackIndexClassName}>{track.trackNumber ?? '•'}</span>
+      <span className={trackIndexClassName}>{track.trackNumber || '•'}</span>
       <div className={trackTitleGroupClassName}>
         <strong className="tw-overflow-hidden tw-text-ellipsis tw-whitespace-nowrap">{track.title}</strong>
         <ArtistInlineButton artist={track.artist} onArtistClick={onArtistClick} />

@@ -21,8 +21,27 @@ fi
 if [ "$(id -u)" = "0" ]; then
   mkdir -p "$DATA_DIR" "$COVER_CACHE_PATH" "$LYRICS_SIDECAR_PATH"
 
-  if [ "${CHOWN_DATA:-true}" != "false" ]; then
-    chown -R "$PUID:$PGID" "$DATA_DIR" 2>/dev/null || true
+  can_write_as_target() {
+    target_dir="$1"
+    test_file="${target_dir}/.monochrome-write-test-$$"
+    su-exec "$PUID:$PGID" sh -c 'touch "$1" && rm -f "$1"' sh "$test_file" 2>/dev/null
+  }
+
+  chown_data_mode="${CHOWN_DATA:-auto}"
+  if [ "$chown_data_mode" = "true" ]; then
+    echo "[startup] CHOWN_DATA=true: recursively fixing data ownership"
+    chown -R "$PUID:$PGID" "$DATA_DIR" "$COVER_CACHE_PATH" "$LYRICS_SIDECAR_PATH" 2>/dev/null || true
+  elif [ "$chown_data_mode" = "false" ]; then
+    echo "[startup] CHOWN_DATA=false: skipping data ownership check"
+  else
+    if can_write_as_target "$DATA_DIR" \
+      && can_write_as_target "$COVER_CACHE_PATH" \
+      && can_write_as_target "$LYRICS_SIDECAR_PATH"; then
+      echo "[startup] CHOWN_DATA=auto: data paths already writable"
+    else
+      echo "[startup] CHOWN_DATA=auto: fixing data ownership"
+      chown -R "$PUID:$PGID" "$DATA_DIR" "$COVER_CACHE_PATH" "$LYRICS_SIDECAR_PATH" 2>/dev/null || true
+    fi
   fi
 
   exec su-exec "$PUID:$PGID" "$@"

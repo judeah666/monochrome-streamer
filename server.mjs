@@ -2,7 +2,7 @@ import { createReadStream, existsSync, promises as fs } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { randomBytes, scryptSync } from 'node:crypto';
+import { createHash, randomBytes, scryptSync } from 'node:crypto';
 import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import yazl from 'yazl';
@@ -33,6 +33,7 @@ import {
   readPlaylists,
   readExcelAlbumExportRows,
   readRandomAlbumPage,
+  readRecentlyAddedAlbumPage,
   readArtistLibrary,
   readArtistPage,
   readFolderLibrary,
@@ -42,12 +43,14 @@ import {
   renameCollectionInDatabase,
   removePlaylistTrack,
   validateLibraryDatabaseFile,
+  updateTrackCoverCacheRecords,
   writeAlbumOverridesDatabase,
   writeArtistOverridesDatabase,
   writeCollectionOverridesDatabase,
   writeLibraryDatabase,
   writeLyricsOverridesDatabase,
 } from './lib/library-db.mjs';
+import { parseCollectionNames, replaceCollectionName } from './src/shared/collectionNames.js';
 import {
   DEFAULT_MAX_CONCURRENT_MP3_DOWNLOADS,
   DOWNLOAD_MAX_REQUESTS,
@@ -65,6 +68,14 @@ import {
   createSessionRecord,
 } from './src/server/securityPolicy.js';
 import {
+  createPlaybackTranscodeCacheKey,
+  getPlaybackTranscodeContentType,
+  getPlaybackTranscodeExtension,
+  getPlaybackTranscodeProfile,
+  getPlaybackTranscodingCapability,
+  shouldUsePlaybackTranscode,
+} from './src/server/playbackTranscoding.js';
+import {
   DEFAULT_SETTINGS,
   PALETTE_THEMES,
   STORAGE_KEYS,
@@ -72,6 +83,12 @@ import {
 } from './src/controller/constants.js';
 import { normalizeSettings } from './src/controller/settingsStore.js';
 import { getThemeBase, resolveThemePreset } from './src/controller/themeResolver.js';
+import { normalizePlaybackQuality } from './src/shared/playbackQuality.js';
+import {
+  getCoverOptimizationFailureKey,
+  getEmbeddedCoverFreshness,
+  getFileFreshness,
+} from './src/server/coverCachePolicy.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,6 +96,7 @@ const publicDir = path.join(__dirname, 'public');
 const assetsDir = path.join(__dirname, 'src', 'assets');
 const configPath = path.join(__dirname, 'config.json');
 const envPath = process.env.ENV_PATH || path.join(__dirname, '.env');
+const serverBootStartedAt = performance.now();
 let ffmpegAvailablePromise = null;
 let sharpModulePromise = null;
 let sharpWarningShown = false;
@@ -95,6 +113,7 @@ const defaultConfig = {
   libraryFoldersPath: 'library-folders.json',
   libraryDatabasePath: 'library.sqlite',
   coverCachePath: 'covers',
+  playbackTranscodeCachePath: 'transcodes',
   widgetSettingsPath: 'widget-settings.json',
   authUsersPath: 'users.json',
   scanMetadata: 'tags',
@@ -126,6 +145,7 @@ const libraryFoldersPath = config.libraryFoldersPath ? path.resolve(__dirname, c
 const libraryDatabasePath = config.libraryDatabasePath ? path.resolve(__dirname, config.libraryDatabasePath) : '';
 const legacyLibraryCachePath = config.libraryCachePath ? path.resolve(__dirname, config.libraryCachePath) : '';
 const coverCachePath = config.coverCachePath ? path.resolve(__dirname, config.coverCachePath) : '';
+const playbackTranscodeCachePath = config.playbackTranscodeCachePath ? path.resolve(__dirname, config.playbackTranscodeCachePath) : '';
 const widgetSettingsPath = config.widgetSettingsPath ? path.resolve(__dirname, config.widgetSettingsPath) : '';
 const authUsersPath = config.authUsersPath ? path.resolve(__dirname, config.authUsersPath) : '';
 const NATURAL_SORTER = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
@@ -136,6 +156,7 @@ const COVER_CACHE_WEBP_QUALITY = 82;
 const COVER_UPLOAD_MAX_BYTES = 16 * 1024 * 1024;
 const HOME_ALBUM_CACHE_MS = 60 * 60 * 1000;
 const HOME_ALBUM_CACHE_LIMIT = 24;
+const API_SLOW_REQUEST_THRESHOLD_MS = Number.parseInt(process.env.API_SLOW_REQUEST_THRESHOLD_MS || '250', 10) || 250;
 
 if (!libraryRoot || !existsSync(libraryRoot)) {
   console.error(`Music library path is missing or invalid: ${libraryRoot || '(empty)'}`);
@@ -165,16 +186,27 @@ let artistOverridesCache = null;
 let albumOverridesCache = null;
 let collectionOverridesCache = null;
 let lyricsOverridesCache = null;
-let selectedLibraryFoldersCache = null;
+let libraryFoldersStoreCache = null;
+let librarySummaryCache = null;
 let widgetSettingsCache = await readWidgetSettings();
 let authStoreCache = null;
 let homeAlbumPageCache = new Map();
+let recentlyAddedAlbumPageCache = new Map();
+let albumCoverLookup = new Map();
 const sessions = new Map();
 const loginAttempts = new Map();
 const downloadAttempts = new Map();
+const playbackTranscodeJobs = new Map();
+const coverOptimizationFailures = new Set();
+const firstRequestTimingLabels = new Set();
+let coverOptimizationFailureWritePromise = null;
+let coverOptimizationFailureWriteQueued = false;
+let coverCacheJobPromise = null;
 let activeMp3DownloadRequests = 0;
 
+await loadCoverOptimizationFailures();
 await initializeScanStateFromStore();
+logStartupTiming('server bootstrap initialized', serverBootStartedAt);
 
 class HttpError extends Error {
   constructor(statusCode, message) {
@@ -183,9 +215,31 @@ class HttpError extends Error {
   }
 }
 
+function logStartupTiming(label, startedAt) {
+  const elapsedMs = Math.round(performance.now() - startedAt);
+  console.log(`[startup] ${label}: ${elapsedMs}ms`);
+}
+
+function logFirstRequestTiming(label, startedAt) {
+  if (firstRequestTimingLabels.has(label)) return;
+  firstRequestTimingLabels.add(label);
+  logStartupTiming(`first ${label}`, startedAt);
+}
+
+function logSlowApiRequest(request, response, url, startedAt) {
+  if (!url?.pathname?.startsWith('/api/')) return;
+  const elapsedMs = Math.round(performance.now() - startedAt);
+  if (elapsedMs < API_SLOW_REQUEST_THRESHOLD_MS) return;
+  const responseBytes = Number(response.__monochromeResponseBytes);
+  const byteLabel = Number.isFinite(responseBytes) ? ` ${responseBytes}b` : '';
+  console.warn(`[perf] ${request.method || 'GET'} ${url.pathname}${url.search || ''} ${response.statusCode || 0} ${elapsedMs}ms${byteLabel}`);
+}
+
 const server = http.createServer(async (request, response) => {
+  const requestStartedAt = performance.now();
+  let url = null;
   try {
-    const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
+    url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
 
     if (url.pathname === '/api/widget/stats' || url.pathname === '/api/widgets/stats') {
       if (request.method === 'OPTIONS') {
@@ -199,9 +253,9 @@ const server = http.createServer(async (request, response) => {
           error: config.widgetApiKey ? 'Invalid widget API key' : 'Widget API key is not configured',
         });
       }
-      const librarySummary = libraryCache
-        ? { generatedAt: libraryCache.generatedAt, trackCount: libraryCache.trackCount, albumCount: libraryCache.albumCount }
-        : await readLibraryDatabaseSummary(libraryDatabasePath);
+      const startedAt = performance.now();
+      const librarySummary = await getLibrarySummary();
+      logFirstRequestTiming('widget stats', startedAt);
       return respondWidgetJson(response, 200, {
         title: config.title,
         albumCount: librarySummary.albumCount || 0,
@@ -329,10 +383,9 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (url.pathname === '/api/config') {
-      const librarySummary = libraryCache
-        ? { generatedAt: libraryCache.generatedAt, trackCount: libraryCache.trackCount, albumCount: libraryCache.albumCount }
-        : await readLibraryDatabaseSummary(libraryDatabasePath);
-      return respondJson(response, 200, {
+      const startedAt = performance.now();
+      const librarySummary = await getLibrarySummary();
+      const payload = {
         title: config.title,
         generatedAt: librarySummary.generatedAt,
         trackCount: librarySummary.trackCount,
@@ -341,10 +394,14 @@ const server = http.createServer(async (request, response) => {
         user: createPublicUser(authUser),
         csrfToken: getCsrfTokenForUser(authUser),
         downloadSettings: await getDownloadSettings(),
-      });
+        playbackTranscoding: await getPlaybackTranscodingInfo(),
+      };
+      logFirstRequestTiming('/api/config', startedAt);
+      return respondJson(response, 200, payload);
     }
 
     if (url.pathname === '/api/library') {
+      const startedAt = performance.now();
       if (url.searchParams.has('limit') || url.searchParams.has('offset') || url.searchParams.has('search')) {
         let pageOptions = {
           limit: url.searchParams.get('limit'),
@@ -368,9 +425,13 @@ const server = http.createServer(async (request, response) => {
           library = createPagedLibrary(await getCurrentLibrary(), pageOptions);
         }
         primeTrackMap(library.tracks);
-        return respondJson(response, 200, await createLibraryPayload(library));
+        const payload = await createLibraryPayload(library);
+        logFirstRequestTiming('/api/library', startedAt);
+        return respondJson(response, 200, payload);
       }
-      return respondJson(response, 200, await createLibraryPayload(await getCurrentLibrary()));
+      const payload = await createLibraryPayload(await getCurrentLibrary());
+      logFirstRequestTiming('/api/library', startedAt);
+      return respondJson(response, 200, payload);
     }
 
     if (url.pathname === '/api/wishlist-albums' || url.pathname === '/api/wanted-albums') {
@@ -483,9 +544,11 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (url.pathname === '/api/home-albums') {
+      const startedAt = performance.now();
       const cacheKey = createHomeAlbumCacheKey(url);
       const cachedPayload = homeAlbumPageCache.get(cacheKey);
       if (cachedPayload) {
+        logFirstRequestTiming('/api/home-albums', startedAt);
         return respondJson(response, 200, cachedPayload);
       }
       const mediaTypeAlbumFilter = await getAlbumIdFilterForMediaTypes(url.searchParams.get('mediaTypes'));
@@ -494,12 +557,41 @@ const server = http.createServer(async (request, response) => {
         folders: getFolderFilterParams(url),
         albumIds: mediaTypeAlbumFilter?.albumIds,
         excludeAlbumIds: mediaTypeAlbumFilter?.excludeAlbumIds,
+        includeTracks: false,
+        includeCoverTracks: true,
       };
       homeAlbumOptions = await applyDeletedAlbumExclusions(homeAlbumOptions);
       const library = await readRandomAlbumPage(libraryDatabasePath, homeAlbumOptions);
       primeTrackMap(library.tracks);
       const payload = await createLibraryPayload(library);
       setHomeAlbumCache(cacheKey, payload);
+      logFirstRequestTiming('/api/home-albums', startedAt);
+      return respondJson(response, 200, payload);
+    }
+
+    if (url.pathname === '/api/recently-added-albums') {
+      const startedAt = performance.now();
+      const cacheKey = createHomeAlbumCacheKey(url);
+      const cachedPayload = recentlyAddedAlbumPageCache.get(cacheKey);
+      if (cachedPayload) {
+        logFirstRequestTiming('/api/recently-added-albums', startedAt);
+        return respondJson(response, 200, cachedPayload);
+      }
+      const mediaTypeAlbumFilter = await getAlbumIdFilterForMediaTypes(url.searchParams.get('mediaTypes'));
+      let recentAlbumOptions = {
+        limit: url.searchParams.get('limit') || 50,
+        folders: getFolderFilterParams(url),
+        albumIds: mediaTypeAlbumFilter?.albumIds,
+        excludeAlbumIds: mediaTypeAlbumFilter?.excludeAlbumIds,
+        includeTracks: false,
+        includeCoverTracks: true,
+      };
+      recentAlbumOptions = await applyDeletedAlbumExclusions(recentAlbumOptions);
+      const library = await readRecentlyAddedAlbumPage(libraryDatabasePath, recentAlbumOptions);
+      primeTrackMap(library.tracks);
+      const payload = await createLibraryPayload(library);
+      setRecentlyAddedAlbumCache(cacheKey, payload);
+      logFirstRequestTiming('/api/recently-added-albums', startedAt);
       return respondJson(response, 200, payload);
     }
 
@@ -691,7 +783,12 @@ const server = http.createServer(async (request, response) => {
 
     const streamMatch = /^\/api\/tracks\/([^/]+)\/stream$/u.exec(url.pathname);
     if (streamMatch) {
-      return streamTrack(response, decodeURIComponent(streamMatch[1]), request.headers.range);
+      return streamTrack(
+        response,
+        decodeURIComponent(streamMatch[1]),
+        request.headers.range,
+        url.searchParams.get('format'),
+      );
     }
 
     const downloadMatch = /^\/api\/tracks\/([^/]+)\/download$/u.exec(url.pathname);
@@ -753,6 +850,8 @@ const server = http.createServer(async (request, response) => {
     return respondJson(response, 500, {
       error: error instanceof Error ? error.message : 'Internal Server Error',
     });
+  } finally {
+    logSlowApiRequest(request, response, url, requestStartedAt);
   }
 });
 
@@ -760,7 +859,7 @@ server.listen(config.port, config.host, () => {
   console.log(`Monochrome-Streamer ready at http://${config.host}:${config.port}`);
   console.log(`Streaming from: ${libraryRoot}`);
   if (config.autoScanOnStart) {
-    startLibraryScan();
+    startLibraryScan({ forceMetadataRefresh: false });
   } else {
     console.log('Automatic startup scan is disabled. Open the Admin sidebar tab, then System, select folders, and scan.');
   }
@@ -788,6 +887,7 @@ async function loadConfig() {
     libraryCachePath: process.env.LIBRARY_CACHE_PATH || fileConfig.libraryCachePath || dataPath('library-cache.json'),
     libraryDatabasePath: process.env.LIBRARY_DATABASE_PATH || fileConfig.libraryDatabasePath || dataPath(defaultConfig.libraryDatabasePath),
     coverCachePath: process.env.COVER_CACHE_PATH || fileConfig.coverCachePath || dataPath(defaultConfig.coverCachePath),
+    playbackTranscodeCachePath: process.env.PLAYBACK_TRANSCODE_CACHE_PATH || fileConfig.playbackTranscodeCachePath || dataPath(defaultConfig.playbackTranscodeCachePath),
     widgetSettingsPath: process.env.WIDGET_SETTINGS_PATH || fileConfig.widgetSettingsPath || dataPath(defaultConfig.widgetSettingsPath),
     authUsersPath: process.env.AUTH_USERS_PATH || fileConfig.authUsersPath || dataPath(defaultConfig.authUsersPath),
     scanMetadata: normalizeScanMetadata(process.env.SCAN_METADATA || fileConfig.scanMetadata || defaultConfig.scanMetadata),
@@ -1678,7 +1778,7 @@ async function importDatabaseBackup(request) {
     await replaceCurrentDatabase(importPath);
     invalidateDatabaseBackedCaches();
     await initializeScanStateFromStore();
-    const summary = await readLibraryDatabaseSummary(libraryDatabasePath);
+    const summary = await getLibrarySummary({ force: true });
     return {
       imported: true,
       backupCreated: existsSync(`${libraryDatabasePath}.${timestamp}.bak`),
@@ -1889,10 +1989,12 @@ function getLoginAppRedirectPath(next = '/', extraParams = {}) {
 }
 
 async function initializeScanStateFromStore() {
+  const startedAt = performance.now();
   const [librarySummary, selectedFolders] = await Promise.all([
     readLibraryDatabaseSummary(libraryDatabasePath).catch(() => createEmptyLibrary()),
     getSelectedLibraryFolders().catch(() => []),
   ]);
+  librarySummaryCache = normalizeLibrarySummary(librarySummary);
   const hasIndexedLibrary = (librarySummary.trackCount || 0) > 0 || (librarySummary.albumCount || 0) > 0;
 
   scanState = {
@@ -1908,6 +2010,7 @@ async function initializeScanStateFromStore() {
     parsedFiles: 0,
     percent: hasIndexedLibrary ? 100 : 0,
   };
+  logStartupTiming('database summary load', startedAt);
 }
 
 async function getCurrentLibrary() {
@@ -1916,6 +2019,7 @@ async function getCurrentLibrary() {
   if (cachedLibrary.tracks.length > 0 || cachedLibrary.albums.length > 0) {
     libraryCache = cachedLibrary;
     trackMap = new Map(cachedLibrary.tracks.map((track) => [track.id, track]));
+    albumCoverLookup = new Map();
     scanState = {
       ...scanState,
       status: 'ready',
@@ -1929,6 +2033,30 @@ async function getCurrentLibrary() {
     return libraryCache;
   }
   return createEmptyLibrary();
+}
+
+function normalizeLibrarySummary(summary = {}) {
+  return {
+    generatedAt: summary.generatedAt || null,
+    trackCount: Number(summary.trackCount) || 0,
+    albumCount: Number(summary.albumCount) || 0,
+  };
+}
+
+async function getLibrarySummary({ force = false } = {}) {
+  if (!force && libraryCache) {
+    return normalizeLibrarySummary(libraryCache);
+  }
+  if (!force && librarySummaryCache) return librarySummaryCache;
+
+  const startedAt = performance.now();
+  librarySummaryCache = normalizeLibrarySummary(await readLibraryDatabaseSummary(libraryDatabasePath));
+  logStartupTiming('database summary refresh', startedAt);
+  return librarySummaryCache;
+}
+
+function setLibrarySummaryFromLibrary(library = {}) {
+  librarySummaryCache = normalizeLibrarySummary(library);
 }
 
 function primeTrackMap(tracks) {
@@ -2003,13 +2131,23 @@ function setHomeAlbumCache(cacheKey, payload) {
   if (oldestKey) homeAlbumPageCache.delete(oldestKey);
 }
 
+function setRecentlyAddedAlbumCache(cacheKey, payload) {
+  recentlyAddedAlbumPageCache.set(cacheKey, payload);
+  if (recentlyAddedAlbumPageCache.size <= HOME_ALBUM_CACHE_LIMIT) return;
+  const oldestKey = recentlyAddedAlbumPageCache.keys().next().value;
+  if (oldestKey) recentlyAddedAlbumPageCache.delete(oldestKey);
+}
+
 function clearHomeAlbumCache() {
   homeAlbumPageCache = new Map();
+  recentlyAddedAlbumPageCache = new Map();
 }
 
 function invalidateLibraryMemoryCache() {
   libraryCache = null;
   trackMap = new Map();
+  albumCoverLookup = new Map();
+  librarySummaryCache = null;
   clearHomeAlbumCache();
 }
 
@@ -2092,7 +2230,8 @@ async function ensureLibrary() {
   return getCurrentLibrary();
 }
 
-async function refreshLibrary(selectedFoldersInput = null) {
+async function refreshLibrary(selectedFoldersInput = null, { forceMetadataRefresh = false } = {}) {
+  const scanStartedAt = performance.now();
   const selectedFolders = selectedFoldersInput || (await getSelectedLibraryFolders());
   const cachedLibrary = await readLibraryStore();
   scanState = {
@@ -2114,16 +2253,16 @@ async function refreshLibrary(selectedFoldersInput = null) {
     scanDurations: config.scanDurations,
     includeFolders: selectedFolders,
     cachedTracks: cachedLibrary.tracks,
+    forceMetadataRefresh,
     skipInitialCount: Array.isArray(cachedLibrary.tracks) && cachedLibrary.tracks.length > 0,
     onProgress: updateScanProgress,
-  }).then(async (library) => {
-    await populateAlbumCoverCache(library);
-    return library;
   }).then((library) => {
     libraryCache = library;
     trackMap = new Map(library.tracks.map((track) => [track.id, track]));
+    albumCoverLookup = new Map();
     return writeLibraryStore(library).then(() => library);
   }).then((library) => {
+    logStartupTiming('library scan metadata/database phase', scanStartedAt);
     scanState = {
       ...scanState,
       status: 'ready',
@@ -2134,6 +2273,7 @@ async function refreshLibrary(selectedFoldersInput = null) {
       totalFiles: scanState.totalFiles || library.trackCount,
       percent: 100,
     };
+    scheduleAlbumCoverCache(library);
     return library;
   }).catch((error) => {
     scanState = {
@@ -2150,7 +2290,7 @@ async function refreshLibrary(selectedFoldersInput = null) {
   });
 }
 
-async function startLibraryScan() {
+async function startLibraryScan({ forceMetadataRefresh = true } = {}) {
   if (cachePromise) return scanState;
   const selectedFolders = await getSelectedLibraryFolders();
   scanState = {
@@ -2167,7 +2307,7 @@ async function startLibraryScan() {
     parsedFiles: 0,
     percent: 0,
   };
-  refreshLibrary(selectedFolders)
+  refreshLibrary(selectedFolders, { forceMetadataRefresh })
     .then(() => migrateLyricsOverridesToSidecars())
     .catch((error) => {
       console.error('Library scan failed:', error);
@@ -2215,6 +2355,27 @@ async function populateAlbumCoverCache(library) {
   }
 }
 
+function scheduleAlbumCoverCache(library) {
+  if (!coverCachePath || !library?.albums?.length || coverCacheJobPromise) return;
+  const startedAt = performance.now();
+  coverCacheJobPromise = populateAlbumCoverCache(library)
+    .then(async () => {
+      await updateTrackCoverCacheRecords(libraryDatabasePath, library.tracks || []);
+      clearHomeAlbumCache();
+      logStartupTiming('background cover optimization', startedAt);
+    })
+    .catch((error) => {
+      console.warn('Background cover optimization failed:', error instanceof Error ? error.message : error);
+    })
+    .finally(() => {
+      coverCacheJobPromise = null;
+    });
+}
+
+function isCoverCacheJobRunning() {
+  return Boolean(coverCacheJobPromise);
+}
+
 async function cacheAlbumCover(album, track) {
   const existingCover = findCachedAlbumCover(album.id, COVER_CACHE_MAX_SIZE);
   if (existingCover) {
@@ -2225,10 +2386,17 @@ async function cacheAlbumCover(album, track) {
   const fullTargetPath = getCachedCoverPath(album.id, COVER_CACHE_MAX_SIZE);
 
   if (track.coverArtPath && existsSync(track.coverArtPath)) {
+    const failureKey = getExternalCoverFailureKey(track, COVER_CACHE_MAX_SIZE);
+    if (hasCoverOptimizationFailure(failureKey)) return null;
     try {
-      const fullCover = await writeOptimizedWebpCover(track.coverArtPath, fullTargetPath, COVER_CACHE_MAX_SIZE);
+      const fullCover = await writeOptimizedWebpCoverOnce(track.coverArtPath, fullTargetPath, COVER_CACHE_MAX_SIZE, failureKey);
       if (fullCover) {
-        await writeOptimizedWebpCover(track.coverArtPath, getCachedCoverPath(album.id, COVER_CACHE_THUMBNAIL_SIZE), COVER_CACHE_THUMBNAIL_SIZE).catch(() => null);
+        await writeOptimizedWebpCoverOnce(
+          track.coverArtPath,
+          getCachedCoverPath(album.id, COVER_CACHE_THUMBNAIL_SIZE),
+          COVER_CACHE_THUMBNAIL_SIZE,
+          getExternalCoverFailureKey(track, COVER_CACHE_THUMBNAIL_SIZE),
+        ).catch(() => null);
       }
       return fullCover;
     } catch (error) {
@@ -2238,14 +2406,21 @@ async function cacheAlbumCover(album, track) {
   }
 
   if (!track.hasEmbeddedCover) return null;
+  const failureKey = getEmbeddedCoverFailureKey(track, COVER_CACHE_MAX_SIZE);
+  if (hasCoverOptimizationFailure(failureKey)) return null;
 
   const embeddedCover = await readEmbeddedCover(track.path);
   if (!embeddedCover?.data) return null;
 
   try {
-    const fullCover = await writeOptimizedWebpCover(embeddedCover.data, fullTargetPath, COVER_CACHE_MAX_SIZE);
+    const fullCover = await writeOptimizedWebpCoverOnce(embeddedCover.data, fullTargetPath, COVER_CACHE_MAX_SIZE, failureKey);
     if (fullCover) {
-      await writeOptimizedWebpCover(embeddedCover.data, getCachedCoverPath(album.id, COVER_CACHE_THUMBNAIL_SIZE), COVER_CACHE_THUMBNAIL_SIZE).catch(() => null);
+      await writeOptimizedWebpCoverOnce(
+        embeddedCover.data,
+        getCachedCoverPath(album.id, COVER_CACHE_THUMBNAIL_SIZE),
+        COVER_CACHE_THUMBNAIL_SIZE,
+        getEmbeddedCoverFailureKey(track, COVER_CACHE_THUMBNAIL_SIZE),
+      ).catch(() => null);
     }
     return fullCover;
   } catch (error) {
@@ -2279,6 +2454,81 @@ async function writeOptimizedWebpCover(source, targetPath, maxSize = COVER_CACHE
   };
 }
 
+function rememberCoverOptimizationFailure(failureKey) {
+  if (!failureKey || coverOptimizationFailures.has(failureKey)) return;
+  coverOptimizationFailures.add(failureKey);
+  persistCoverOptimizationFailures().catch((error) => {
+    console.warn('Unable to persist cover optimization failures:', error instanceof Error ? error.message : error);
+  });
+}
+
+function hasCoverOptimizationFailure(failureKey) {
+  return Boolean(failureKey && coverOptimizationFailures.has(failureKey));
+}
+
+async function writeOptimizedWebpCoverOnce(source, targetPath, maxSize, failureKey = '') {
+  if (hasCoverOptimizationFailure(failureKey)) return null;
+  try {
+    return await writeOptimizedWebpCover(source, targetPath, maxSize);
+  } catch (error) {
+    rememberCoverOptimizationFailure(failureKey);
+    throw error;
+  }
+}
+
+function getExternalCoverFailureKey(track, targetSize = COVER_CACHE_MAX_SIZE) {
+  const freshness = getFileFreshness(track?.coverArtPath);
+  return getCoverOptimizationFailureKey('external-cover', `${track?.coverArtPath || ''}:${targetSize}`, freshness);
+}
+
+function getEmbeddedCoverFailureKey(track, targetSize = COVER_CACHE_MAX_SIZE) {
+  return getCoverOptimizationFailureKey('embedded-cover', `${track?.path || track?.id || ''}:${targetSize}`, getEmbeddedCoverFreshness(track));
+}
+
+function getCachedCoverVariantFailureKey(sourcePath, targetSize = COVER_CACHE_THUMBNAIL_SIZE) {
+  return getCoverOptimizationFailureKey('cached-cover-variant', `${sourcePath || ''}:${targetSize}`, getFileFreshness(sourcePath));
+}
+
+function getCoverOptimizationFailuresPath() {
+  return coverCachePath ? path.join(coverCachePath, 'optimization-failures.json') : '';
+}
+
+async function loadCoverOptimizationFailures() {
+  const failuresPath = getCoverOptimizationFailuresPath();
+  if (!failuresPath || !existsSync(failuresPath)) return;
+  try {
+    const raw = JSON.parse(await fs.readFile(failuresPath, 'utf8'));
+    for (const failureKey of Array.isArray(raw.failures) ? raw.failures : []) {
+      if (failureKey) coverOptimizationFailures.add(String(failureKey));
+    }
+  } catch (error) {
+    console.warn('Unable to read cover optimization failure cache:', error instanceof Error ? error.message : error);
+  }
+}
+
+async function persistCoverOptimizationFailures() {
+  const failuresPath = getCoverOptimizationFailuresPath();
+  if (!failuresPath) return null;
+  if (coverOptimizationFailureWritePromise) {
+    coverOptimizationFailureWriteQueued = true;
+    return coverOptimizationFailureWritePromise;
+  }
+  coverOptimizationFailureWritePromise = (async () => {
+    await fs.mkdir(path.dirname(failuresPath), { recursive: true });
+    const failures = [...coverOptimizationFailures].sort();
+    await fs.writeFile(failuresPath, `${JSON.stringify({ failures }, null, 2)}\n`, 'utf8');
+  })().finally(() => {
+    coverOptimizationFailureWritePromise = null;
+    if (coverOptimizationFailureWriteQueued) {
+      coverOptimizationFailureWriteQueued = false;
+      persistCoverOptimizationFailures().catch((error) => {
+        console.warn('Unable to persist queued cover optimization failures:', error instanceof Error ? error.message : error);
+      });
+    }
+  });
+  return coverOptimizationFailureWritePromise;
+}
+
 async function ensureCachedAlbumCoverVariant(albumId, size) {
   if (size === COVER_CACHE_MAX_SIZE) return findCachedAlbumCover(albumId, COVER_CACHE_MAX_SIZE);
   const existingCover = findCachedAlbumCover(albumId, size);
@@ -2289,7 +2539,7 @@ async function ensureCachedAlbumCoverVariant(albumId, size) {
 
   const targetPath = getCachedCoverPath(albumId, size);
   try {
-    return await writeOptimizedWebpCover(fullCover.path, targetPath, size);
+    return await writeOptimizedWebpCoverOnce(fullCover.path, targetPath, size, getCachedCoverVariantFailureKey(fullCover.path, size));
   } catch {
     return null;
   }
@@ -2402,6 +2652,7 @@ async function saveUploadedCoverDataUrl(dataUrl, { scope = 'cover', name = '' } 
 async function readLibraryStore() {
   const databaseLibrary = await readLibraryDatabase(libraryDatabasePath);
   if (databaseLibrary.tracks.length > 0 || databaseLibrary.albums.length > 0) {
+    setLibrarySummaryFromLibrary(databaseLibrary);
     return databaseLibrary;
   }
 
@@ -2419,6 +2670,7 @@ async function readLibraryStore() {
     };
     if (legacyLibrary.tracks.length > 0 || legacyLibrary.albums.length > 0) {
       await writeLibraryDatabase(libraryDatabasePath, legacyLibrary);
+      setLibrarySummaryFromLibrary(legacyLibrary);
       console.log(`Migrated legacy library-cache.json into ${libraryDatabasePath}`);
     }
     return legacyLibrary;
@@ -2429,19 +2681,22 @@ async function readLibraryStore() {
 
 async function writeLibraryStore(library) {
   await writeLibraryDatabase(libraryDatabasePath, library);
+  setLibrarySummaryFromLibrary(library);
+  albumCoverLookup = new Map();
   clearHomeAlbumCache();
 }
 
 async function getLibraryFoldersPayload() {
-  const [available, selected] = await Promise.all([
+  const [available, store] = await Promise.all([
     listLibraryFolders(),
-    getSelectedLibraryFolders(),
+    readLibraryFoldersStore(),
   ]);
 
   return {
     root: libraryRoot,
     available,
-    selected,
+    selected: store.folders,
+    known: store.known,
     scan: scanState,
   };
 }
@@ -2454,38 +2709,56 @@ async function listLibraryFolders() {
     .sort((left, right) => left.localeCompare(right));
 }
 
-async function getSelectedLibraryFolders() {
-  if (selectedLibraryFoldersCache) return selectedLibraryFoldersCache;
+async function readLibraryFoldersStore() {
+  if (libraryFoldersStoreCache) return libraryFoldersStoreCache;
   if (!libraryFoldersPath || !existsSync(libraryFoldersPath)) {
-    selectedLibraryFoldersCache = [];
-    return selectedLibraryFoldersCache;
+    libraryFoldersStoreCache = { folders: [], known: [] };
+    return libraryFoldersStoreCache;
   }
 
   try {
     const raw = JSON.parse(await fs.readFile(libraryFoldersPath, 'utf8'));
-    selectedLibraryFoldersCache = normalizeLibraryFolders(raw.folders || []);
+    libraryFoldersStoreCache = {
+      folders: normalizeLibraryFolders(raw.folders || []),
+      known: normalizeLibraryFolders(raw.known || []),
+    };
   } catch {
-    selectedLibraryFoldersCache = [];
+    libraryFoldersStoreCache = { folders: [], known: [] };
   }
 
-  return selectedLibraryFoldersCache;
+  return libraryFoldersStoreCache;
+}
+
+async function getSelectedLibraryFolders() {
+  return (await readLibraryFoldersStore()).folders;
 }
 
 async function updateSelectedLibraryFolders(request) {
   const payload = await readRequestJson(request, 256 * 1024);
   const selected = normalizeLibraryFolders(payload.folders || []);
-  await writeSelectedLibraryFolders(selected);
+  const currentStore = await readLibraryFoldersStore();
+  const available = await listLibraryFolders();
+  const known = Object.hasOwn(payload || {}, 'known')
+    ? normalizeLibraryFolders(payload.known || [])
+    : normalizeLibraryFolders([...currentStore.known, ...available, ...selected]);
+  await writeSelectedLibraryFolders(selected, { known });
   libraryCache = null;
   trackMap = new Map();
+  albumCoverLookup = new Map();
   clearHomeAlbumCache();
   return getLibraryFoldersPayload();
 }
 
-async function writeSelectedLibraryFolders(folders) {
+async function writeSelectedLibraryFolders(folders, { known = [] } = {}) {
   if (!libraryFoldersPath) throw new HttpError(400, 'Library folder selection is not configured.');
+  const normalizedFolders = normalizeLibraryFolders(folders);
+  const normalizedKnown = normalizeLibraryFolders(known);
   await fs.mkdir(path.dirname(libraryFoldersPath), { recursive: true });
-  await fs.writeFile(libraryFoldersPath, `${JSON.stringify({ folders }, null, 2)}\n`, 'utf8');
-  selectedLibraryFoldersCache = folders;
+  await fs.writeFile(libraryFoldersPath, `${JSON.stringify({ folders: normalizedFolders, known: normalizedKnown }, null, 2)}\n`, 'utf8');
+  libraryFoldersStoreCache = {
+    folders: normalizedFolders,
+    known: normalizedKnown,
+  };
 }
 
 async function readWidgetSettings() {
@@ -2614,6 +2887,7 @@ function parseBoolean(value) {
 async function createLibraryPayload(library) {
   const overrides = await getAlbumOverrides();
   const deletedAlbumIds = getDeletedAlbumIdSet(overrides);
+  const isLightweight = Boolean(library.lightweight);
   const sourceAlbums = Array.isArray(library.albums) ? library.albums : [];
   const sourceTracks = Array.isArray(library.tracks) ? library.tracks : [];
   const visibleAlbums = deletedAlbumIds.size > 0
@@ -2627,13 +2901,13 @@ async function createLibraryPayload(library) {
   const visibleTracks = deletedTrackIds.size > 0
     ? sourceTracks.filter((track) => !deletedTrackIds.has(track.id))
     : sourceTracks;
-  const librarySummary = await readLibraryDatabaseSummary(libraryDatabasePath);
+  const librarySummary = await getLibrarySummary();
   const trackAlbumOverrideMap = new Map();
   const trackAlbumMap = new Map();
 
   for (const album of visibleAlbums) {
     const albumOverride = overrides.albums?.[album.id] || null;
-    for (const trackId of album.trackIds) {
+    for (const trackId of Array.isArray(album.trackIds) ? album.trackIds : []) {
       trackAlbumMap.set(trackId, album);
       if (albumOverride) {
         trackAlbumOverrideMap.set(trackId, albumOverride);
@@ -2648,19 +2922,29 @@ async function createLibraryPayload(library) {
     albumCount: library.page ? library.albumCount : visibleAlbums.length,
     totalTrackCount: librarySummary.trackCount,
     totalAlbumCount: librarySummary.albumCount,
-    lightweight: Boolean(library.lightweight),
+    lightweight: isLightweight,
     page: library.page || null,
     albums: visibleAlbums.map((album) => {
       const { coverTrack: hydratedCoverTrack = null, ...albumPayloadBase } = album;
       const override = overrides.albums?.[album.id] || null;
       const coverTrack = hydratedCoverTrack || (album.coverTrackId ? trackMap.get(album.coverTrackId) : null);
-      const scannedCoverUrl = createAlbumCoverUrl(album, coverTrack, library.generatedAt, { size: COVER_CACHE_THUMBNAIL_SIZE });
-      const scannedFullCoverUrl = createAlbumCoverUrl(album, coverTrack, library.generatedAt, { size: COVER_CACHE_MAX_SIZE });
+      rememberAlbumCover(album, coverTrack);
+      const scannedCoverUrl = createAlbumCoverUrl(album, coverTrack, { size: COVER_CACHE_THUMBNAIL_SIZE });
+      const scannedFullCoverUrl = createAlbumCoverUrl(album, coverTrack, { size: COVER_CACHE_MAX_SIZE });
       const hasMediaOverride = override && (
         Object.hasOwn(override, 'mediaTypes') || Object.hasOwn(override, 'mediaType')
       );
       const albumArtistName = override?.albumArtist || album.albumArtist || album.artist;
-      return {
+      const hasCollectionOverride = Object.hasOwn(override || {}, 'collectionName');
+      const collectionName = hasCollectionOverride
+        ? cleanText(override.collectionName)
+        : cleanText(album.collectionName);
+      const collectionNames = hasCollectionOverride
+        ? parseCollectionNames(collectionName)
+        : (Array.isArray(album.collectionNames) && album.collectionNames.length > 0
+            ? album.collectionNames
+            : parseCollectionNames(collectionName));
+      const albumPayload = {
         ...albumPayloadBase,
         title: override?.albumTitle || album.title,
         artist: albumArtistName,
@@ -2668,9 +2952,8 @@ async function createLibraryPayload(library) {
         date: override?.date || album.date || null,
         year: override?.year || album.year || null,
         genre: override?.genre || '',
-        collectionName: Object.hasOwn(override || {}, 'collectionName')
-          ? cleanText(override.collectionName)
-          : cleanText(album.collectionName),
+        collectionName,
+        collectionNames,
         mediaTypes: hasMediaOverride
           ? normalizeMediaTypes(override.mediaTypes || override.mediaType, { fallback: [] })
           : ['Digital Media'],
@@ -2683,14 +2966,18 @@ async function createLibraryPayload(library) {
         scannedCoverUrl,
         scannedFullCoverUrl,
       };
+      if (isLightweight) {
+        delete albumPayload.trackIds;
+      }
+      return albumPayload;
     }),
     tracks: visibleTracks.map((track) => {
       const albumOverride = trackAlbumOverrideMap.get(track.id) || null;
       const album = trackAlbumMap.get(track.id) || null;
       const trackOverride = albumOverride?.tracks?.[track.id] || null;
       const scannedCoverUrl = album
-        ? createAlbumCoverUrl(album, album.coverTrackId ? trackMap.get(album.coverTrackId) : track, library.generatedAt, { size: COVER_CACHE_THUMBNAIL_SIZE })
-        : createTrackCoverUrl(track, library.generatedAt, { size: COVER_CACHE_THUMBNAIL_SIZE });
+        ? createAlbumCoverUrl(album, album.coverTrackId ? trackMap.get(album.coverTrackId) : track, { size: COVER_CACHE_THUMBNAIL_SIZE })
+        : createTrackCoverUrl(track, { size: COVER_CACHE_THUMBNAIL_SIZE });
       return {
         id: track.id,
         albumId: album?.id || '',
@@ -2729,22 +3016,42 @@ async function applyDeletedAlbumExclusions(options = {}) {
   };
 }
 
-function createAlbumCoverUrl(album, coverTrack, version = '', { size = COVER_CACHE_THUMBNAIL_SIZE } = {}) {
-  if (!album?.id || !hasTrackCover(coverTrack)) return null;
+function rememberAlbumCover(album, coverTrack) {
+  if (!album?.id || !album.coverTrackId) return;
+  albumCoverLookup.set(album.id, {
+    album,
+    track: coverTrack || null,
+  });
+}
+
+function createAlbumCoverUrl(album, coverTrack, { size = COVER_CACHE_THUMBNAIL_SIZE } = {}) {
+  if (!album?.id || !album.coverTrackId) return null;
+  const version = getFastCoverVersion(coverTrack, album);
   return createVersionedApiUrl(`/api/albums/${encodeURIComponent(album.id)}/cover`, version, { size });
 }
 
-function createTrackCoverUrl(track, version = '', { size = COVER_CACHE_THUMBNAIL_SIZE } = {}) {
-  if (!track?.id || !hasTrackCover(track)) return null;
+function createTrackCoverUrl(track, { size = COVER_CACHE_THUMBNAIL_SIZE } = {}) {
+  if (!track?.id || !hasTrackCoverMetadata(track)) return null;
+  const version = getFastCoverVersion(track);
   return createVersionedApiUrl(`/api/tracks/${encodeURIComponent(track.id)}/cover`, version, { size });
 }
 
-function hasTrackCover(track) {
-  return Boolean(
-    (track?.cachedCoverPath && existsSync(track.cachedCoverPath))
-    || (track?.coverArtPath && existsSync(track.coverArtPath))
-    || track?.hasEmbeddedCover
-  );
+function hasTrackCoverMetadata(track) {
+  return Boolean(track?.cachedCoverPath || track?.coverArtPath || track?.hasEmbeddedCover);
+}
+
+function getFastCoverVersion(track = {}, album = {}) {
+  const sourceParts = [
+    track?.cachedCoverPath ? `cache:${track.cachedCoverPath}` : '',
+    track?.coverArtPath ? `file:${track.coverArtPath}` : '',
+    track?.hasEmbeddedCover ? 'embedded' : '',
+    track?.fileSize ?? '',
+    track?.mtimeMs ?? '',
+    album?.latestMtimeMs ?? '',
+    album?.coverTrackId ?? track?.id ?? '',
+  ].filter((value) => value !== null && value !== undefined && String(value) !== '');
+  if (sourceParts.length === 0) return '';
+  return createHash('sha1').update(sourceParts.join('|')).digest('hex').slice(0, 16);
 }
 
 function createVersionedApiUrl(pathname, version = '', params = {}) {
@@ -2763,6 +3070,8 @@ async function getPublicBootstrapPayload() {
   const randomLibrary = await readRandomAlbumPage(libraryDatabasePath, {
     limit: 32,
     offset: 0,
+    includeTracks: false,
+    includeCoverTracks: true,
   });
   primeTrackMap(randomLibrary.tracks);
   const payload = await createLibraryPayload(randomLibrary);
@@ -2776,6 +3085,7 @@ async function getPublicBootstrapPayload() {
 
   return {
     title: config.title,
+    playbackTranscoding: await getPlaybackTranscodingInfo(),
     ambientCoverUrl: ambientAlbum?.coverUrl || '',
     ambientTitle: ambientAlbum?.title || '',
     ambientArtist: ambientAlbum?.albumArtist || ambientAlbum?.artist || '',
@@ -2812,6 +3122,7 @@ function createManualAlbumFromOverride(albumId, override = {}) {
   const albumTitle = cleanText(override.albumTitle || override.title) || 'Untitled Album';
   const albumArtist = cleanText(override.albumArtist || override.artist) || 'Unknown Artist';
   const manualTracks = getManualAlbumTracksFromOverride(albumId, override, { albumTitle, albumArtist });
+  const collectionName = cleanText(override.collectionName);
   return {
     id: albumId,
     manual: true,
@@ -2821,7 +3132,8 @@ function createManualAlbumFromOverride(albumId, override = {}) {
     date: cleanText(override.date) || null,
     year: normalizeYear(override.year || override.date),
     genre: cleanText(override.genre),
-    collectionName: cleanText(override.collectionName),
+    collectionName,
+    collectionNames: parseCollectionNames(collectionName),
     mediaTypes: normalizeMediaTypes(override.mediaTypes || override.mediaType, { fallback: [] }),
     status: normalizeAlbumStatus(override.status || 'Wishlist'),
     audioQuality: null,
@@ -2830,6 +3142,7 @@ function createManualAlbumFromOverride(albumId, override = {}) {
     customCoverUrl: cleanText(override.coverUrl) || null,
     scannedCoverUrl: null,
     trackIds: manualTracks.map((track) => track.id),
+    trackCount: manualTracks.length,
     coverTrackId: null,
   };
 }
@@ -2847,6 +3160,50 @@ function matchesAlphabetFilter(value, letter) {
   return first === letter;
 }
 
+function collectionMatchesSearch(collectionName, search) {
+  const normalizedSearch = cleanText(search).toLowerCase();
+  if (!normalizedSearch) return true;
+  return cleanText(collectionName).toLowerCase().includes(normalizedSearch);
+}
+
+function addAlbumFolderKey(albumFolderKeys, albumId, folderKey) {
+  if (!albumFolderKeys.has(albumId)) {
+    albumFolderKeys.set(albumId, new Set());
+  }
+  albumFolderKeys.get(albumId).add(folderKey);
+}
+
+function removeAlbumFromCollectionFolders(foldersByName, albumFolderKeys, albumId) {
+  const previousFolderKeys = albumFolderKeys.get(albumId) || new Set();
+  for (const previousFolderKey of previousFolderKeys) {
+    const previousFolder = foldersByName.get(previousFolderKey);
+    if (!previousFolder) continue;
+    previousFolder.albumIds.delete(albumId);
+    previousFolder.albumCount = previousFolder.albumIds.size;
+    previousFolder.trackCount = previousFolder.albumIds.size;
+  }
+  albumFolderKeys.delete(albumId);
+}
+
+function ensureCollectionFolder(foldersByName, collectionName, defaults = {}) {
+  const normalizedName = normalizeCollectionName(collectionName);
+  if (!foldersByName.has(normalizedName)) {
+    foldersByName.set(normalizedName, {
+      path: collectionName,
+      name: collectionName,
+      parentPath: '',
+      albumIds: new Set(),
+      albumCount: 0,
+      trackCount: 0,
+      coverTrackId: '',
+      coverUrl: '',
+      coverOverrideUrl: '',
+      ...defaults,
+    });
+  }
+  return foldersByName.get(normalizedName);
+}
+
 async function createCollectionFoldersPayload({ search = '', letter = 'all', limit, offset, folders = [], all = false } = {}) {
   const folderFilters = parseFolderFilters(folders);
   const payload = await readCollectionFolders(libraryDatabasePath, { search, folders: folderFilters });
@@ -2857,17 +3214,22 @@ async function createCollectionFoldersPayload({ search = '', letter = 'all', lim
   for (const folder of payload.folders || []) {
     const albumIds = new Set(folder.albumIds || []);
     const folderKey = normalizeCollectionName(folder.name);
-    foldersByName.set(folderKey, {
+    const folderEntry = ensureCollectionFolder(foldersByName, folder.name, {
       ...folder,
-      albumIds,
-      albumCount: albumIds.size || folder.albumCount || folder.trackCount || 0,
-      trackCount: albumIds.size || folder.albumCount || folder.trackCount || 0,
-        coverTrackId: folder.coverTrackId || '',
-        coverUrl: '',
-        coverOverrideUrl: '',
-      });
+      albumIds: new Set(),
+      firstAlbumId: folder.firstAlbumId || '',
+      firstAlbumCoverTrackId: folder.firstAlbumCoverTrackId || '',
+      coverTrackId: folder.coverTrackId || '',
+      coverUrl: '',
+      coverOverrideUrl: '',
+    });
     for (const albumId of albumIds) {
-      albumFolderKeys.set(albumId, folderKey);
+      folderEntry.albumIds.add(albumId);
+    }
+    folderEntry.albumCount = folderEntry.albumIds.size || folder.albumCount || folder.trackCount || 0;
+    folderEntry.trackCount = folderEntry.albumIds.size || folder.albumCount || folder.trackCount || 0;
+    for (const albumId of albumIds) {
+      addAlbumFolderKey(albumFolderKeys, albumId, folderKey);
     }
   }
   const overrides = await getAlbumOverrides();
@@ -2875,51 +3237,23 @@ async function createCollectionFoldersPayload({ search = '', letter = 'all', lim
   const deletedAlbumIds = getDeletedAlbumIdSet(overrides);
 
   for (const albumId of deletedAlbumIds) {
-    const previousFolderKey = albumFolderKeys.get(albumId);
-    if (previousFolderKey && foldersByName.has(previousFolderKey)) {
-      const previousFolder = foldersByName.get(previousFolderKey);
-      previousFolder.albumIds.delete(albumId);
-      previousFolder.albumCount = previousFolder.albumIds.size;
-      previousFolder.trackCount = previousFolder.albumIds.size;
-    }
-    albumFolderKeys.delete(albumId);
+    removeAlbumFromCollectionFolders(foldersByName, albumFolderKeys, albumId);
   }
 
   for (const [albumId, override] of Object.entries(overrides.albums || {})) {
     if (folderFilters.length > 0) continue;
     if (override?.deleted) continue;
     if (!Object.hasOwn(override || {}, 'collectionName')) continue;
-    const collectionName = cleanText(override?.collectionName);
-    const previousFolderKey = albumFolderKeys.get(albumId);
-    if (previousFolderKey && foldersByName.has(previousFolderKey)) {
-      const previousFolder = foldersByName.get(previousFolderKey);
-      previousFolder.albumIds.delete(albumId);
-      previousFolder.albumCount = previousFolder.albumIds.size;
-      previousFolder.trackCount = previousFolder.albumIds.size;
-      albumFolderKeys.delete(albumId);
+    removeAlbumFromCollectionFolders(foldersByName, albumFolderKeys, albumId);
+    for (const collectionName of parseCollectionNames(override?.collectionName)) {
+      if (!collectionMatchesSearch(collectionName, normalizedSearch)) continue;
+      const normalizedName = normalizeCollectionName(collectionName);
+      const folder = ensureCollectionFolder(foldersByName, collectionName);
+      folder.albumIds.add(albumId);
+      addAlbumFolderKey(albumFolderKeys, albumId, normalizedName);
+      folder.albumCount = folder.albumIds.size;
+      folder.trackCount = folder.albumIds.size;
     }
-    if (!collectionName) continue;
-    if (normalizedSearch && !collectionName.toLowerCase().includes(normalizedSearch)) continue;
-
-    const normalizedName = normalizeCollectionName(collectionName);
-    if (!foldersByName.has(normalizedName)) {
-      foldersByName.set(normalizedName, {
-        path: collectionName,
-        name: collectionName,
-        parentPath: '',
-        albumIds: new Set(),
-        albumCount: 0,
-        trackCount: 0,
-        coverTrackId: '',
-        coverUrl: '',
-        coverOverrideUrl: '',
-      });
-    }
-    const folder = foldersByName.get(normalizedName);
-    folder.albumIds.add(albumId);
-    albumFolderKeys.set(albumId, normalizedName);
-    folder.albumCount = folder.albumIds.size;
-    folder.trackCount = folder.albumIds.size;
   }
 
   const visibleFolders = [...foldersByName.values()]
@@ -2971,23 +3305,23 @@ async function createCollectionOptionsPayload(options = {}) {
   for (const folder of payload.folders || []) {
     const albumIds = new Set(folder.albumIds || []);
     const folderKey = normalizeCollectionName(folder.name);
-    foldersByName.set(folderKey, {
+    const folderEntry = ensureCollectionFolder(foldersByName, folder.name, {
       path: folder.path,
       name: folder.name,
-      albumIds,
+      albumIds: new Set(),
     });
     for (const albumId of albumIds) {
-      albumFolderKeys.set(albumId, folderKey);
+      folderEntry.albumIds.add(albumId);
+    }
+    for (const albumId of albumIds) {
+      addAlbumFolderKey(albumFolderKeys, albumId, folderKey);
     }
   }
 
   const overrides = await getAlbumOverrides();
   const deletedAlbumIds = getDeletedAlbumIdSet(overrides);
   for (const albumId of deletedAlbumIds) {
-    const previousFolderKey = albumFolderKeys.get(albumId);
-    if (!previousFolderKey || !foldersByName.has(previousFolderKey)) continue;
-    foldersByName.get(previousFolderKey).albumIds.delete(albumId);
-    albumFolderKeys.delete(albumId);
+    removeAlbumFromCollectionFolders(foldersByName, albumFolderKeys, albumId);
   }
 
   for (const [albumId, override] of Object.entries(overrides.albums || {})) {
@@ -2995,25 +3329,21 @@ async function createCollectionOptionsPayload(options = {}) {
     if (override?.deleted) continue;
     if (!Object.hasOwn(override || {}, 'collectionName')) continue;
 
-    const collectionName = cleanText(override?.collectionName);
-    const previousFolderKey = albumFolderKeys.get(albumId);
-    if (previousFolderKey && foldersByName.has(previousFolderKey)) {
-      foldersByName.get(previousFolderKey).albumIds.delete(albumId);
-      albumFolderKeys.delete(albumId);
-    }
-    if (!collectionName) continue;
-    if (search && !collectionName.toLowerCase().includes(search)) continue;
-
-    const normalizedName = normalizeCollectionName(collectionName);
-    if (!foldersByName.has(normalizedName)) {
-      foldersByName.set(normalizedName, {
-        path: collectionName,
-        name: collectionName,
-        albumIds: new Set(),
+    removeAlbumFromCollectionFolders(foldersByName, albumFolderKeys, albumId);
+    for (const collectionName of parseCollectionNames(override?.collectionName)) {
+      if (!collectionMatchesSearch(collectionName, search)) continue;
+      const normalizedName = normalizeCollectionName(collectionName);
+      const folder = ensureCollectionFolder(foldersByName, collectionName, {
+        parentPath: undefined,
+        albumCount: undefined,
+        trackCount: undefined,
+        coverTrackId: undefined,
+        coverUrl: undefined,
+        coverOverrideUrl: undefined,
       });
+      folder.albumIds.add(albumId);
+      addAlbumFolderKey(albumFolderKeys, albumId, normalizedName);
     }
-    foldersByName.get(normalizedName).albumIds.add(albumId);
-    albumFolderKeys.set(albumId, normalizedName);
   }
 
   return {
@@ -3036,6 +3366,15 @@ async function getCollectionFolderCoverUrl(folder, overrides, collectionOverride
   const overrideCoverUrl = getCollectionCoverOverrideUrl(collectionName, collectionOverrides);
   if (overrideCoverUrl) return overrideCoverUrl;
 
+  const firstAlbumId = cleanText(folder.firstAlbumId);
+  const firstAlbumOverride = firstAlbumId ? overrides.albums?.[firstAlbumId] : null;
+  if (!firstAlbumOverride?.deleted && cleanText(firstAlbumOverride?.coverUrl)) {
+    return cleanText(firstAlbumOverride.coverUrl);
+  }
+  if (firstAlbumId && folder.firstAlbumCoverTrackId) {
+    return createVersionedApiUrl(`/api/albums/${encodeURIComponent(firstAlbumId)}/cover`, '', { size: COVER_CACHE_THUMBNAIL_SIZE });
+  }
+
   const albumIds = folder.albumIds instanceof Set
     ? [...folder.albumIds]
     : Array.isArray(folder.albumIds) ? folder.albumIds : [];
@@ -3050,7 +3389,10 @@ async function getCollectionFolderCoverUrl(folder, overrides, collectionOverride
   const manualAlbum = Object.entries(overrides.albums || {})
     .filter(([albumId, override]) => {
       const isManual = override?.manual || albumId.startsWith('manual-');
-      return !override?.deleted && isManual && normalizeCollectionName(override?.collectionName) === normalizeCollectionName(collectionName);
+      return !override?.deleted
+        && isManual
+        && parseCollectionNames(override?.collectionName)
+          .some((name) => normalizeCollectionName(name) === normalizeCollectionName(collectionName));
     })
     .map(([albumId, override]) => createManualAlbumFromOverride(albumId, override))
     .filter((album) => album.coverUrl)
@@ -3080,7 +3422,7 @@ async function getAlbumCoverUrl(album, overrides) {
   if (album.coverUrl) return album.coverUrl;
   if (!album.coverTrackId) return '';
   const coverTrack = await getTrackById(album.coverTrackId);
-  return createAlbumCoverUrl(album, coverTrack, '', { size: COVER_CACHE_THUMBNAIL_SIZE }) || '';
+  return createAlbumCoverUrl(album, coverTrack, { size: COVER_CACHE_THUMBNAIL_SIZE }) || '';
 }
 
 async function getCollectionAlbumSources(collectionName) {
@@ -3097,8 +3439,8 @@ async function getCollectionAlbumSources(collectionName) {
       continue;
     }
     if (!Object.hasOwn(override || {}, 'collectionName')) continue;
-    const overrideCollectionName = cleanText(override?.collectionName);
-    const matches = normalizeCollectionName(overrideCollectionName) === normalizedTarget;
+    const matches = parseCollectionNames(override?.collectionName)
+      .some((collectionName) => normalizeCollectionName(collectionName) === normalizedTarget);
 
     if (matches && isManual) {
       manualAlbums.push(createManualAlbumFromOverride(albumId, override));
@@ -3188,13 +3530,33 @@ async function getAlbumIdFilterForMediaTypes(value) {
   return { albumIds };
 }
 
-async function streamTrack(response, trackId, rangeHeader) {
+async function streamTrack(response, trackId, rangeHeader, requestedFormat = 'original') {
   const track = await getTrackById(trackId);
   if (!track) {
     return respondJson(response, 404, { error: 'Track not found' });
   }
 
-  const stats = await fs.stat(track.path);
+  const format = normalizePlaybackQuality(requestedFormat);
+  let filePath = track.path;
+  let contentType = getContentType(track.path);
+
+  if (format !== 'original') {
+    if (!await isFfmpegAvailable()) {
+      return respondJson(response, 503, {
+        error: 'Playback transcoding requires ffmpeg. Rebuild the Docker image or install ffmpeg on the server.',
+      });
+    }
+    if (shouldUsePlaybackTranscode(track, format)) {
+      filePath = await ensurePlaybackTranscodeFile(track, format);
+      contentType = getPlaybackTranscodeContentType(format) || contentType;
+    }
+  }
+
+  return streamFileWithRange(response, filePath, rangeHeader, contentType);
+}
+
+async function streamFileWithRange(response, filePath, rangeHeader, contentType = getContentType(filePath)) {
+  const stats = await fs.stat(filePath);
   let range;
 
   try {
@@ -3211,7 +3573,7 @@ async function streamTrack(response, trackId, rangeHeader) {
   const headers = {
     'Accept-Ranges': 'bytes',
     'Content-Length': String(range.contentLength),
-    'Content-Type': getContentType(track.path),
+    'Content-Type': contentType,
     'Cache-Control': 'private, no-transform',
     'X-Accel-Buffering': 'no',
     'X-Content-Type-Options': 'nosniff',
@@ -3222,7 +3584,7 @@ async function streamTrack(response, trackId, rangeHeader) {
   }
 
   response.writeHead(range.statusCode, headers);
-  createReadStream(track.path, { start: range.start, end: range.end }).pipe(response);
+  createReadStream(filePath, { start: range.start, end: range.end }).pipe(response);
 }
 
 async function downloadTrack(response, request, trackId) {
@@ -3538,6 +3900,93 @@ function encodeRFC5987ValueChars(value) {
     .replace(/['()*]/gu, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
 }
 
+async function getPlaybackTranscodingInfo() {
+  return getPlaybackTranscodingCapability(await isFfmpegAvailable());
+}
+
+async function ensurePlaybackTranscodeFile(track, format) {
+  if (!playbackTranscodeCachePath) {
+    throw new HttpError(400, 'Playback transcode cache path is not configured.');
+  }
+
+  const profile = getPlaybackTranscodeProfile(format);
+  if (!profile) return track.path;
+
+  await fs.mkdir(playbackTranscodeCachePath, { recursive: true });
+  const cacheKey = createPlaybackTranscodeCacheKey(track, format);
+  const targetPath = path.join(playbackTranscodeCachePath, `${cacheKey}${getPlaybackTranscodeExtension(format)}`);
+
+  if (await doesFileExist(targetPath)) {
+    return targetPath;
+  }
+
+  let job = playbackTranscodeJobs.get(cacheKey);
+  if (!job) {
+    job = generatePlaybackTranscodeFile(track, profile, targetPath)
+      .finally(() => {
+        playbackTranscodeJobs.delete(cacheKey);
+      });
+    playbackTranscodeJobs.set(cacheKey, job);
+  }
+
+  await job;
+  return targetPath;
+}
+
+async function generatePlaybackTranscodeFile(track, profile, targetPath) {
+  const tempPath = `${targetPath}.${randomBytes(6).toString('hex')}.tmp`;
+  await fs.rm(tempPath, { force: true }).catch(() => {});
+
+  await new Promise((resolve, reject) => {
+    const ffmpeg = spawn('ffmpeg', [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-i',
+      track.path,
+      '-map',
+      '0:a:0',
+      '-vn',
+      '-sn',
+      '-dn',
+      ...profile.ffmpegArgs,
+      tempPath,
+    ], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+
+    let stderr = '';
+    ffmpeg.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    ffmpeg.on('error', (error) => {
+      reject(error);
+    });
+    ffmpeg.on('close', (code) => {
+      if (code) {
+        reject(new Error(stderr.trim() || `ffmpeg exited with code ${code}`));
+        return;
+      }
+      resolve();
+    });
+  }).catch(async (error) => {
+    await fs.rm(tempPath, { force: true }).catch(() => {});
+    throw error;
+  });
+
+  await fs.rename(tempPath, targetPath);
+}
+
+async function doesFileExist(filePath) {
+  try {
+    const stats = await fs.stat(filePath);
+    return stats.isFile() && stats.size > 0;
+  } catch {
+    return false;
+  }
+}
+
 async function isFfmpegAvailable() {
   if (!ffmpegAvailablePromise) {
     ffmpegAvailablePromise = new Promise((resolve) => {
@@ -3551,13 +4000,13 @@ async function isFfmpegAvailable() {
 
 async function streamAlbumCover(response, albumId, url = null) {
   const requestedSize = normalizeCoverSize(url?.searchParams?.get('size'));
-  const library = await ensureLibrary();
-  const album = library.albums.find((candidate) => candidate.id === albumId);
+  const coverEntry = await getAlbumCoverEntry(albumId);
+  const album = coverEntry?.album || null;
   if (!album?.coverTrackId) {
     return respondJson(response, 404, { error: 'Cover art not found' });
   }
 
-  const track = trackMap.get(album.coverTrackId) || library.tracks.find((candidate) => candidate.id === album.coverTrackId);
+  const track = coverEntry?.track || trackMap.get(album.coverTrackId) || null;
   if (!track) {
     return respondJson(response, 404, { error: 'Cover art not found' });
   }
@@ -3569,16 +4018,36 @@ async function streamAlbumCover(response, albumId, url = null) {
     return streamCoverFile(response, existingCover.path, existingCover.format, { immutable: true });
   }
 
-  const cachedCover = await cacheAlbumCover(album, track);
-  if (cachedCover) {
-    track.cachedCoverPath = cachedCover.path;
-    track.cachedCoverFormat = cachedCover.format;
-    track.hasEmbeddedCover = true;
-    const requestedCover = findCachedAlbumCover(album.id, requestedSize) || cachedCover;
-    return streamCoverFile(response, requestedCover.path, requestedCover.format, { immutable: true });
+  if (!isCoverCacheJobRunning()) {
+    const cachedCover = await cacheAlbumCover(album, track);
+    if (cachedCover) {
+      track.cachedCoverPath = cachedCover.path;
+      track.cachedCoverFormat = cachedCover.format;
+      track.hasEmbeddedCover = true;
+      const requestedCover = findCachedAlbumCover(album.id, requestedSize) || cachedCover;
+      return streamCoverFile(response, requestedCover.path, requestedCover.format, { immutable: true });
+    }
   }
 
   return streamCover(response, track.id, url);
+}
+
+async function getAlbumCoverEntry(albumId) {
+  const cachedEntry = albumCoverLookup.get(albumId);
+  if (cachedEntry?.album) return cachedEntry;
+
+  const library = await readLibraryAlbumPage(libraryDatabasePath, {
+    albumIds: [albumId],
+    limit: 1,
+    offset: 0,
+    includeTracks: false,
+    includeCoverTracks: true,
+  });
+  const album = library.albums?.[0] || null;
+  if (!album?.coverTrackId) return null;
+
+  rememberAlbumCover(album, album.coverTrack || null);
+  return albumCoverLookup.get(album.id) || null;
 }
 
 async function streamCover(response, trackId, url = null) {
@@ -3595,9 +4064,16 @@ async function streamCover(response, trackId, url = null) {
       if (existsSync(targetPath)) {
         return streamCoverFile(response, targetPath, 'image/webp', { immutable: true });
       }
-      const resizedCover = await writeOptimizedWebpCover(track.cachedCoverPath, targetPath, requestedSize).catch(() => null);
-      if (resizedCover) {
-        return streamCoverFile(response, resizedCover.path, resizedCover.format, { immutable: true });
+      if (!isCoverCacheJobRunning()) {
+        const resizedCover = await writeOptimizedWebpCoverOnce(
+          track.cachedCoverPath,
+          targetPath,
+          requestedSize,
+          getCachedCoverVariantFailureKey(track.cachedCoverPath, requestedSize),
+        ).catch(() => null);
+        if (resizedCover) {
+          return streamCoverFile(response, resizedCover.path, resizedCover.format, { immutable: true });
+        }
       }
     }
     return streamCoverFile(response, track.cachedCoverPath, track.cachedCoverFormat || getContentType(track.cachedCoverPath), { immutable: true });
@@ -3609,9 +4085,16 @@ async function streamCover(response, trackId, url = null) {
       if (existsSync(targetPath)) {
         return streamCoverFile(response, targetPath, 'image/webp', { immutable: true });
       }
-      const resizedCover = await writeOptimizedWebpCover(track.coverArtPath, targetPath, requestedSize).catch(() => null);
-      if (resizedCover) {
-        return streamCoverFile(response, resizedCover.path, resizedCover.format, { immutable: true });
+      if (!isCoverCacheJobRunning()) {
+        const resizedCover = await writeOptimizedWebpCoverOnce(
+          track.coverArtPath,
+          targetPath,
+          requestedSize,
+          getExternalCoverFailureKey(track, requestedSize),
+        ).catch(() => null);
+        if (resizedCover) {
+          return streamCoverFile(response, resizedCover.path, resizedCover.format, { immutable: true });
+        }
       }
     }
     return streamCoverFile(response, track.coverArtPath, getContentType(track.coverArtPath));
@@ -3628,9 +4111,16 @@ async function streamCover(response, trackId, url = null) {
     if (existsSync(targetPath)) {
       return streamCoverFile(response, targetPath, 'image/webp', { immutable: true });
     }
-    const resizedCover = await writeOptimizedWebpCover(embeddedCover.data, targetPath, requestedSize).catch(() => null);
-    if (resizedCover) {
-      return streamCoverFile(response, resizedCover.path, resizedCover.format, { immutable: true });
+    if (!isCoverCacheJobRunning()) {
+      const resizedCover = await writeOptimizedWebpCoverOnce(
+        embeddedCover.data,
+        targetPath,
+        requestedSize,
+        getEmbeddedCoverFailureKey(track, requestedSize),
+      ).catch(() => null);
+      if (resizedCover) {
+        return streamCoverFile(response, resizedCover.path, resizedCover.format, { immutable: true });
+      }
     }
   }
 
@@ -3809,8 +4299,8 @@ async function renameCollectionInAlbumOverrides(fromName, toName) {
   let changed = 0;
   for (const override of Object.values(overrides.albums || {})) {
     if (!Object.hasOwn(override || {}, 'collectionName')) continue;
-    if (normalizeCollectionName(override.collectionName) !== sourceKey) continue;
-    override.collectionName = toName;
+    if (!parseCollectionNames(override.collectionName).some((name) => normalizeCollectionName(name) === sourceKey)) continue;
+    override.collectionName = replaceCollectionName(override.collectionName, fromName, toName);
     override.updatedAt = new Date().toISOString();
     changed += 1;
   }
@@ -3826,12 +4316,15 @@ async function deleteCollectionFromAlbumOverrides(name) {
   let changed = 0;
   for (const [albumId, override] of Object.entries(overrides.albums || {})) {
     if (!Object.hasOwn(override || {}, 'collectionName')) continue;
-    if (normalizeCollectionName(override.collectionName) !== sourceKey) continue;
+    if (!parseCollectionNames(override.collectionName).some((collectionName) => normalizeCollectionName(collectionName) === sourceKey)) continue;
     const nextOverride = {
       ...override,
       updatedAt: new Date().toISOString(),
     };
-    delete nextOverride.collectionName;
+    nextOverride.collectionName = replaceCollectionName(override.collectionName, name, '');
+    if (!nextOverride.collectionName) {
+      delete nextOverride.collectionName;
+    }
     if (hasAlbumOverrideContent(nextOverride)) {
       overrides.albums[albumId] = nextOverride;
     } else {
@@ -5552,7 +6045,23 @@ function renderAdminPage({ title = 'Monochrome-Streamer', admin }) {
         ? folders.map((folder) => '<label><input type="checkbox" name="folders" value="' + escapeHtml(folder) + '"' + (selected.has(folder) ? ' checked' : '') + '> ' + escapeHtml(folder) + '</label>').join('')
         : '<p>No top-level folders were found in /music.</p>';
     }
-    document.querySelector('#refresh-folders').addEventListener('click', loadFolders);
+    document.querySelector('#refresh-folders').addEventListener('click', async () => {
+      const data = await api('/api/library/folders');
+      const selected = new Set(data.selected || []);
+      const available = (data.available || []).map((folder) => typeof folder === 'string' ? folder : folder?.name).filter(Boolean);
+      const known = new Set(data.known || []);
+      const added = known.size > 0 ? available.filter((folder) => !known.has(folder)) : [];
+      const knownNext = [...new Set([...(data.known || []), ...available])].sort((left, right) => left.localeCompare(right));
+      if (added.length > 0 || knownNext.length !== (data.known || []).length) {
+        await api('/api/library/folders', { method: 'POST', body: JSON.stringify({ folders: [...selected, ...added], known: knownNext }) });
+        setStatus(added.length > 0
+          ? 'Added ' + added.length + ' new folder' + (added.length === 1 ? '' : 's') + ' to the scan list.'
+          : 'Library folder list refreshed.');
+      } else {
+        setStatus('Library folder list refreshed.');
+      }
+      await loadFolders();
+    });
     document.querySelector('#save-scan').addEventListener('click', async () => {
       const folders = [...new FormData(document.querySelector('#folders-form')).getAll('folders')];
       await api('/api/library/folders', { method: 'POST', body: JSON.stringify({ folders }) });
@@ -5582,13 +6091,15 @@ function guessStaticContentType(filePath) {
   }
 }
 
-function respondJson(response, statusCode, body) {
+function respondJson(response, statusCode, body, headers = {}) {
   const payload = JSON.stringify(body);
+  response.__monochromeResponseBytes = Buffer.byteLength(payload);
   response.writeHead(statusCode, {
     ...getSecurityHeaders(),
     'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(payload),
+    'Content-Length': response.__monochromeResponseBytes,
     'Cache-Control': 'no-store',
+    ...headers,
   });
   response.end(payload);
 }

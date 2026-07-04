@@ -33,9 +33,18 @@ const libraryFolderOptionClassName = [
   'tw-rounded-[14px] tw-border tw-border-line tw-bg-surface tw-px-3 tw-py-2.5 tw-font-extrabold tw-text-text',
 ].join(' ');
 
-export function AudioSettings({ settings, playerLayoutOptions = [] }) {
+export function AudioSettings({ settings, playerLayoutOptions = [], playbackQualityOptions = [] }) {
   return (
     <SettingsGroup title="Playback" description="Controls that work with the browser audio element and your local files.">
+      <label className={settingsFieldClassName}>
+        <span>Playback Quality</span>
+        <select data-setting="playbackQuality" defaultValue={settings.playbackQuality}>
+          {playbackQualityOptions.map((option) => (
+            <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>
+          ))}
+        </select>
+      </label>
+      <p className={settingsHelpClassName}>Original keeps the source file as-is. CD FLAC only normalizes hi-res tracks down to 16-bit / 44.1 KHz. MP3 320 creates a remote-friendly stream.</p>
       <label className={settingsFieldClassName}>
         <span>Player Layout</span>
         <select data-setting="playerLayout" defaultValue={settings.playerLayout}>
@@ -45,7 +54,7 @@ export function AudioSettings({ settings, playerLayoutOptions = [] }) {
         </select>
       </label>
       <SettingToggle settingKey="showQualityInfo" title="Show Quality Badges" description="Show the audio quality block in the player." checked={settings.showQualityInfo} />
-      <SettingToggle settingKey="gaplessPlayback" title="Autoplay Queue" description="Automatically continue to the next queued track when one ends." checked={settings.gaplessPlayback} />
+      <SettingToggle settingKey="gaplessPlayback" title="Gapless Autoplay" description="Prepare the next queued track near the end so playback can continue with less delay." checked={settings.gaplessPlayback} />
     </SettingsGroup>
   );
 }

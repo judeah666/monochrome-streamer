@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { CoverImage } from '../common/VisualBits.jsx';
+import { CoverImage, PlayerIcon } from '../common/VisualBits.jsx';
 
-const REMOVE_ICON = '/assets/icons/player/trash.svg';
 const queueItemBaseClassName = [
   'queue-item tw-grid tw-grid-cols-[38px_58px_minmax(0,1fr)_auto] tw-items-center tw-gap-3',
   'tw-rounded-[18px] tw-border tw-border-line tw-bg-surface tw-p-3 tw-transition',
@@ -126,7 +125,7 @@ export function QueueList({
                     onRemove?.(track.id);
                   }}
                 >
-                  <i className="player-symbol" style={{ '--player-icon': `url('${REMOVE_ICON}')` }} aria-hidden="true" />
+                  <PlayerIcon name="remove" />
                 </button>
               </div>
             </div>

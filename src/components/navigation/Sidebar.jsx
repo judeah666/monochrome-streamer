@@ -105,7 +105,7 @@ export function Sidebar({
             onClick={() => onNavigate?.(item.id)}
           >
             <NavIcon item={item} />
-            <span>{item.label}</span>
+            <span className="sidebar-nav-label">{item.label}</span>
           </button>
         ))}
       </nav>
@@ -190,24 +190,22 @@ function StatCard({ label, value, icon }) {
 }
 
 function ScanStatus({ scan }) {
+  if (!scan?.isScanning) return null;
+
   return (
     <div id="library-status" className={statusClassName}>
       <strong className="sidebar-status-state">{scan.statusLabel}</strong>
       <div
-        className="sidebar-progress-ring"
-        style={{
-          '--scan-progress-offset': scan.progressOffset,
-          '--scan-progress-circumference': scan.circumference,
-        }}
-        role="img"
+        className="sidebar-progress-bar"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow={scan.percent}
         aria-label={`Scan progress ${scan.percent}%`}
       >
-        <svg viewBox="0 0 100 100" aria-hidden="true">
-          <circle className="sidebar-progress-track" cx="50" cy="50" r="42"></circle>
-          <circle className="sidebar-progress-value" cx="50" cy="50" r="42"></circle>
-        </svg>
-        <strong>{scan.percent}%</strong>
+        <span className="sidebar-progress-fill" style={{ width: `${scan.percent}%` }}></span>
       </div>
+      <strong className="sidebar-progress-percent">{scan.percent}%</strong>
       <span className="sidebar-status-indexed">{scan.indexedText}</span>
     </div>
   );

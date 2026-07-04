@@ -20,4 +20,6 @@ test('paging request state starts empty', () => {
   assert.equal(state.collectionNameOptionsRequest, null);
   assert.equal(state.homeAlbumRequest, null);
   assert.equal(state.homeAlbumRequestKey, '');
+  assert.equal(state.recentlyAddedAlbumRequest, null);
+  assert.equal(state.recentlyAddedAlbumRequestKey, '');
 });

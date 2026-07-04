@@ -66,7 +66,16 @@ test('server source locks down admin exports, download posts, and admin-only edi
   assert.match(source, /lyricsMatch[\s\S]*assertPrivilegedMutation\(request, authUser, \{ requireAdmin: true \}\)/u);
   assert.match(source, /function createSessionCookie\(token, request, options = \{\}\)[\s\S]*SameSite=Strict/u);
   assert.match(source, /function getSecurityHeaders\(\)[\s\S]*X-Frame-Options/u);
+  assert.match(source, /url\.searchParams\.get\('format'\)/u);
+  assert.match(source, /playbackTranscoding:\s*await getPlaybackTranscodingInfo\(\)/u);
 
   assert.match(appSource, /postBlob\(getTrackDownloadEndpoint\(track\)/u);
+  assert.match(appSource, /audioPlayer\.preload = 'metadata'/u);
+  assert.match(appSource, /getTrackPlaybackUrl\(track\)/u);
+  assert.match(appSource, /playbackQuality:\s*'original'/u);
+  assert.doesNotMatch(appSource, /preloadQueueTracks/u);
+  assert.doesNotMatch(appSource, /queuePreloadCache|QUEUE_PRELOAD_/u);
+  assert.doesNotMatch(appSource, /new Audio\(\)/u);
+  assert.match(appSource, /createPreloadAudio:\s*\(\) => document\.createElement\('audio'\)/u);
   assert.match(adminSource, /fetch\('\/api\/admin\/database\/export', \{[\s\S]*method: 'POST'/u);
 });

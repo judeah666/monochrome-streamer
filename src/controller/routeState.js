@@ -69,6 +69,20 @@ export function getAlbumHash(albumId) {
   return `album/${encodeURIComponent(albumId)}`;
 }
 
+export function getAlbumShareUrl(albumId, locationLike = globalThis.location) {
+  const hash = `#${getAlbumHash(albumId)}`;
+  try {
+    const url = new URL(String(locationLike?.href || '/'));
+    url.hash = hash;
+    return url.toString();
+  } catch {
+    const origin = String(locationLike?.origin || '').replace(/\/$/u, '');
+    const pathname = String(locationLike?.pathname || '/');
+    const search = String(locationLike?.search || '');
+    return `${origin}${pathname}${search}${hash}`;
+  }
+}
+
 export function getArtistHash(artistName) {
   return `artist/${encodeURIComponent(artistName)}`;
 }

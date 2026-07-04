@@ -50,6 +50,21 @@ test('addTrackIdsToQueue ignores duplicate ids and syncs shuffle state', () => {
   assert.deepEqual(state.shuffledQueueIds, ['a', 'b', 'c']);
 });
 
+test('addTrackIdsToQueue appends new ids without reshuffling upcoming shuffled tracks', () => {
+  const state = createState({
+    currentTrackId: 'b',
+    queueIds: ['a', 'b', 'c'],
+    shuffledQueueIds: ['b', 'c', 'a'],
+    shuffleActive: true,
+  });
+
+  const changed = addTrackIdsToQueue(state, ['a', 'd', 'e']);
+
+  assert.equal(changed, true);
+  assert.deepEqual(state.queueIds, ['a', 'b', 'c', 'd', 'e']);
+  assert.deepEqual(state.shuffledQueueIds, ['b', 'c', 'a', 'd', 'e']);
+});
+
 test('clearQueueState keeps the current track and disables shuffle', () => {
   const state = createState({
     currentTrackId: 'b',
@@ -89,6 +104,21 @@ test('reorderQueueState uses the active queue order and disables shuffle', () =>
   assert.deepEqual(state.queueIds, ['a', 'b', 'c']);
   assert.deepEqual(state.shuffledQueueIds, ['a', 'b', 'c']);
   assert.equal(state.shuffleActive, false);
+});
+
+test('removeTrackIdFromQueue preserves the remaining shuffled order', () => {
+  const state = createState({
+    currentTrackId: 'b',
+    queueIds: ['a', 'b', 'c', 'd'],
+    shuffledQueueIds: ['b', 'd', 'c', 'a'],
+    shuffleActive: true,
+  });
+
+  const changed = removeTrackIdFromQueue(state, 'c');
+
+  assert.equal(changed, true);
+  assert.deepEqual(state.queueIds, ['a', 'b', 'd']);
+  assert.deepEqual(state.shuffledQueueIds, ['b', 'd', 'a']);
 });
 
 test('syncShuffledQueueIds mirrors the normal queue when shuffle is off', () => {

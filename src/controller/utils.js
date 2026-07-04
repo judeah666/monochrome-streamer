@@ -106,6 +106,7 @@ export function isStateChangingMethod(method) {
 }
 
 export async function fetchJson(url, options = {}) {
+  const startedAt = typeof performance !== 'undefined' ? performance.now() : 0;
   const method = options.method || (options.body != null ? 'POST' : 'GET');
   const headers = new Headers(options.headers || {});
   if (options.body != null && !headers.has('Content-Type')) {
@@ -126,7 +127,19 @@ export async function fetchJson(url, options = {}) {
     const payload = await response.json().catch(() => null);
     throw new Error(payload?.error || `Request failed: ${response.status}`);
   }
-  return response.json();
+  const payload = await response.json();
+  logClientPerf('fetchJson', `${method} ${url}`, startedAt);
+  return payload;
+}
+
+function logClientPerf(kind, label, startedAt, thresholdMs = 250) {
+  if (!startedAt || typeof performance === 'undefined' || typeof window === 'undefined') return;
+  const enabled = window.__MONOCHROME_DEBUG_PERF__
+    || window.localStorage?.getItem('MONOCHROME_DEBUG_PERF') === 'true';
+  if (!enabled) return;
+  const elapsedMs = Math.round(performance.now() - startedAt);
+  if (elapsedMs < thresholdMs) return;
+  console.debug(`[perf] ${kind} ${label}: ${elapsedMs}ms`);
 }
 
 export async function postBlob(url, body, options = {}) {

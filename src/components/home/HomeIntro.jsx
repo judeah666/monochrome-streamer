@@ -5,7 +5,7 @@ export function HomeIntro({
   eyebrow = 'Local Audio',
   title = 'Your server, your collection, your rules.',
   subtitle = 'Browse your albums, open them like a proper detail page, and control playback from a full bottom player.',
-  albumHeading = 'Recommended Albums',
+  albumHeading = '',
   albumCaption = '',
 }) {
   return (
@@ -18,12 +18,14 @@ export function HomeIntro({
         </section>
       ) : null}
 
-      <div className="section-heading">
-        <div>
-          <h3>{albumHeading}</h3>
-          <p>{albumCaption}</p>
+      {albumHeading ? (
+        <div className="section-heading">
+          <div>
+            <h3>{albumHeading}</h3>
+            <p>{albumCaption}</p>
+          </div>
         </div>
-      </div>
+      ) : null}
     </>
   );
 }

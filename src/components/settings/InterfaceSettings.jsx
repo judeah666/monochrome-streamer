@@ -63,6 +63,12 @@ export function InterfaceSettings({
 
       <SettingsGroup title="Navigation" description="Interaction behavior adapted to this local app.">
         <SettingToggle
+          settingKey="showRecentlyAdded"
+          title="Show Recently Added on Home"
+          description="Display the horizontal Recently Added album row above recommended albums."
+          checked={settings.showRecentlyAdded}
+        />
+        <SettingToggle
           settingKey="closePanelsOnNavigation"
           title="Close Panels on Navigation"
           description="Close queue and editor panels when switching views."

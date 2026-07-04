@@ -43,12 +43,16 @@ export function AlbumDetail({
   relatedAlbums = [],
   epAlbums = [],
   favorite = false,
+  shareCopied = false,
+  downloadActive = false,
+  downloadBusy = false,
   canQueue = false,
   canDownload = true,
   onPlayAlbum,
   onQueueAlbum,
   onDownloadAlbum,
   onShuffleAlbum,
+  onShareAlbum,
   onEditAlbum,
   onFavoriteAlbum,
   onPlayTrack,
@@ -98,13 +102,35 @@ export function AlbumDetail({
                 <i className={`fa-solid fa-list-ul ${albumActionIconClassName}`} aria-hidden="true"></i>
                 <span className="album-action-label">Add to queue</span>
               </button>
-              <button className={`secondary-button ${albumActionButtonClassName}`} type="button" disabled={!canQueue || !canDownload} aria-label="Download album" title="Download album" onClick={() => onDownloadAlbum?.(album.id)}>
-                <i className={`fa-solid fa-download ${albumActionIconClassName}`} aria-hidden="true"></i>
-                <span className="album-action-label">Download</span>
+              <button
+                className={`secondary-button ${albumActionButtonClassName}${downloadBusy ? ' is-download-busy' : ''}`}
+                type="button"
+                disabled={!canQueue || !canDownload || downloadActive}
+                aria-label={downloadBusy ? 'Downloading album' : 'Download album'}
+                aria-busy={downloadBusy ? 'true' : undefined}
+                title={downloadBusy ? 'Downloading album' : 'Download album'}
+                onClick={() => onDownloadAlbum?.(album.id)}
+              >
+                {downloadBusy ? (
+                  <span className="download-busy-spinner" aria-hidden="true"></span>
+                ) : (
+                  <i className={`fa-solid fa-download ${albumActionIconClassName}`} aria-hidden="true"></i>
+                )}
+                <span className="album-action-label">{downloadBusy ? 'Downloading' : 'Download'}</span>
               </button>
               <button className={`secondary-button ${albumActionButtonClassName}`} type="button" disabled={!canQueue} aria-label="Shuffle album" title="Shuffle album" onClick={() => onShuffleAlbum?.(album.id)}>
                 <i className={`fa-solid fa-shuffle ${albumActionIconClassName}`} aria-hidden="true"></i>
                 <span className="album-action-label">Shuffle</span>
+              </button>
+              <button
+                className={`secondary-button ${albumActionButtonClassName}`}
+                type="button"
+                aria-label={shareCopied ? 'Album link copied' : 'Share album link'}
+                title={shareCopied ? 'Album link copied' : 'Share album link'}
+                onClick={() => onShareAlbum?.(album.id)}
+              >
+                <i className={`fa-solid fa-link ${albumActionIconClassName}`} aria-hidden="true"></i>
+                <span className="album-action-label">{shareCopied ? 'Copied' : 'Share'}</span>
               </button>
               {onEditAlbum ? (
                 <button

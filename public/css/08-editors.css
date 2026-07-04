@@ -211,6 +211,119 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
+.cover-upload-field {
+  display: grid;
+  gap: 8px;
+}
+
+.cover-upload-label {
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.cover-upload-dropzone {
+  position: relative;
+  display: grid;
+  min-height: 132px;
+  width: 100%;
+  place-items: center;
+  gap: 8px;
+  border: 1px dashed color-mix(in srgb, var(--muted) 58%, transparent);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 48%),
+    color-mix(in srgb, var(--input-surface) 88%, transparent);
+  color: var(--muted);
+  padding: 18px;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.cover-upload-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cover-upload-dropzone strong {
+  color: var(--text);
+  font-size: 0.98rem;
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+
+.cover-upload-dropzone span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.cover-upload-icon {
+  color: color-mix(in srgb, var(--accent) 80%, var(--text));
+  font-size: 1.7rem;
+}
+
+.cover-upload-dropzone:hover,
+.cover-upload-dropzone:focus-visible,
+.cover-upload-dropzone.is-dragging {
+  border-color: color-mix(in srgb, var(--accent) 78%, transparent);
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 54%),
+    color-mix(in srgb, var(--accent) 10%, var(--input-surface));
+  color: var(--text);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.cover-upload-dropzone.has-file {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--accent) 62%, transparent);
+}
+
+.cover-upload-dropzone:disabled {
+  cursor: wait;
+  opacity: 0.72;
+  transform: none;
+}
+
+.collection-cover-editor-modal {
+  inset: max(48px, 8vh) 28px;
+  max-width: 820px;
+}
+
+.collection-cover-editor-body {
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: start;
+}
+
+.collection-cover-preview-image {
+  width: 220px;
+  height: 220px;
+  border-radius: 26px;
+  object-fit: cover;
+}
+
+.collection-cover-form {
+  display: grid;
+  gap: 14px;
+}
+
 .artist-editor-modal {
   inset: max(48px, 8vh) 28px;
   max-width: 760px;

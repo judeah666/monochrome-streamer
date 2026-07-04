@@ -97,6 +97,8 @@ export function getDomRefs() {
     artistEditorModal: query('#artist-editor-modal'),
     lyricsEditorOverlay: query('#lyrics-editor-overlay'),
     lyricsEditorModal: query('#lyrics-editor-modal'),
+    collectionCoverOverlay: query('#collection-cover-overlay'),
+    collectionCoverModal: query('#collection-cover-modal'),
     playlistDialogOverlay: query('#playlist-dialog-overlay'),
     playlistDialogModal: query('#playlist-dialog-modal'),
   };

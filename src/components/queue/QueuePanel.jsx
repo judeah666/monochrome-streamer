@@ -14,6 +14,8 @@ export function QueuePanel({
   total = 0,
   limit = 0,
   canDownload = true,
+  downloadActive = false,
+  downloadBusy = false,
   currentTrackId = '',
   favoriteTrackIds = [],
   onClose,
@@ -36,12 +38,13 @@ export function QueuePanel({
         <div className={queueActionsClassName}>
           <button
             type="button"
-            className={queueIconButtonClassName}
-            aria-label="Download queue"
-            disabled={tracks.length === 0 || !canDownload}
+            className={`${queueIconButtonClassName}${downloadBusy ? ' is-download-busy' : ''}`}
+            aria-label={downloadBusy ? 'Downloading queue' : 'Download queue'}
+            aria-busy={downloadBusy ? 'true' : undefined}
+            disabled={tracks.length === 0 || !canDownload || downloadActive}
             onClick={() => onDownload?.()}
           >
-            <PlayerIcon name="download" />
+            {downloadBusy ? <span className="download-busy-spinner" aria-hidden="true"></span> : <PlayerIcon name="download" />}
           </button>
           <button
             type="button"

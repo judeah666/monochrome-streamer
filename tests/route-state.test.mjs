@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createBrowseRoute,
   getAlbumHash,
+  getAlbumShareUrl,
   getArtistHash,
   getCollectionHash,
   getFullscreenReturnHash,
@@ -77,6 +78,16 @@ test('route helpers encode hashes and browse routes', () => {
   assert.equal(getAlbumHash('album 1'), 'album/album%201');
   assert.equal(getArtistHash('A/B'), 'artist/A%2FB');
   assert.equal(getCollectionHash('A/B'), 'collection/A%2FB');
+});
+
+test('album share urls preserve the current app path and replace the hash', () => {
+  assert.equal(getAlbumShareUrl('album 1', {
+    href: 'https://music.example/app/?theme=light#library',
+  }), 'https://music.example/app/?theme=light#album/album%201');
+
+  assert.equal(getAlbumShareUrl('A/B & C', {
+    href: 'https://music.example/#album/old',
+  }), 'https://music.example/#album/A%2FB%20%26%20C');
 });
 
 test('fullscreen return hash ignores already fullscreen hash', () => {

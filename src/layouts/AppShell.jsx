@@ -38,7 +38,7 @@ function HomeView() {
       <div id="home-intro-root" />
 
       <section className="content-section">
-        <div id="album-grid" className="album-grid" />
+        <div id="album-grid" className="home-album-sections-root" />
       </section>
     </section>
   );
@@ -342,13 +342,13 @@ function FullscreenOverlay() {
                   <i className="fa-solid fa-pen-to-square" aria-hidden="true" />
                 </button>
                 <button id="fs-download-btn" className="btn-icon" type="button" aria-label="Download current track">
-                  <i className="fa-solid fa-download" aria-hidden="true" />
+                  <PlayerIcon name="download" />
                 </button>
                 <button id="fs-lyrics-edit-btn" className="btn-icon" type="button" aria-label="Add or edit lyrics">
                   <i className="fa-solid fa-microphone-lines" aria-hidden="true" />
                 </button>
                 <button id="fs-queue-btn" className="btn-icon" type="button" aria-label="Open queue">
-                  <i className="fa-solid fa-list" aria-hidden="true" />
+                  <PlayerIcon name="queue" />
                 </button>
               </div>
               <div id="fullscreen-next-track" className="fullscreen-next-track" hidden>
@@ -384,7 +384,7 @@ function FullscreenOverlay() {
               </div>
               <div className="fullscreen-volume-container">
                 <button id="fs-volume-btn" className="fs-volume-btn" type="button" aria-label="Mute">
-                  <i className="fa-solid fa-volume-high" aria-hidden="true" />
+                  <PlayerIcon name="volumeHigh" />
                 </button>
                 <div id="fs-volume-bar" className="fs-volume-bar" aria-label="Volume">
                   <div id="fs-volume-fill" className="fs-volume-fill" />
@@ -419,7 +419,7 @@ function QueuePanelShell() {
               type="button"
               aria-label="Download queue"
             >
-              <i className="fa-solid fa-download" aria-hidden="true" />
+              <PlayerIcon name="download" />
             </button>
             <button
               id="queue-favorite-button"
@@ -435,7 +435,7 @@ function QueuePanelShell() {
               type="button"
               aria-label="Clear queue"
             >
-              <i className="fa-solid fa-broom" aria-hidden="true" />
+              <PlayerIcon name="clearQueue" />
             </button>
             <button
               id="queue-close-button"
@@ -495,6 +495,22 @@ function LyricsEditorShell() {
   );
 }
 
+function CollectionCoverEditorShell() {
+  return (
+    <>
+      <div id="collection-cover-overlay" className="modal-overlay" hidden />
+      <section
+        id="collection-cover-modal"
+        className="tag-editor-modal collection-cover-editor-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="collection-cover-title"
+        hidden
+      />
+    </>
+  );
+}
+
 function PlaylistDialogShell() {
   return (
     <>
@@ -525,6 +541,7 @@ export function AppShell() {
       <TagEditorShell />
       <ArtistEditorShell />
       <LyricsEditorShell />
+      <CollectionCoverEditorShell />
       <PlaylistDialogShell />
     </div>
   );

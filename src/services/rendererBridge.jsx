@@ -29,8 +29,15 @@ import { FullscreenLyrics } from '../pages/FullscreenLyrics.jsx';
 import { Sidebar } from '../components/navigation/Sidebar.jsx';
 import { Topbar } from '../components/navigation/Topbar.jsx';
 import { HomeIntro } from '../components/home/HomeIntro.jsx';
+import { HomeAlbumSections } from '../components/home/HomeAlbumSections.jsx';
 import { AdminIntro, FavoritesIntro, LibraryIntro, SettingsIntro, SettingsStatus, WishlistIntro } from '../components/common/SectionIntros.jsx';
-import { AlbumTagEditorModal, ArtistEditorModal, LyricsEditorModal } from '../components/editors/EditorModals.jsx';
+import { DownloadStatusToast } from '../components/common/DownloadStatusToast.jsx';
+import {
+  AlbumTagEditorModal,
+  ArtistEditorModal,
+  CollectionCoverEditorModal,
+  LyricsEditorModal,
+} from '../components/editors/EditorModals.jsx';
 import { IconHtml } from '../components/common/IconHtml.jsx';
 import { LoginView } from '../pages/LoginView.jsx';
 
@@ -66,6 +73,7 @@ const rootRenderers = {
   renderSidebar: Sidebar,
   renderTopbar: Topbar,
   renderHomeIntro: HomeIntro,
+  renderHomeAlbumSections: HomeAlbumSections,
   renderLibraryIntro: LibraryIntro,
   renderFavoritesIntro: FavoritesIntro,
   renderWishlistIntro: WishlistIntro,
@@ -92,10 +100,14 @@ export function installMonochromeReactBridge(targetWindow = window) {
     renderReactRoot(container, <AlbumTagEditorModal key={props.renderKey} {...props} />, { sync: true });
   bridge.renderArtistEditorModal = (container, props) =>
     renderReactRoot(container, <ArtistEditorModal key={props.renderKey} {...props} />, { sync: true });
+  bridge.renderCollectionCoverEditorModal = (container, props) =>
+    renderReactRoot(container, <CollectionCoverEditorModal key={props.renderKey} {...props} />, { sync: true });
   bridge.renderFullscreenLyrics = (container, props) =>
     renderReactRoot(container, <FullscreenLyrics key={props.renderKey} {...props} />, { sync: true });
   bridge.renderPlaylistDialog = (container, props) =>
     renderReactRoot(container, <PlaylistDialog key={props.renderKey} {...props} />, { sync: true });
+  bridge.renderDownloadStatusToast = (container, props) =>
+    renderReactRoot(container, <DownloadStatusToast {...props} />, { sync: true });
   bridge.renderIconHtml = (container, props) =>
     renderReactRoot(container, <IconHtml {...props} />, { sync: true });
   bridge.renderAdminPanel = (container, props) =>

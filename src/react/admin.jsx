@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { DEFAULT_SETTINGS, FONT_PRESETS, STORAGE_KEYS } from '../controller/constants.js';
 import { isLightTheme, resolveThemePreset } from '../controller/themeResolver.js';
 import { getCsrfToken } from '../controller/utils.js';
+import { mergeDiscoveredLibraryFolders } from '../shared/libraryFolders.js';
 
 const ADMIN_TABS = [
   ['users', 'Users', 'fa-users'],
@@ -108,6 +109,25 @@ export function AdminSettingsPanel({ embedded = false }) {
     if (!quiet) setStatus('Folders refreshed.');
   }
 
+  async function refreshFoldersAndIncludeNew() {
+    const data = await api('/api/library/folders');
+    const resolved = mergeDiscoveredLibraryFolders(data);
+    let nextData = data;
+    if (resolved.added.length > 0 || resolved.knownChanged) {
+      nextData = await api('/api/library/folders', {
+        method: 'POST',
+        body: JSON.stringify({ folders: resolved.merged, known: resolved.knownNext }),
+      });
+    }
+    const available = normalizeAvailableFolders(nextData.available);
+    const selected = new Set(nextData.selected || []);
+    setFolders({ ...nextData, available });
+    setSelectedFolders(selected);
+    setStatus(resolved.added.length > 0
+      ? `Added ${resolved.added.length} new folder${resolved.added.length === 1 ? '' : 's'} to the scan list.`
+      : 'Library folder list refreshed.');
+  }
+
   async function logout() {
     const headers = new Headers();
     const csrfToken = getCsrfToken();
@@ -123,7 +143,10 @@ export function AdminSettingsPanel({ embedded = false }) {
 
   async function saveSelectedFolders({ scan = false } = {}) {
     const chosen = [...selectedFolders];
-    await api('/api/library/folders', { method: 'POST', body: JSON.stringify({ folders: chosen }) });
+    await api('/api/library/folders', {
+      method: 'POST',
+      body: JSON.stringify({ folders: chosen }),
+    });
     if (scan) {
       await api('/api/rescan', { method: 'POST', body: '{}' });
       setStatus('Scan started.');
@@ -173,7 +196,7 @@ export function AdminSettingsPanel({ embedded = false }) {
             setSelectedFolders={setSelectedFolders}
             selectedLabel={selectedLabel}
             scan={scan}
-            onRefresh={() => loadFolders()}
+            onRefresh={() => refreshFoldersAndIncludeNew()}
             onSave={() => saveSelectedFolders({ scan: false })}
             onSaveScan={() => saveSelectedFolders({ scan: true })}
           />
@@ -257,7 +280,7 @@ export function AdminSettingsPanel({ embedded = false }) {
             setSelectedFolders={setSelectedFolders}
             selectedLabel={selectedLabel}
             scan={scan}
-            onRefresh={() => loadFolders()}
+            onRefresh={() => refreshFoldersAndIncludeNew()}
             onSave={() => saveSelectedFolders({ scan: false })}
             onSaveScan={() => saveSelectedFolders({ scan: true })}
           />

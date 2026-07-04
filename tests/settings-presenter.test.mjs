@@ -9,6 +9,7 @@ import {
   toTitleCase,
 } from '../src/controller/settingsPresenter.js';
 import { DEFAULT_SETTINGS, SETTINGS_TABS } from '../src/controller/constants.js';
+import { normalizeSettings } from '../src/controller/settingsStore.js';
 import { createSettingsPanelStore } from '../src/controller/settingsPanelStore.js';
 import { getHueRotationDegrees } from '../src/controller/themeResolver.js';
 
@@ -44,6 +45,29 @@ test('light theme previews use readable text for built-in themes', () => {
 
   assert.equal(snapshot.themeOptions.find((theme) => theme.value === 'forest').text, '#17130f');
   assert.equal(snapshot.themeOptions.find((theme) => theme.value === 'ocean').text, '#17130f');
+});
+
+test('audio settings snapshot exposes playback quality options with disabled transcodes when unavailable', () => {
+  const snapshot = buildSettingsPanelSnapshot({
+    tab: 'audio',
+    settings: DEFAULT_SETTINGS,
+    playbackTranscoding: { ffmpegAvailable: false, formats: ['original'] },
+  });
+
+  assert.equal(snapshot.playbackQualityOptions.find((option) => option.value === 'original').disabled, false);
+  assert.equal(snapshot.playbackQualityOptions.find((option) => option.value === 'cd').disabled, true);
+  assert.equal(snapshot.playbackQualityOptions.find((option) => option.value === 'mp3').disabled, true);
+});
+
+test('interface settings keep recently added visible by default', () => {
+  const snapshot = buildSettingsPanelSnapshot({
+    tab: 'interface',
+    settings: DEFAULT_SETTINGS,
+  });
+
+  assert.equal(DEFAULT_SETTINGS.showRecentlyAdded, true);
+  assert.equal(snapshot.settings.showRecentlyAdded, true);
+  assert.equal(normalizeSettings({ showRecentlyAdded: 'false' }).showRecentlyAdded, false);
 });
 
 test('system settings snapshot normalizes scan status and selected folders', () => {

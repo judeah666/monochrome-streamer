@@ -4,6 +4,7 @@ import {
   THEME_BASE_OPTIONS,
 } from './constants.js';
 import { getThemePreview as resolveThemePreview } from './themeResolver.js';
+import { createPlaybackQualityOptions } from '../shared/playbackQuality.js';
 
 export function toTitleCase(value) {
   return String(value).replace(/(^|\s|-)\w/gu, (match) => match.toUpperCase());
@@ -59,6 +60,7 @@ export function buildSettingsPanelSnapshot({
   routeView = 'home',
   generatedAt = '',
   queueLength = 0,
+  playbackTranscoding = null,
   widgetSettings = null,
   libraryFolders = null,
   pendingLibraryFolders = null,
@@ -121,6 +123,7 @@ export function buildSettingsPanelSnapshot({
         ['floating', 'Floating Player'],
         ['qobuz', 'Qobuz Player'],
       ],
+      playbackQualityOptions: createPlaybackQualityOptions(playbackTranscoding),
     };
   }
 

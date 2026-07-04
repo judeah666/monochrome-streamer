@@ -1,14 +1,7 @@
 import React from 'react';
 import { AUDIO_QUALITY_ICONS } from '../../assets/icons/audio-quality/index.js';
+import { PlayerIcon } from '../common/VisualBits.jsx';
 
-const PLAYER_ICONS = {
-  download: '/assets/icons/player/download.svg',
-  queue: '/assets/icons/player/list-ul.svg',
-  volumeHigh: '/assets/icons/player/volume-high.svg',
-  volumeMedium: '/assets/icons/player/volume-medium.svg',
-  volumeLow: '/assets/icons/player/volume-low.svg',
-  volumeMuted: '/assets/icons/player/volume-xmark.svg',
-};
 const playerIconControlClassName = 'icon-button player-icon-control tw-inline-flex tw-items-center tw-justify-center tw-border-0 tw-bg-transparent tw-p-0 tw-text-inherit tw-cursor-pointer tw-transition hover:tw-text-accent';
 const audioQualityClassName = 'audio-quality-info tw-inline-flex tw-items-center tw-text-text';
 const qualityLabelClassName = 'tw-grid tw-leading-tight';
@@ -18,6 +11,8 @@ export function PlayerUtilityControls({
   currentTrackTitle = '',
   downloadName = '',
   canDownload = true,
+  downloadActive = false,
+  downloadBusy = false,
   favorite = false,
   queueOpen = false,
   volume = 1,
@@ -28,9 +23,10 @@ export function PlayerUtilityControls({
   onQueueToggle,
   onVolumeToggle,
 }) {
-  const volumeIcon = getVolumeIcon(volume);
+  const volumeIconName = getVolumeIconName(volume);
   const favoriteLabel = favorite ? 'Unfavorite current track' : 'Favorite current track';
-  const downloadDisabled = !hasTrack || !canDownload;
+  const downloadDisabled = !hasTrack || !canDownload || downloadActive;
+  const downloadLabel = downloadBusy ? `Downloading ${currentTrackTitle}` : hasTrack ? `Download ${currentTrackTitle}` : 'Download current track';
 
   return (
     <>
@@ -51,16 +47,17 @@ export function PlayerUtilityControls({
 
       <button
         id="download-track-link"
-        className={`icon-link ${playerIconControlClassName}`}
+        className={`icon-link ${playerIconControlClassName}${downloadBusy ? ' is-download-busy' : ''}`}
         type="button"
-        aria-label={hasTrack ? `Download ${currentTrackTitle}` : 'Download current track'}
+        aria-label={downloadLabel}
         aria-disabled={downloadDisabled ? 'true' : undefined}
+        aria-busy={downloadBusy ? 'true' : undefined}
         disabled={downloadDisabled}
         onClick={() => {
           if (!downloadDisabled) onDownload?.();
         }}
       >
-        <PlayerSymbol icon={PLAYER_ICONS.download} />
+        {downloadBusy ? <span className="download-busy-spinner" aria-hidden="true"></span> : <PlayerIcon name="download" />}
       </button>
 
       <button
@@ -71,7 +68,7 @@ export function PlayerUtilityControls({
         aria-pressed={queueOpen}
         onClick={() => onQueueToggle?.()}
       >
-        <PlayerSymbol icon={PLAYER_ICONS.queue} />
+        <PlayerIcon name="queue" />
       </button>
 
       <button
@@ -81,7 +78,7 @@ export function PlayerUtilityControls({
         aria-label={volume <= 0 ? 'Unmute' : 'Mute'}
         onClick={() => onVolumeToggle?.()}
       >
-        <PlayerSymbol icon={volumeIcon} />
+        <PlayerIcon name={volumeIconName} />
       </button>
 
       {showQuality && hasTrack ? <AudioQualityInfo quality={quality} /> : null}
@@ -116,13 +113,9 @@ function AudioQualityInfo({ quality }) {
   );
 }
 
-function getVolumeIcon(volume) {
-  if (volume <= 0) return PLAYER_ICONS.volumeMuted;
-  if (volume < 0.34) return PLAYER_ICONS.volumeLow;
-  if (volume < 0.67) return PLAYER_ICONS.volumeMedium;
-  return PLAYER_ICONS.volumeHigh;
-}
-
-function PlayerSymbol({ icon }) {
-  return <i className="player-symbol" style={{ '--player-icon': `url('${icon}')` }} aria-hidden="true" />;
+function getVolumeIconName(volume) {
+  if (volume <= 0) return 'volumeMuted';
+  if (volume < 0.34) return 'volumeLow';
+  if (volume < 0.67) return 'volumeMedium';
+  return 'volumeHigh';
 }
