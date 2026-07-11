@@ -24,6 +24,7 @@ COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 RUN npm run build \
   && npm prune --omit=dev \
+  && sed -i 's/\r$//' ./docker-entrypoint.sh \
   && chmod +x ./docker-entrypoint.sh
 
 ENV HOST=0.0.0.0
