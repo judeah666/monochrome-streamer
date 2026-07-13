@@ -1,6 +1,6 @@
 # monochrome-streamer
 
-Current release: `v0.3.3`
+Current release: `v0.3.4`
 
 `monochrome-streamer` is a self-hosted music streamer for your own local music files. It is inspired by [Monochrome](https://github.com/monochrome-music/monochrome), but the library, album edits, lyrics, covers, users, and scan data live on your own server.
 
@@ -17,7 +17,7 @@ Current release: `v0.3.3`
 - Use two player layouts: Floating Player and Edge-to-Edge.
 - Manage users, download permissions, widget API keys, download settings, database backup/import, Excel exports, and scans from the Admin sidebar tab.
 
-## Release Highlights In `v0.3.3`
+## Release Highlights In `v0.3.4`
 
 - Faster album-card responses and cheaper Home/Recently Added loading for large libraries.
 - Playback quality selection with `Original`, `CD FLAC (16-Bit / 44.1 KHz)`, and `MP3 320 kbps`.
@@ -26,6 +26,7 @@ Current release: `v0.3.3`
 - Drag-and-drop cover upload support for album and collection cover editing.
 - Clear download feedback with busy buttons and a global download status toast.
 - Horizontal sidebar scan progress and Qobuz player layout fixes.
+- Maintenance fixes for Docker startup, reverse-proxy origin checks, widget settings, and collection/folder filtering.
 
 ## Screenshots
 
@@ -308,7 +309,7 @@ Build and push both the release tag and `latest`:
 
 ```powershell
 docker buildx build --platform linux/amd64 `
-  -t judeah666/monochrome-streamer:0.3.3 `
+  -t judeah666/monochrome-streamer:0.3.4 `
   -t judeah666/monochrome-streamer:latest `
   --push .
 ```

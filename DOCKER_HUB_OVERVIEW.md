@@ -10,7 +10,7 @@
 - Supports local album and artist editing, synced lyrics, cover art caching, and MusicBrainz lookups.
 - Includes a built-in admin surface for users, scans, widget settings, download controls, backups, and Excel exports.
 
-## Secure-By-Default Behavior In `0.3.3`
+## Secure-By-Default Behavior In `0.3.4`
 
 - Guest browsing is enabled by default with `NOAUTH=true`.
 - Guest downloads are disabled by default with `DOWNLOADS=false`.
@@ -76,4 +76,4 @@ Keep `/data` when updating the image so the library index and edits persist acro
 ## Tags
 
 - `latest`
-- `0.3.3`
+- `0.3.4`
