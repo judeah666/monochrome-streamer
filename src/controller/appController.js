@@ -2958,7 +2958,9 @@ function applySettings() {
     state.libraryTab = 'albums';
   }
   applyThemeSettings();
-  document.documentElement.style.setProperty('--font-body', FONT_PRESETS[state.settings.fontPreset] || FONT_PRESETS.jakarta);
+  const selectedFont = FONT_PRESETS[state.settings.fontPreset] || FONT_PRESETS.jakarta;
+  document.documentElement.style.setProperty('--font-body', selectedFont);
+  document.documentElement.style.setProperty('--font-display', selectedFont);
   document.documentElement.style.setProperty('--app-font-size', `${15 * (state.settings.fontSize / 100)}px`);
   document.documentElement.style.setProperty('--album-card-size', `${clampAlbumCardSize(state.settings.albumCardSize)}px`);
   document.body.classList.toggle('no-album-cover-background', !state.settings.albumCoverBackground);

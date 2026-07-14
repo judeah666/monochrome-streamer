@@ -1,5 +1,6 @@
 import {
   DEFAULT_SETTINGS,
+  FONT_PRESETS,
   LEGACY_SETTING_KEYS,
   NOW_PLAYING_CLICK_ACTIONS,
   STORAGE_KEYS,
@@ -86,6 +87,9 @@ export function normalizeSettings(settings) {
   }
   if (normalized.playbackQuality && !['original', 'cd', 'mp3'].includes(normalized.playbackQuality)) {
     normalized.playbackQuality = DEFAULT_SETTINGS.playbackQuality;
+  }
+  if (normalized.fontPreset && !Object.hasOwn(FONT_PRESETS, normalized.fontPreset)) {
+    normalized.fontPreset = DEFAULT_SETTINGS.fontPreset;
   }
 
   return normalized;

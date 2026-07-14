@@ -56,7 +56,7 @@ export default {
       },
       fontFamily: {
         body: 'var(--font-body)',
-        display: ['Space Grotesk', 'Plus Jakarta Sans', 'sans-serif'],
+        display: 'var(--font-display)',
       },
     },
   },

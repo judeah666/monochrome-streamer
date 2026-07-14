@@ -84,7 +84,7 @@ export function AppearanceSettings({
         </div>
       </SettingsGroup>
 
-      <SettingsGroup title="Font" description="Choose from presets. Custom Google Font URLs can still be added in code later if we want full upstream parity.">
+      <SettingsGroup title="Font" description="Choose a bundled font. The selected face is saved locally and loaded only when used.">
         <label className={settingsFieldClassName}>
           <span>Font Preset</span>
           <select data-setting="fontPreset" defaultValue={settings.fontPreset}>

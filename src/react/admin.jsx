@@ -840,7 +840,9 @@ function applySavedTheme() {
   const root = document.documentElement;
   const softInk = isLight ? 'rgba(23, 19, 15, 0.06)' : 'rgba(255, 255, 255, 0.06)';
   const strongInk = isLight ? 'rgba(23, 19, 15, 0.11)' : 'rgba(255, 255, 255, 0.11)';
-  root.style.setProperty('--font-body', FONT_PRESETS[settings.fontPreset] || FONT_PRESETS.jakarta);
+  const selectedFont = FONT_PRESETS[settings.fontPreset] || FONT_PRESETS.jakarta;
+  root.style.setProperty('--font-body', selectedFont);
+  root.style.setProperty('--font-display', selectedFont);
   root.style.setProperty('--app-font-size', `${settings.fontSize || 100}%`);
   root.style.setProperty('--background', theme.background);
   root.style.setProperty('--surface', theme.surface);

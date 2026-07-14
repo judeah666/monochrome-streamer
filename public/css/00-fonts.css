@@ -1,0 +1,105 @@
+/* Bundled font presets. Faces load only when their family is selected. */
+
+@font-face {
+  font-family: "Monochrome Caviar Dreams";
+  src: url("../fonts/caviar-dreams.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Monochrome Google Sans Flex";
+  src: url("../fonts/google-sans-flex.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Monochrome Gotham";
+  src: url("../fonts/gotham-light.otf") format("opentype");
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Monochrome Gotham";
+  src: url("../fonts/gotham-medium.otf") format("opentype");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Monochrome Helvetica Neue";
+  src: url("../fonts/helvetica-neue.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Monochrome Kaushan Script";
+  src: url("../fonts/kaushan-script-regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Monochrome Metropolis";
+  src: url("../fonts/metropolis-regular.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Monochrome Montserrat";
+  src: url("../fonts/montserrat-regular.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Monochrome Open Sans";
+  src: url("../fonts/open-sans.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Monochrome Quiapo";
+  src: url("../fonts/quiapo-free.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Monochrome Roboto";
+  src: url("../fonts/roboto.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Monochrome Trueno";
+  src: url("../fonts/trueno-regular.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Monochrome Ubuntu";
+  src: url("../fonts/ubuntu-regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
