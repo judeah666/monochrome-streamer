@@ -36,13 +36,14 @@ export function PlaylistBrowser({
   onRemoveTrack,
   onArtistClick,
   onAlbumClick,
+  onLogin,
 }) {
   if (!canUsePlaylists) {
     return (
       <section className="empty-state playlist-signin-state">
         <h3>Sign in to use playlists</h3>
         <p>Personal playlists are saved separately for every account.</p>
-        <a className="primary-button" href="/login">Sign in</a>
+        <button className="primary-button" type="button" onClick={() => onLogin?.()}>Sign in</button>
       </section>
     );
   }

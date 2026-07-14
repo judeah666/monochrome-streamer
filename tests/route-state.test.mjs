@@ -7,7 +7,9 @@ import {
   getArtistHash,
   getCollectionHash,
   getFullscreenReturnHash,
+  getLoginHash,
   getPlayingHash,
+  getRouteHash,
   isValidBrowseView,
   parseRouteFromHash,
 } from '../src/controller/routeState.js';
@@ -23,6 +25,24 @@ test('parseRouteFromHash returns fullscreen view for playing and legacy hashes',
   assert.deepEqual(parseRouteFromHash('#/playing'), fullscreenRoute);
   assert.deepEqual(parseRouteFromHash('#fullscreen'), fullscreenRoute);
   assert.deepEqual(parseRouteFromHash('#/fullscreen'), fullscreenRoute);
+});
+
+test('parseRouteFromHash supports login and stable browse return hashes', () => {
+  assert.deepEqual(parseRouteFromHash('#login'), {
+    route: { view: 'login', albumId: null, artistName: null },
+    artistNameToLoad: null,
+    collectionNameToLoad: null,
+  });
+  assert.deepEqual(parseRouteFromHash('#library'), {
+    route: createBrowseRoute('library'),
+    artistNameToLoad: null,
+    collectionNameToLoad: null,
+  });
+  assert.deepEqual(parseRouteFromHash('#playlists'), {
+    route: createBrowseRoute('playlists'),
+    artistNameToLoad: null,
+    collectionNameToLoad: null,
+  });
 });
 
 test('parseRouteFromHash returns album route only when album exists', () => {
@@ -79,6 +99,12 @@ test('route helpers encode hashes and browse routes', () => {
   assert.equal(getArtistHash('A/B'), 'artist/A%2FB');
   assert.equal(getCollectionHash('A/B'), 'collection/A%2FB');
   assert.equal(getPlayingHash(), 'playing');
+  assert.equal(getLoginHash(), 'login');
+  assert.equal(getRouteHash(createBrowseRoute('home')), '');
+  assert.equal(getRouteHash(createBrowseRoute('library')), 'library');
+  assert.equal(getRouteHash({ view: 'album', albumId: 'album 1' }), 'album/album%201');
+  assert.equal(getRouteHash({ view: 'artist', artistName: 'A/B' }), 'artist/A%2FB');
+  assert.equal(getRouteHash({ view: 'collection', collectionName: 'A/B' }), 'collection/A%2FB');
 });
 
 test('album share urls preserve the current app path and replace the hash', () => {

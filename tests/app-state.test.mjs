@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { createInitialState } from '../src/controller/appState.js';
 
 test('fullscreen lyrics are hidden by default', () => {
-  assert.equal(createInitialState().fullscreenLyricsHidden, true);
+  const state = createInitialState();
+  assert.equal(state.fullscreenLyricsHidden, true);
+  assert.equal(state.loginReturnHash, '');
 });
 
 test('paging request state starts empty', () => {

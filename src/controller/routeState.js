@@ -55,6 +55,14 @@ export function parseRouteFromHash(hashValue, {
     };
   }
 
+  if (BROWSE_VIEWS.has(hash)) {
+    return {
+      route: createBrowseRoute(hash),
+      artistNameToLoad: null,
+      collectionNameToLoad: null,
+    };
+  }
+
   return {
     route: { view: browseView, albumId: null, artistName: null },
     artistNameToLoad: null,
@@ -94,6 +102,19 @@ export function getCollectionHash(collectionName) {
 
 export function getPlayingHash() {
   return 'playing';
+}
+
+export function getLoginHash() {
+  return 'login';
+}
+
+export function getRouteHash(route = {}) {
+  if (route.view === 'album' && route.albumId) return getAlbumHash(route.albumId);
+  if (route.view === 'artist' && route.artistName) return getArtistHash(route.artistName);
+  if (route.view === 'collection' && route.collectionName) return getCollectionHash(route.collectionName);
+  if (route.view === 'fullscreen') return getPlayingHash();
+  if (BROWSE_VIEWS.has(route.view) && route.view !== 'home') return route.view;
+  return '';
 }
 
 export function getFullscreenReturnHash(currentHash) {

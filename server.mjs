@@ -1052,6 +1052,8 @@ async function getAuthenticatedUser(request) {
 async function handleLogin(request, response, url) {
   assertSecureAuthRequest(request);
   const body = await readRequestPayload(request, 64 * 1024);
+  const wantsJson = String(request.headers.accept || '').toLowerCase().includes('application/json')
+    || body.response === 'json';
   const username = cleanText(body.username);
   const password = String(body.password || '');
   enforceLoginRateLimit(request, username);
@@ -1060,11 +1062,26 @@ async function handleLogin(request, response, url) {
 
   if (!user) {
     registerFailedLogin(request, username);
+    if (wantsJson) {
+      return respondJson(response, 401, {
+        error: 'Invalid username or password.',
+        code: 'invalid',
+      }, { Vary: 'Accept' });
+    }
     return redirect(response, getLoginAppRedirectPath(next, { error: 'invalid' }), 303);
   }
 
   clearLoginAttempts(request, username);
   const token = createSession(user);
+  if (wantsJson) {
+    return respondJson(response, 200, {
+      ok: true,
+      redirectTo: next,
+    }, {
+      'Set-Cookie': createSessionCookie(token, request),
+      Vary: 'Accept',
+    });
+  }
   response.writeHead(303, {
     Location: next,
     'Set-Cookie': createSessionCookie(token, request),

@@ -403,13 +403,13 @@ body.mobile-filter-sheet-open {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  border: 1px solid color-mix(in srgb, var(--accent) 72%, var(--text) 28%);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 92%, transparent);
-  color: var(--accent-contrast);
-  box-shadow: var(--shadow);
+  width: 68px;
+  height: 68px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent);
+  box-shadow: none;
   opacity: 0;
   pointer-events: none;
   transform: translate(-50%, -50%) scale(0.9);
@@ -418,17 +418,19 @@ body.mobile-filter-sheet-open {
 
 .album-card-shell:hover .album-card-play-button,
 .album-card-shell:focus-within .album-card-play-button {
-  opacity: 1;
+  opacity: 0.95;
   pointer-events: auto;
   transform: translate(-50%, -50%) scale(1);
 }
 
 .album-card-play-button .fa-solid {
-  font-size: 24px;
+  font-size: 60px;
+  -webkit-text-stroke: 2px #fff;
+  filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.72));
 }
 
 .album-card-play-button .fa-play {
-  transform: none;
+  transform: translateX(0.06em);
 }
 
 .album-card-meta {

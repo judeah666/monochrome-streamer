@@ -80,6 +80,7 @@ export function createInitialState() {
     lastVolume: 0.7,
     queueOpen: false,
     fullscreenReturnHash: '',
+    loginReturnHash: '',
     fullscreenLyricsHidden: true,
     fullscreenUiHidden: false,
     favoriteTrackIds: new Set(),

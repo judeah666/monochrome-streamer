@@ -121,8 +121,18 @@ body.has-ambient-cover .app-ambient-cover {
 }
 
 body[data-view="login"].has-ambient-cover .app-ambient-cover {
-  opacity: 0.42;
-  filter: blur(34px) saturate(1.08);
+  inset: -4%;
+  opacity: 0.88;
+  filter: blur(28px) saturate(1.14);
+  transform: scale(1.08);
+  background:
+    radial-gradient(circle at 18% 40%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 30%),
+    linear-gradient(90deg, color-mix(in srgb, var(--background) 56%, transparent), color-mix(in srgb, var(--background) 72%, transparent) 52%, color-mix(in srgb, var(--background) 82%, transparent)),
+    var(--ambient-cover-image) center / cover no-repeat;
+}
+
+body[data-view="login"].has-ambient-cover .app-ambient-cover::after {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 16%, transparent), color-mix(in srgb, var(--background) 34%, transparent));
 }
 
 body[data-view="login"] .app-shell {
@@ -135,6 +145,47 @@ body[data-view="login"] .page-shell {
 
 body[data-view="login"] .content {
   min-height: 100vh;
+}
+
+body[data-view="login"] {
+  overflow: hidden;
+}
+
+.login-view-shell {
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: color-mix(in srgb, var(--background) 14%, transparent);
+  backdrop-filter: blur(10px) saturate(1.06);
+}
+
+.login-glass-card {
+  background: color-mix(in srgb, var(--surface) 62%, transparent);
+  backdrop-filter: blur(28px) saturate(1.08);
+}
+
+.login-close-button {
+  position: fixed;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  top: calc(20px + env(safe-area-inset-top, 0px));
+  left: calc(20px + env(safe-area-inset-left, 0px));
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--glass-strong);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+}
+
+.login-close-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 body[data-view="fullscreen"] .app-shell {

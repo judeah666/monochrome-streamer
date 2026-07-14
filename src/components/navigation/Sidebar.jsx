@@ -42,6 +42,7 @@ export function Sidebar({
   currentUser = null,
   mobile = false,
   onNavigate,
+  onLogin,
   onToggle,
   onThemeToggle,
 }) {
@@ -91,7 +92,7 @@ export function Sidebar({
       </div>
 
       <div className={sidebarUserClassName}>
-        <AccountBlock user={currentUser} />
+        <AccountBlock user={currentUser} onLogin={onLogin} />
       </div>
 
       <nav className={navClassName}>
@@ -121,7 +122,7 @@ export function Sidebar({
   );
 }
 
-function AccountBlock({ user }) {
+function AccountBlock({ user, onLogin }) {
   const username = user?.username || 'Guest';
   const role = user?.role === 'admin' ? 'Admin' : (user?.role === 'guest' ? 'Guest' : 'User');
   const downloadLabel = user?.canDownload === false ? 'Downloads off' : 'Downloads on';
@@ -140,9 +141,15 @@ function AccountBlock({ user }) {
       </div>
       <div className={accountActionsClassName}>
         {authDisabled ? (
-          <a className={accountActionClassName} href="/login" title={actionLabel} aria-label={actionLabel}>
+          <button
+            className={accountActionClassName}
+            type="button"
+            title={actionLabel}
+            aria-label={actionLabel}
+            onClick={() => onLogin?.()}
+          >
             <i className={`fa-solid ${actionIcon}`} aria-hidden="true"></i>
-          </a>
+          </button>
         ) : (
           <button
             className={accountActionClassName}

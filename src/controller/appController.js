@@ -83,7 +83,9 @@ import {
   getArtistHash,
   getCollectionHash,
   getFullscreenReturnHash,
+  getLoginHash,
   getPlayingHash,
+  getRouteHash,
   isValidBrowseView,
   parseRouteFromHash,
 } from './routeState.js';
@@ -353,7 +355,7 @@ async function init() {
     browseView: state.browseView,
     hasAlbum: () => false,
   });
-  const shouldBootstrapLoginRoute = initialRouteResult.route.view === 'login';
+  const shouldBootstrapLoginRoute = isLoginOnlyLocation();
 
   if (shouldBootstrapLoginRoute) {
     await initLoginRoute(initialRouteResult.route);
@@ -443,7 +445,6 @@ async function initLoginRoute(route) {
     state.canDownload = auth.user?.canDownload !== false;
     state.csrfToken = auth.csrfToken || '';
     setCsrfToken(state.csrfToken);
-    state.loginRouteOnly = false;
   } catch (error) {
     state.currentUser = null;
     state.canDownload = false;
@@ -667,6 +668,10 @@ function bindEvents() {
       closeQueuePanel();
       return;
     }
+    if (event.key === 'Escape' && state.route.view === 'login' && canCloseLoginView()) {
+      closeLoginView();
+      return;
+    }
     if (event.key === 'Escape' && state.route.view === 'fullscreen') {
       closeFullscreenPlayer();
     }
@@ -761,8 +766,12 @@ function bindEvents() {
 
   fullscreenVolumeButton.addEventListener('click', toggleMute);
   window.addEventListener('hashchange', () => {
-    const previousRouteView = state.route.view;
+    const previousRoute = state.route;
+    const previousRouteView = previousRoute.view;
     updateRouteFromLocation();
+    if (!state.loginRouteOnly && state.route.view === 'login' && previousRouteView !== 'login') {
+      state.loginReturnHash = toHashValue(getRouteHash(previousRoute));
+    }
     if (state.loginRouteOnly && state.route.view !== 'login') {
       const { nextPath, errorCode } = getLoginRouteState();
       window.history.replaceState(null, '', getLoginRoutePath(nextPath, errorCode));
@@ -818,6 +827,7 @@ function hydrateLibrary(config, library) {
     state.artistGroupMap = new Map(state.artistGroups.map((artist) => [artist.name, artist]));
   }
   state.homeAlbumIds = (library.albums || []).slice(0, 50).map((album) => album.id);
+  setLoginAmbientCoversFromAlbums(library.albums || []);
   updateSidebarScanStatus();
 }
 
@@ -2432,6 +2442,30 @@ function openFullscreenPlayer() {
   window.location.hash = getPlayingHash();
 }
 
+async function loginCurrentSession({ username = '', password = '', nextPath = '/' } = {}) {
+  const body = new URLSearchParams({
+    username: String(username),
+    password: String(password),
+    next: sanitizeLoginNext(nextPath),
+    response: 'json',
+  });
+  const response = await fetch('/login', {
+    method: 'POST',
+    cache: 'no-store',
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+    },
+    body,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || 'Unable to log in.');
+  }
+  window.location.assign(sanitizeLoginNext(payload.redirectTo || nextPath));
+}
+
 function handleNowPlayingClick() {
   if (!state.currentTrackId || state.settings.nowPlayingClickAction === 'none') return;
   const track = state.trackMap.get(state.currentTrackId);
@@ -2453,6 +2487,33 @@ function handleNowPlayingClick() {
 
 function closeFullscreenPlayer() {
   window.location.hash = state.fullscreenReturnHash || '';
+}
+
+function openLoginView() {
+  if (state.route.view === 'login') return;
+  state.loginReturnHash = toHashValue(getRouteHash(state.route));
+  if (isMobileSidebarLayout()) {
+    setMobileSidebarOpen(false);
+  }
+  window.location.hash = getLoginHash();
+}
+
+function canCloseLoginView() {
+  return !state.loginRouteOnly || Boolean(state.currentUser);
+}
+
+function closeLoginView() {
+  if (!canCloseLoginView()) return;
+  if (state.loginRouteOnly) {
+    window.location.assign(getLoginRouteState().nextPath);
+    return;
+  }
+  window.location.hash = state.loginReturnHash || '';
+}
+
+function toHashValue(value = '') {
+  const hash = String(value || '').replace(/^#?/u, '');
+  return hash ? `#${hash}` : '';
 }
 
 function render() {
@@ -3012,6 +3073,28 @@ function setAmbientCoverFromAlbums(albums = [], { force = false } = {}) {
   });
 }
 
+function setLoginAmbientCoversFromAlbums(albums = []) {
+  if (state.ambientCovers.length >= 4) return;
+
+  const seenCoverUrls = new Set(state.ambientCovers.map((cover) => cover?.coverUrl).filter(Boolean));
+  const covers = [...state.ambientCovers];
+  for (const album of Array.isArray(albums) ? albums : []) {
+    const coverUrl = String(album?.coverUrl || '').trim();
+    if (!coverUrl || seenCoverUrls.has(coverUrl)) continue;
+    seenCoverUrls.add(coverUrl);
+    covers.push({
+      coverUrl,
+      title: album.title || '',
+      artist: album.albumArtist || album.artist || '',
+    });
+    if (covers.length >= 6) break;
+  }
+
+  if (covers.length > state.ambientCovers.length) {
+    state.ambientCovers = covers;
+  }
+}
+
 function applyAmbientBackdrop() {
   const coverUrl = String(state.ambientCoverUrl || '').trim();
   const root = document.documentElement;
@@ -3157,6 +3240,7 @@ function renderSidebar({
     currentUser: state.currentUser,
     mobile: isMobileSidebarLayout(),
     onNavigate: navigateFromSidebar,
+    onLogin: openLoginView,
     onThemeToggle: toggleSidebarTheme,
     onToggle: () => {
       if (isMobileSidebarLayout()) {
@@ -3208,22 +3292,41 @@ function renderHomeIntro(viewContext = getRouteRenderContext()) {
 }
 
 function renderLoginView() {
-  const { nextPath, errorCode } = getLoginRouteState();
+  const routeState = getLoginRouteState();
+  const nextPath = state.loginRouteOnly ? routeState.nextPath : getLoginOverlayReturnPath();
   renderReact('renderLoginView', loginViewRoot, {
     title: getDisplayTitle(),
     currentUser: state.currentUser,
     nextPath,
-    errorCode,
+    errorCode: routeState.errorCode,
     ambientCoverUrl: state.ambientCoverUrl,
     ambientTitle: state.ambientCoverTitle,
     ambientArtist: state.ambientCoverArtist,
     ambientCovers: state.ambientCovers,
+    canClose: canCloseLoginView(),
+    onClose: closeLoginView,
+    onSubmit: loginCurrentSession,
   });
 }
 
+function getLoginOverlayReturnPath() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('next');
+  url.searchParams.delete('error');
+  url.searchParams.delete('login');
+  const search = url.searchParams.toString();
+  return sanitizeLoginNext(`${url.pathname}${search ? `?${search}` : ''}${state.loginReturnHash || ''}`);
+}
+
+function isLoginOnlyLocation() {
+  const url = new URL(window.location.href);
+  const pathname = String(url.pathname || '').replace(/\/+$/u, '') || '/';
+  return pathname === '/login'
+    || ((pathname === '/' || pathname === '/index.html') && url.searchParams.get('login') === '1');
+}
+
 function resolveRouteFromLocation({ browseView, hasAlbum }) {
-  const pathname = String(window.location.pathname || '').replace(/\/+$/, '') || '/';
-  if (pathname === '/login') {
+  if (isLoginOnlyLocation()) {
     return {
       route: {
         view: 'login',
@@ -3715,6 +3818,7 @@ function renderPlaylistsBrowser() {
       : null,
     selectedPlaylistId: state.selectedPlaylistId,
     canUsePlaylists,
+    onLogin: openLoginView,
     loading: state.playlistsLoading,
     error: state.playlistsError,
     searchTerm: state.searchTerm,

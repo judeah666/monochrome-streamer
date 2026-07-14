@@ -95,26 +95,30 @@
   }
 
   .album-card-play-button {
-    @apply tw-absolute tw-left-1/2 tw-top-1/2 tw-inline-flex tw-h-14 tw-w-14 tw-items-center tw-justify-center tw-rounded-pill tw-border tw-opacity-0 tw-pointer-events-none tw-shadow-panel tw-transition tw-duration-200;
+    @apply tw-absolute tw-left-1/2 tw-top-1/2 tw-inline-flex tw-h-[68px] tw-w-[68px] tw-items-center tw-justify-center tw-opacity-0 tw-pointer-events-none tw-transition tw-duration-200;
     transform: translate(-50%, -50%) scale(0.9);
-    border-color: color-mix(in srgb, var(--accent) 72%, var(--text) 28%);
-    background: color-mix(in srgb, var(--accent) 92%, transparent);
-    color: var(--accent-contrast);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--accent);
+    box-shadow: none;
   }
 
   .album-card-shell:hover .album-card-play-button,
   .album-card-shell:focus-within .album-card-play-button {
-    opacity: 1;
+    opacity: 0.95;
     pointer-events: auto;
     transform: translate(-50%, -50%) scale(1);
   }
 
   .album-card-play-button .fa-solid {
-    font-size: 24px;
+    font-size: 60px;
+    -webkit-text-stroke: 2px #fff;
+    filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.72));
   }
 
   .album-card-play-button .fa-play {
-    transform: none;
+    transform: translateX(0.06em);
   }
 
   .album-card-meta {
