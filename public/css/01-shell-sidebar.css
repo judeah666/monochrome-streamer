@@ -225,10 +225,27 @@
 }
 
 .sidebar-bottom {
+  position: relative;
+  isolation: isolate;
   display: grid;
   gap: 12px;
   margin-top: auto;
   padding-top: 22px;
+}
+
+.sidebar-bottom::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 8px -12px -12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--line));
+  border-radius: 20px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent) 13%, transparent), transparent 68%),
+    color-mix(in srgb, var(--surface-2) 86%, var(--background));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent),
+    0 12px 28px color-mix(in srgb, var(--background) 24%, transparent);
 }
 
 .sidebar-account {
@@ -397,11 +414,11 @@
 .stat-card {
   position: relative;
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-columns: 28px minmax(0, 1fr);
   grid-template-areas: "icon value";
-  column-gap: 8px;
+  column-gap: 10px;
   align-items: center;
-  min-height: 22px;
+  min-height: 36px;
   padding: 4px 0;
   border: 0;
   border-radius: 0;
@@ -420,8 +437,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   border-radius: 0;
   background: transparent;
   color: var(--accent);
@@ -433,8 +450,8 @@
 }
 
 .stat-icon .sidebar-symbol {
-  width: 1.38rem;
-  height: 1.38rem;
+  width: 1.55rem;
+  height: 1.55rem;
 }
 
 .stat-card strong {
@@ -443,8 +460,8 @@
   min-width: 0;
   max-width: 100%;
   font-family: var(--font-body);
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 700;
   line-height: 1.2;
   letter-spacing: 0;
   overflow: hidden;
@@ -646,6 +663,11 @@ body.sidebar-collapsed .sidebar-bottom {
   gap: 10px;
 }
 
+body.sidebar-collapsed .sidebar-bottom::before {
+  inset-inline: -4px;
+  border-radius: 18px;
+}
+
 body.sidebar-collapsed .sidebar-account {
   width: 54px;
   grid-template-columns: 1fr;
@@ -694,8 +716,8 @@ body.sidebar-collapsed .stat-icon {
 }
 
 body.sidebar-collapsed .stat-icon .sidebar-symbol {
-  width: 1.65rem;
-  height: 1.65rem;
+  width: 1.75rem;
+  height: 1.75rem;
 }
 
 body.sidebar-collapsed .stat-card::after {

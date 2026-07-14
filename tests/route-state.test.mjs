@@ -7,22 +7,22 @@ import {
   getArtistHash,
   getCollectionHash,
   getFullscreenReturnHash,
+  getPlayingHash,
   isValidBrowseView,
   parseRouteFromHash,
 } from '../src/controller/routeState.js';
 
-test('parseRouteFromHash returns fullscreen route', () => {
-  assert.deepEqual(parseRouteFromHash('#fullscreen'), {
+test('parseRouteFromHash returns fullscreen view for playing and legacy hashes', () => {
+  const fullscreenRoute = {
     route: { view: 'fullscreen', albumId: null, artistName: null },
     artistNameToLoad: null,
     collectionNameToLoad: null,
-  });
+  };
 
-  assert.deepEqual(parseRouteFromHash('#/fullscreen'), {
-    route: { view: 'fullscreen', albumId: null, artistName: null },
-    artistNameToLoad: null,
-    collectionNameToLoad: null,
-  });
+  assert.deepEqual(parseRouteFromHash('#playing'), fullscreenRoute);
+  assert.deepEqual(parseRouteFromHash('#/playing'), fullscreenRoute);
+  assert.deepEqual(parseRouteFromHash('#fullscreen'), fullscreenRoute);
+  assert.deepEqual(parseRouteFromHash('#/fullscreen'), fullscreenRoute);
 });
 
 test('parseRouteFromHash returns album route only when album exists', () => {
@@ -78,6 +78,7 @@ test('route helpers encode hashes and browse routes', () => {
   assert.equal(getAlbumHash('album 1'), 'album/album%201');
   assert.equal(getArtistHash('A/B'), 'artist/A%2FB');
   assert.equal(getCollectionHash('A/B'), 'collection/A%2FB');
+  assert.equal(getPlayingHash(), 'playing');
 });
 
 test('album share urls preserve the current app path and replace the hash', () => {
@@ -90,8 +91,10 @@ test('album share urls preserve the current app path and replace the hash', () =
   }), 'https://music.example/#album/A%2FB%20%26%20C');
 });
 
-test('fullscreen return hash ignores already fullscreen hash', () => {
+test('fullscreen return hash ignores current and legacy playing hashes', () => {
   assert.equal(getFullscreenReturnHash('#album/1'), '#album/1');
+  assert.equal(getFullscreenReturnHash('#playing'), '');
+  assert.equal(getFullscreenReturnHash('#/playing'), '');
   assert.equal(getFullscreenReturnHash('#fullscreen'), '');
   assert.equal(getFullscreenReturnHash('#/fullscreen'), '');
   assert.equal(getFullscreenReturnHash(''), '');

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { DEFAULT_SETTINGS, FONT_PRESETS, STORAGE_KEYS } from '../controller/constants.js';
+import { DEFAULT_SETTINGS, FONT_OPTIONS, FONT_PRESETS, STORAGE_KEYS } from '../controller/constants.js';
 import { isLightTheme, resolveThemePreset } from '../controller/themeResolver.js';
 import { getCsrfToken } from '../controller/utils.js';
 import { mergeDiscoveredLibraryFolders } from '../shared/libraryFolders.js';
@@ -42,7 +42,7 @@ const libraryFolderOptionClassName = [
   'tw-rounded-[14px] tw-border tw-border-line tw-bg-surface tw-px-3 tw-py-2.5 tw-font-extrabold tw-text-text',
 ].join(' ');
 
-export function AdminSettingsPanel({ embedded = false }) {
+export function AdminSettingsPanel({ embedded = false, appSettings = null, onAppSettingChange = null }) {
   const savedSettings = loadSavedSettings();
   const adminThemeMode = isLightTheme(savedSettings) ? 'light' : 'dark';
   const [activeTab, setActiveTab] = useState('users');
@@ -53,6 +53,7 @@ export function AdminSettingsPanel({ embedded = false }) {
   const [widget, setWidget] = useState(null);
   const [folders, setFolders] = useState({ available: [], selected: [], scan: {} });
   const [selectedFolders, setSelectedFolders] = useState(new Set());
+  const [fontSettings, setFontSettings] = useState(() => getFontSettings(appSettings || savedSettings));
 
   const appTitle = config?.title || 'Monochrome-Streamer';
   const adminUser = users.admin?.username || 'admin';
@@ -61,6 +62,12 @@ export function AdminSettingsPanel({ embedded = false }) {
     applySavedTheme();
     loadAll().catch((error) => setStatus(error.message));
   }, []);
+
+  useEffect(() => {
+    if (embedded && appSettings) {
+      setFontSettings(getFontSettings(appSettings));
+    }
+  }, [embedded, appSettings?.fontPreset, appSettings?.fontSize]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -156,6 +163,18 @@ export function AdminSettingsPanel({ embedded = false }) {
     await loadFolders({ quiet: true, syncSelection: true });
   }
 
+  function changeFontSetting(key, value) {
+    const nextValue = key === 'fontSize' ? Number(value) : value;
+    setFontSettings((current) => ({ ...current, [key]: nextValue }));
+    if (typeof onAppSettingChange === 'function') {
+      onAppSettingChange(key, nextValue);
+      return;
+    }
+    const nextSettings = { ...loadSavedSettings(), [key]: nextValue };
+    localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(nextSettings));
+    applySavedTheme();
+  }
+
   const scan = normalizeScan(folders.scan);
   const selectedLabel = selectedFolders.size ? [...selectedFolders].join(', ') : 'No folders selected yet';
 
@@ -199,6 +218,8 @@ export function AdminSettingsPanel({ embedded = false }) {
             onRefresh={() => refreshFoldersAndIncludeNew()}
             onSave={() => saveSelectedFolders({ scan: false })}
             onSaveScan={() => saveSelectedFolders({ scan: true })}
+            fontSettings={fontSettings}
+            onFontSettingChange={changeFontSetting}
           />
         ) : null}
       </div>
@@ -283,6 +304,8 @@ export function AdminSettingsPanel({ embedded = false }) {
             onRefresh={() => refreshFoldersAndIncludeNew()}
             onSave={() => saveSelectedFolders({ scan: false })}
             onSaveScan={() => saveSelectedFolders({ scan: true })}
+            fontSettings={fontSettings}
+            onFontSettingChange={changeFontSetting}
           />
         ) : null}
       </main>
@@ -498,7 +521,18 @@ function InstancesPanel({ widget, onReload, setStatus }) {
   );
 }
 
-function SystemPanel({ folders, selectedFolders, setSelectedFolders, selectedLabel, scan, onRefresh, onSave, onSaveScan }) {
+function SystemPanel({
+  folders,
+  selectedFolders,
+  setSelectedFolders,
+  selectedLabel,
+  scan,
+  onRefresh,
+  onSave,
+  onSaveScan,
+  fontSettings,
+  onFontSettingChange,
+}) {
   const importInputRef = useRef(null);
   const [databaseStatus, setDatabaseStatus] = useState('');
   const [excelStatus, setExcelStatus] = useState('');
@@ -623,6 +657,31 @@ function SystemPanel({ folders, selectedFolders, setSelectedFolders, selectedLab
 
   return (
     <>
+      <PanelGroup title="App Font" description="Choose the font used by this browser. The existing selection remains stored with the app settings.">
+        <label className={settingsFieldClassName}>
+          <span>Font Preset</span>
+          <select
+            value={fontSettings.fontPreset}
+            onChange={(event) => onFontSettingChange('fontPreset', event.target.value)}
+          >
+            {FONT_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </label>
+        <label className={settingsFieldClassName}>
+          <span>Font Size <strong>{fontSettings.fontSize}%</strong></span>
+          <input
+            type="range"
+            min="75"
+            max="140"
+            step="5"
+            value={fontSettings.fontSize}
+            onChange={(event) => onFontSettingChange('fontSize', event.target.value)}
+          />
+        </label>
+      </PanelGroup>
+
       <PanelGroup title="Scan Status" description="Watch the current scan and choose which folders are included.">
         <div className={`${settingRowClassName} scan-status-row`}>
           <div>
@@ -886,6 +945,13 @@ function loadSavedSettings() {
   } catch {
     return { ...DEFAULT_SETTINGS };
   }
+}
+
+function getFontSettings(settings = DEFAULT_SETTINGS) {
+  return {
+    fontPreset: FONT_PRESETS[settings.fontPreset] ? settings.fontPreset : DEFAULT_SETTINGS.fontPreset,
+    fontSize: Number.isFinite(Number(settings.fontSize)) ? Number(settings.fontSize) : DEFAULT_SETTINGS.fontSize,
+  };
 }
 
 export function mountStandaloneAdmin(rootElement) {

@@ -94,3 +94,15 @@ test('sidebar scan progress uses horizontal bar CSS instead of the old ring', as
   assert.match(source, /body\.sidebar-collapsed \.sidebar-progress-bar \{/u);
   assert.doesNotMatch(`${source}\n${responsiveSource}`, /sidebar-progress-ring|sidebar-progress-track|sidebar-progress-value/u);
 });
+
+test('sidebar statistics use larger controls and a theme-derived footer surface', async () => {
+  const source = await readFile(new URL('../public/css/01-shell-sidebar.css', import.meta.url), 'utf8');
+  const responsiveSource = await readFile(new URL('../public/css/09-responsive.css', import.meta.url), 'utf8');
+
+  assert.match(source, /\.sidebar-bottom::before \{[\s\S]*var\(--surface-2\)[\s\S]*var\(--background\)/u);
+  assert.match(source, /\.stat-card \{[\s\S]*grid-template-columns: 28px minmax\(0, 1fr\)/u);
+  assert.match(source, /\.stat-icon \.sidebar-symbol \{[\s\S]*width: 1\.55rem/u);
+  assert.match(source, /\.stat-card strong \{[\s\S]*font-size: 1\.05rem/u);
+  assert.match(responsiveSource, /grid-template-columns: 28px minmax\(0, 1fr\)/u);
+  assert.match(responsiveSource, /width: 1\.55rem;[\s\S]*height: 1\.55rem/u);
+});

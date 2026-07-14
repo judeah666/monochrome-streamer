@@ -19,8 +19,8 @@ const activeNavClassName = ' is-active tw-border-accent tw-bg-accent tw-text-[va
 const sidebarBottomClassName = 'sidebar-bottom tw-mt-auto tw-grid tw-gap-3 tw-pt-[22px]';
 const sidebarUserClassName = 'sidebar-user-section tw-my-4';
 const statsClassName = 'sidebar-stats tw-grid tw-gap-3';
-const statCardClassName = 'stat-card tw-grid tw-min-h-[50px] tw-grid-cols-[42px_minmax(0,1fr)] tw-items-center tw-gap-3';
-const statIconClassName = 'stat-icon tw-inline-flex tw-h-[42px] tw-w-[42px] tw-items-center tw-justify-center tw-text-accent';
+const statCardClassName = 'stat-card tw-grid tw-min-h-9 tw-grid-cols-[28px_minmax(0,1fr)] tw-items-center tw-gap-2.5';
+const statIconClassName = 'stat-icon tw-inline-flex tw-h-7 tw-w-7 tw-items-center tw-justify-center tw-text-accent';
 const statusClassName = 'sidebar-status tw-grid tw-min-w-0 tw-justify-items-center tw-gap-1.5 tw-overflow-hidden tw-pt-2 tw-text-center tw-text-[0.78rem] tw-leading-[1.35] tw-text-muted';
 const accountClassName = [
   'sidebar-account tw-grid tw-min-w-0 tw-grid-cols-[38px_minmax(0,1fr)_auto] tw-items-center tw-gap-2',

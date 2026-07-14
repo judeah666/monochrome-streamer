@@ -32,7 +32,7 @@ test('appearance settings snapshot contains theme options and preview data', () 
   assert.equal(snapshot.title, 'Library');
   assert.equal(snapshot.preview.artist, 'My Library');
   assert.equal(snapshot.themeOptions.find((theme) => theme.value === 'custom').accent, '#ff0000');
-  assert.ok(snapshot.fontOptions.length > 0);
+  assert.equal('fontOptions' in snapshot, false);
 });
 
 test('light theme previews use readable text for built-in themes', () => {

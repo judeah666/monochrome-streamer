@@ -1,6 +1,5 @@
 import {
   DEFAULT_SETTINGS,
-  FONT_OPTIONS,
   PALETTE_THEMES,
   THEME_BASE_OPTIONS,
 } from './constants.js';
@@ -92,7 +91,6 @@ export function buildSettingsPanelSnapshot({
         ...getThemePreview(theme.value, settings),
       })),
       themeBaseOptions: THEME_BASE_OPTIONS,
-      fontOptions: FONT_OPTIONS,
       customThemeBaseOptions: THEME_BASE_OPTIONS,
       preview: getAlbumCardSizePreviewData(displayTitle),
     };

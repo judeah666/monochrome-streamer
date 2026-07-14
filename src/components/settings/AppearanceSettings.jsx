@@ -27,7 +27,6 @@ export function AppearanceSettings({
   settings,
   title = '',
   themeOptions = [],
-  fontOptions = [],
   themeBaseOptions = [],
   customThemeBaseOptions = [],
   preview = {},
@@ -82,25 +81,6 @@ export function AppearanceSettings({
             </label>
           </div>
         </div>
-      </SettingsGroup>
-
-      <SettingsGroup title="Font" description="Choose a bundled font. The selected face is saved locally and loaded only when used.">
-        <label className={settingsFieldClassName}>
-          <span>Font Preset</span>
-          <select data-setting="fontPreset" defaultValue={settings.fontPreset}>
-            {fontOptions.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={settingsFieldClassName}>
-          <span>
-            Font Size <strong>{settings.fontSize}%</strong>
-          </span>
-          <input type="range" min="75" max="140" step="5" data-setting="fontSize" defaultValue={settings.fontSize} />
-        </label>
       </SettingsGroup>
 
       <SettingsGroup title="Text" description="Rename the app and the home banner without editing config files.">

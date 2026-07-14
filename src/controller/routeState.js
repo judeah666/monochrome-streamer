@@ -1,4 +1,5 @@
 export const BROWSE_VIEWS = new Set(['home', 'library', 'playlists', 'favorites', 'wishlist', 'settings', 'admin', 'login']);
+const PLAYING_HASHES = new Set(['playing', 'fullscreen']);
 
 export function parseRouteFromHash(hashValue, {
   browseView = 'home',
@@ -9,7 +10,7 @@ export function parseRouteFromHash(hashValue, {
   const artistMatch = /^artist\/(.+)$/u.exec(hash);
   const collectionMatch = /^collection\/(.+)$/u.exec(hash);
 
-  if (hash === 'fullscreen') {
+  if (PLAYING_HASHES.has(hash)) {
     return {
       route: { view: 'fullscreen', albumId: null, artistName: null },
       artistNameToLoad: null,
@@ -91,8 +92,13 @@ export function getCollectionHash(collectionName) {
   return `collection/${encodeURIComponent(collectionName)}`;
 }
 
+export function getPlayingHash() {
+  return 'playing';
+}
+
 export function getFullscreenReturnHash(currentHash) {
-  return currentHash && currentHash !== '#fullscreen' && currentHash !== '#/fullscreen' ? currentHash : '';
+  const normalized = String(currentHash || '').replace(/^#\/?/u, '');
+  return normalized && !PLAYING_HASHES.has(normalized) ? currentHash : '';
 }
 
 export function isValidBrowseView(view) {

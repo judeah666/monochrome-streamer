@@ -83,6 +83,7 @@ import {
   getArtistHash,
   getCollectionHash,
   getFullscreenReturnHash,
+  getPlayingHash,
   isValidBrowseView,
   parseRouteFromHash,
 } from './routeState.js';
@@ -1834,7 +1835,7 @@ async function restorePlaybackState() {
     state.browseView = storedPlayback.browseView;
   }
   state.fullscreenReturnHash = typeof storedPlayback.fullscreenReturnHash === 'string'
-    ? storedPlayback.fullscreenReturnHash
+    ? getFullscreenReturnHash(storedPlayback.fullscreenReturnHash)
     : '';
   state.shuffleActive = Boolean(storedPlayback.shuffleActive);
   state.repeatMode = REPEAT_MODES.includes(storedPlayback.repeatMode) ? storedPlayback.repeatMode : 'off';
@@ -2428,7 +2429,7 @@ function openFullscreenPlayer() {
   if (!state.currentTrackId) return;
   state.fullscreenReturnHash = getFullscreenReturnHash(window.location.hash);
   persistPlaybackState({ includeTime: false });
-  window.location.hash = 'fullscreen';
+  window.location.hash = getPlayingHash();
 }
 
 function handleNowPlayingClick() {
@@ -2542,7 +2543,10 @@ function setSettingsTab(tab) {
 function renderAdminView() {
   if (!hasReactRenderer('renderAdminPanel')) return;
   renderAdminIntro();
-  renderReact('renderAdminPanel', adminPanelRoot, {});
+  renderReact('renderAdminPanel', adminPanelRoot, {
+    appSettings: state.settings,
+    onAppSettingChange: (key, value) => updateSetting(key, value, true),
+  });
 }
 
 function unmountSettingsReactPanel() {
