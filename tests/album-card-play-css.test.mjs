@@ -16,9 +16,9 @@ test('album cards show only a larger translucent play icon', async () => {
     assert.match(block, /border: 0/u);
     assert.match(block, /background: transparent/u);
     assert.match(block, /box-shadow: none/u);
-    assert.match(block, /color: var\(--accent\)/u);
-    assert.match(block, /opacity: 0\.95/u);
+    assert.match(block, /color: #fff/u);
+    assert.match(block, /opacity: 0\.5/u);
     assert.match(block, /font-size: 60px/u);
-    assert.match(block, /-webkit-text-stroke: 2px #fff/u);
+    assert.match(block, /-webkit-text-stroke: 2px var\(--accent\)/u);
   }
 });

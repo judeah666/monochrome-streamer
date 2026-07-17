@@ -25,6 +25,7 @@
   --wishlist-line: color-mix(in srgb, var(--accent) 66%, rgba(255, 255, 255, 0.22));
   --wishlist-surface: color-mix(in srgb, var(--accent) 20%, transparent);
   --wishlist-text: color-mix(in srgb, var(--accent) 72%, #ffffff);
+  --wishlist-icon-color: color-mix(in srgb, var(--accent) 38%, #ffffff);
   --player-height: 110px;
   --measured-player-reserve: calc(var(--player-height) + 44px);
   --sidebar-width: 210px;

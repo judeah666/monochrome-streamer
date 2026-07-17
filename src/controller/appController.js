@@ -2443,27 +2443,44 @@ function openFullscreenPlayer() {
 }
 
 async function loginCurrentSession({ username = '', password = '', nextPath = '/' } = {}) {
+  const abortController = new AbortController();
+  const timeoutId = window.setTimeout(() => abortController.abort(), 20_000);
   const body = new URLSearchParams({
     username: String(username),
     password: String(password),
     next: sanitizeLoginNext(nextPath),
     response: 'json',
   });
-  const response = await fetch('/login', {
-    method: 'POST',
-    cache: 'no-store',
-    credentials: 'same-origin',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-    },
-    body,
-  });
+  let response;
+  try {
+    response = await fetch('/login', {
+      method: 'POST',
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+      },
+      body,
+      signal: abortController.signal,
+    });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('Login request timed out. Please try again.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(payload.error || 'Unable to log in.');
   }
-  window.location.assign(sanitizeLoginNext(payload.redirectTo || nextPath));
+
+  const redirectPath = sanitizeLoginNext(payload.redirectTo || nextPath);
+  const redirectUrl = new URL(redirectPath, window.location.origin);
+  window.history.replaceState(null, '', `${redirectUrl.pathname}${redirectUrl.search}${redirectUrl.hash}`);
+  window.location.reload();
 }
 
 function handleNowPlayingClick() {
@@ -3142,6 +3159,9 @@ function applyThemeSettings() {
   root.style.setProperty('--wishlist-text', isLight
     ? 'color-mix(in srgb, var(--accent) 72%, #181818)'
     : 'color-mix(in srgb, var(--accent) 72%, #ffffff)');
+  root.style.setProperty('--wishlist-icon-color', isLight
+    ? '#000000'
+    : 'color-mix(in srgb, var(--accent) 76%, #ffffff)');
   root.style.setProperty('--body-top', theme.bodyTop);
   root.style.setProperty('--body-mid', theme.bodyMid);
   root.style.setProperty('--body-bottom', theme.bodyBottom);

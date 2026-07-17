@@ -33,7 +33,7 @@
 
 .tw-ms-control:hover {
   border-color: var(--accent);
-  color: var(--accent);
+  color: #fff;
 }
 
 .tw-ms-control-primary {
@@ -408,7 +408,7 @@ body.mobile-filter-sheet-open {
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--accent);
+  color: #fff;
   box-shadow: none;
   opacity: 0;
   pointer-events: none;
@@ -418,14 +418,14 @@ body.mobile-filter-sheet-open {
 
 .album-card-shell:hover .album-card-play-button,
 .album-card-shell:focus-within .album-card-play-button {
-  opacity: 0.95;
+  opacity: 0.5;
   pointer-events: auto;
   transform: translate(-50%, -50%) scale(1);
 }
 
 .album-card-play-button .fa-solid {
   font-size: 60px;
-  -webkit-text-stroke: 2px #fff;
+  -webkit-text-stroke: 2px var(--accent);
   filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.72));
 }
 
@@ -499,7 +499,7 @@ body.mobile-filter-sheet-open {
 .album-card-footer-row.is-wishlist .fa-solid,
 .album-card-footer-row.is-wishlist .media-type-icon,
 .album-card-footer-row.is-wishlist .media-type-symbol {
-  color: var(--wishlist-text);
+  color: var(--wishlist-icon-color);
 }
 
 .track-list-shell {

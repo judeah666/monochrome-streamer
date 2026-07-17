@@ -94,6 +94,7 @@ export function LoginView({
         password: String(formData.get('password') || ''),
         nextPath: String(formData.get('next') || '/'),
       });
+      setSubmitting(false);
     } catch (error) {
       setSubmitError(error?.message || 'Unable to log in.');
       setSubmitting(false);

@@ -36,6 +36,7 @@ test('login view shows close only for a closable app session', async () => {
   assert.match(source, /canClose \? \([\s\S]*className="login-close-button btn-icon"[\s\S]*aria-label="Close login"/u);
   assert.match(source, /<form[^>]*method="post" action="\/login"/u);
   assert.match(source, /onSubmit=\{handleSubmit\}/u);
+  assert.match(source, /await onSubmit\([\s\S]*setSubmitting\(false\);[\s\S]*catch \(error\)[\s\S]*setSubmitting\(false\);/u);
 });
 
 test('signed-in login view uses POST logout control instead of stale GET link', async () => {
@@ -65,6 +66,10 @@ test('controller distinguishes hash overlay from restricted login shell', async 
   assert.match(source, /function openLoginView\(\)[\s\S]*state\.loginReturnHash[\s\S]*getLoginHash\(\)/u);
   assert.match(source, /function closeLoginView\(\)[\s\S]*state\.loginRouteOnly[\s\S]*state\.loginReturnHash/u);
   assert.match(source, /Accept: 'application\/json'/u);
+  assert.match(source, /new AbortController\(\)[\s\S]*20_000[\s\S]*signal: abortController\.signal/u);
+  assert.match(source, /Login request timed out\. Please try again\./u);
+  assert.match(source, /window\.history\.replaceState\(null, '',[\s\S]*window\.location\.reload\(\)/u);
+  assert.doesNotMatch(source, /window\.location\.assign\(sanitizeLoginNext\(payload\.redirectTo/u);
   assert.match(source, /onLogin: openLoginView/u);
   assert.match(source, /hydrateLibrary[\s\S]*setLoginAmbientCoversFromAlbums\(library\.albums \|\| \[\]\)/u);
   assert.match(source, /function setLoginAmbientCoversFromAlbums\(albums = \[\]\)[\s\S]*state\.ambientCovers\.length >= 4[\s\S]*covers\.length >= 6/u);
