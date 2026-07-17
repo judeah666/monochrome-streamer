@@ -14,6 +14,7 @@ import {
   getTrackFolderPath,
   isWishlistAlbum,
   normalizeMediaTypeName,
+  sortArtistAlbumsByYear,
   trackMatchesSearch,
 } from '../src/controller/librarySelectors.js';
 
@@ -120,6 +121,36 @@ test('buildArtistGroups groups by track artist instead of album artist', () => {
   });
 
   assert.deepEqual(groups.map((group) => group.name), ['Singer A', 'Singer B']);
+});
+
+test('sortArtistAlbumsByYear orders known years first and unknown years last', () => {
+  const albums = [
+    { id: 'unknown-b', title: 'Unknown B', year: '' },
+    { id: 'newer', title: 'Newer Album', year: '2005' },
+    { id: 'same-year-z', title: 'Zulu Album', year: '1999' },
+    { id: 'invalid', title: 'Invalid Year', year: 'Unknown year' },
+    { id: 'older', title: 'Older Album', year: 1987 },
+    { id: 'same-year-a', title: 'Alpha Album', year: '1999' },
+  ];
+
+  const sorted = sortArtistAlbumsByYear(albums);
+
+  assert.deepEqual(sorted.map((album) => album.id), [
+    'older',
+    'same-year-a',
+    'same-year-z',
+    'newer',
+    'invalid',
+    'unknown-b',
+  ]);
+  assert.deepEqual(albums.map((album) => album.id), [
+    'unknown-b',
+    'newer',
+    'same-year-z',
+    'invalid',
+    'older',
+    'same-year-a',
+  ]);
 });
 
 test('getRandomAlbumIds uses supplied random source for deterministic tests', () => {

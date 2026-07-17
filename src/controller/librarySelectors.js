@@ -150,6 +150,27 @@ export function buildArtistGroups(tracks, { findAlbum, albumMap }) {
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
+export function sortArtistAlbumsByYear(albums = []) {
+  return [...albums].sort((left, right) => {
+    const leftYear = getSortableAlbumYear(left);
+    const rightYear = getSortableAlbumYear(right);
+    if (leftYear === null && rightYear !== null) return 1;
+    if (leftYear !== null && rightYear === null) return -1;
+    if (leftYear !== rightYear) return leftYear - rightYear;
+    return String(left?.title || '').localeCompare(String(right?.title || ''), undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    });
+  });
+}
+
+function getSortableAlbumYear(album) {
+  const match = String(album?.year || '').match(/\b(\d{4})\b/u);
+  if (!match) return null;
+  const year = Number(match[1]);
+  return year > 0 ? year : null;
+}
+
 export function partitionAlbums(albums, getAlbumTracks) {
   const eps = [];
   const full = [];

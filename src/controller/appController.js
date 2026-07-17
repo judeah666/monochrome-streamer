@@ -4080,7 +4080,7 @@ function renderArtistDetail(artist) {
     sourceUrl: info?.sourceUrl || '',
     sourceLabel: info?.source === 'wikipedia' ? 'Wikipedia' : 'Local source',
     editLabel: info?.imageUrl || info?.bio ? 'Edit artist image/info' : 'Add artist image/info',
-    albums: artist.albums.map(prepareAlbumCardForReact),
+    albums: librarySelectors.sortArtistAlbumsByYear(artist.albums).map(prepareAlbumCardForReact),
     albumsTitle: `${artist.name} Albums`,
     albumsCaption: 'Albums from this artist in your local library.',
     onEdit: () => openArtistEditor(artist),
