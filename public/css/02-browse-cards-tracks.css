@@ -67,18 +67,18 @@
   grid-column: 1 / -1;
 }
 
-.topbar:has(#clear-search-button[hidden]) .search-bar {
+.topbar:has(#search-action-button[hidden]) .search-bar {
   padding-right: 16px;
 }
 
-#clear-search-button {
+#search-action-button {
   position: absolute;
   top: 50%;
   right: 0;
   transform: translateY(-50%);
 }
 
-#clear-search-button:hover {
+#search-action-button:hover {
   transform: translateY(calc(-50% - 1px));
 }
 

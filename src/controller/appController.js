@@ -529,11 +529,12 @@ function navigateFromSidebar(view) {
 }
 
 function resetSearchState({ focus = false, refresh = true } = {}) {
-  updateSearchValue('', { focus, refresh, immediate: true });
+  updateSearchValue('', { focus });
+  commitSearchValue('', { refresh, immediate: true });
 }
 
 function hasSearchState() {
-  return Boolean(state.searchTerm || state.searchInputValue || state.searchDebounceId);
+  return Boolean(state.searchTerm || state.searchInputValue);
 }
 
 function resetSearchForNavigation() {
@@ -1116,15 +1117,20 @@ function shouldShowFolderFilter(viewContext = getRouteRenderContext()) {
   );
 }
 
-function queueLibraryPageFetch(offset = 0) {
+function queueLibraryPageFetch(offset = 0, { immediate = false } = {}) {
   const fetchId = ++state.searchFetchId;
-  window.setTimeout(() => {
+  const loadPage = () => {
     if (fetchId !== state.searchFetchId) return;
     loadLibraryPage(offset, { fetchId }).catch((error) => console.error(error));
-  }, 220);
+  };
+  if (immediate) {
+    loadPage();
+    return;
+  }
+  window.setTimeout(loadPage, 220);
 }
 
-function queueVisiblePageFetch(offset = 0) {
+function queueVisiblePageFetch(offset = 0, { immediate = false } = {}) {
   if (state.route.view === 'wishlist') {
     loadWishlistAlbumsPage(offset).catch((error) => console.error(error));
     return;
@@ -1132,7 +1138,7 @@ function queueVisiblePageFetch(offset = 0) {
   if (state.route.view === 'library' && state.libraryTab === 'folders') {
     if (!state.settings.showFolderBrowser) {
       state.libraryTab = 'albums';
-      queueLibraryPageFetch(offset);
+      queueLibraryPageFetch(offset, { immediate });
       return;
     }
     clearFolderBrowserCache();
@@ -1141,7 +1147,7 @@ function queueVisiblePageFetch(offset = 0) {
     return;
   }
   if (state.route.view === 'library' && state.libraryTab === 'artists') {
-    queueArtistPageFetch(offset);
+    queueArtistPageFetch(offset, { immediate });
     return;
   }
   if (state.route.view === 'library' && state.libraryTab === 'collections') {
@@ -1153,10 +1159,10 @@ function queueVisiblePageFetch(offset = 0) {
     return;
   }
   if (state.route.view === 'library' && state.libraryTab === 'tracks') {
-    queueTrackPageFetch(offset);
+    queueTrackPageFetch(offset, { immediate });
     return;
   }
-  queueLibraryPageFetch(offset);
+  queueLibraryPageFetch(offset, { immediate });
 }
 
 function refreshUnsearchedRouteData({ force = false } = {}) {
@@ -1209,12 +1215,6 @@ function refreshUnsearchedRouteData({ force = false } = {}) {
   return true;
 }
 
-function clearPendingSearchUpdate() {
-  if (!state.searchDebounceId) return;
-  window.clearTimeout(state.searchDebounceId);
-  state.searchDebounceId = 0;
-}
-
 function shouldFetchSearchResultsForCurrentView() {
   if (state.route.view === 'wishlist' || state.route.view === 'collection') {
     return true;
@@ -1228,21 +1228,21 @@ function shouldFetchSearchResultsForCurrentView() {
     || state.libraryTab === 'tracks';
 }
 
-function commitSearchValue(value, { refresh = true } = {}) {
+function commitSearchValue(value, { refresh = true, immediate = false } = {}) {
   const normalizedValue = String(value || '').trim().toLowerCase();
   const searchChanged = state.searchTerm !== normalizedValue;
   const hadSearch = Boolean(state.searchTerm);
   state.searchTerm = normalizedValue;
-  state.searchDebounceId = 0;
   if (state.searchTerm) {
     state.unsearchedLibraryStale = true;
   } else if (hadSearch) {
     state.unsearchedLibraryStale = true;
   }
+  if (searchChanged) renderTopbar();
   if (!refresh || !searchChanged) return;
   if (state.route.view === 'home') {
     if (state.searchTerm) {
-      queueLibraryPageFetch(0);
+      queueLibraryPageFetch(0, { immediate });
     } else {
       loadHomeAlbums({ force: true }).catch((error) => console.error(error));
       loadRecentlyAddedAlbums({ force: true }).catch((error) => console.error(error));
@@ -1250,25 +1250,21 @@ function commitSearchValue(value, { refresh = true } = {}) {
     return;
   }
   if (shouldFetchSearchResultsForCurrentView()) {
-    queueVisiblePageFetch(0);
+    queueVisiblePageFetch(0, { immediate });
     return;
   }
   if (!state.searchTerm && refreshUnsearchedRouteData()) return;
   render();
 }
 
-function updateSearchValue(value, { focus = false, refresh = true, immediate = false } = {}) {
+function updateSearchValue(value, { focus = false } = {}) {
   state.searchInputValue = value;
   if (focus) state.searchFocusNonce += 1;
   renderTopbar();
-  clearPendingSearchUpdate();
-  if (immediate) {
-    commitSearchValue(value, { refresh });
-    return;
-  }
-  state.searchDebounceId = window.setTimeout(() => {
-    commitSearchValue(value, { refresh });
-  }, 180);
+}
+
+function submitSearchValue() {
+  commitSearchValue(state.searchInputValue, { refresh: true, immediate: true });
 }
 
 async function loadLibraryPage(offset = 0, { scrollTop = false, fetchId = 0 } = {}) {
@@ -1287,7 +1283,7 @@ async function loadLibraryPage(offset = 0, { scrollTop = false, fetchId = 0 } = 
     state.libraryPageQueryKey = requestedQueryKey;
     state.unsearchedLibraryStale = Boolean(requestedSearch);
     sanitizeStoredFavorites();
-    prefetchAdjacentLibraryPages(state.libraryPage);
+    if (!state.searchTerm) prefetchAdjacentLibraryPages(state.libraryPage);
     render();
     updatePlayerUi();
     if (scrollTop) scrollPageToTop();
@@ -1437,7 +1433,7 @@ async function loadWishlistAlbumsPage(offset = 0) {
     hasNext: false,
     hasPrevious: false,
   };
-  prefetchAdjacentWishlistPages(state.wishlistPage);
+  if (!state.searchTerm) prefetchAdjacentWishlistPages(state.wishlistPage);
   state.wishlistAlbumsLoaded = true;
   render();
 }
@@ -1482,12 +1478,17 @@ function prefetchAdjacentArtistPages(page = state.artistPage) {
   }
 }
 
-function queueArtistPageFetch(offset = 0) {
+function queueArtistPageFetch(offset = 0, { immediate = false } = {}) {
   const fetchId = ++state.artistFetchId;
-  window.setTimeout(() => {
+  const loadPage = () => {
     if (fetchId !== state.artistFetchId) return;
     loadArtistPage(offset, { fetchId }).catch((error) => console.error(error));
-  }, 220);
+  };
+  if (immediate) {
+    loadPage();
+    return;
+  }
+  window.setTimeout(loadPage, 220);
 }
 
 async function loadArtistPage(offset = 0, { scrollTop = false, fetchId = 0 } = {}) {
@@ -1502,7 +1503,7 @@ async function loadArtistPage(offset = 0, { scrollTop = false, fetchId = 0 } = {
     hasNext: false,
     hasPrevious: false,
   };
-  prefetchAdjacentArtistPages(state.artistPage);
+  if (!state.searchTerm) prefetchAdjacentArtistPages(state.artistPage);
   if (scrollTop) {
     render();
     scrollPageToTop();
@@ -1596,25 +1597,17 @@ function fetchTracksByIds(trackIds = [], options = {}) {
   return fetchBrowsePagePayload(queryKey, url, options);
 }
 
-function prefetchAdjacentTrackPages(page = state.trackPage) {
-  if (!state.searchTerm) return;
-  const limit = page.limit || state.settings.libraryPageSize || 50;
-  const offset = page.offset || 0;
-  const offsets = [];
-  if (page.hasNext) offsets.push(offset + limit);
-  if (page.hasPrevious) offsets.push(Math.max(0, offset - limit));
-  for (const adjacentOffset of offsets) {
-    const { queryKey, url } = getTrackPageRequest(adjacentOffset);
-    prefetchBrowsePage(queryKey, url);
-  }
-}
-
-function queueTrackPageFetch(offset = 0) {
+function queueTrackPageFetch(offset = 0, { immediate = false } = {}) {
   const fetchId = ++state.searchFetchId;
-  window.setTimeout(() => {
+  const loadPage = () => {
     if (fetchId !== state.searchFetchId) return;
     loadTrackPage(offset, { fetchId }).catch((error) => console.error(error));
-  }, 220);
+  };
+  if (immediate) {
+    loadPage();
+    return;
+  }
+  window.setTimeout(loadPage, 220);
 }
 
 async function loadTrackPage(offset = 0, { fetchId = 0 } = {}) {
@@ -1629,7 +1622,6 @@ async function loadTrackPage(offset = 0, { fetchId = 0 } = {}) {
     hasNext: false,
     hasPrevious: false,
   };
-  prefetchAdjacentTrackPages(state.trackPage);
   preservePageScroll(() => render());
 }
 
@@ -1992,7 +1984,7 @@ async function loadCollectionAlbumsPage(offset = 0) {
       hasNext: false,
       hasPrevious: false,
     };
-    prefetchAdjacentCollectionPages(state.collectionPage, { collectionPath });
+    if (!state.searchTerm) prefetchAdjacentCollectionPages(state.collectionPage, { collectionPath });
     state.collectionAlbumsLoaded = true;
     if (
       (state.route.view === 'library' && state.libraryTab === 'collections')
@@ -2033,7 +2025,7 @@ async function loadCollectionFolders(offset = 0, { preferCache = true } = {}) {
       hasNext: false,
       hasPrevious: false,
     };
-    prefetchAdjacentCollectionPages(state.collectionFoldersPage);
+    if (!state.searchTerm) prefetchAdjacentCollectionPages(state.collectionFoldersPage);
     state.collectionFoldersLoaded = true;
   } catch (error) {
     if (fetchId !== state.collectionFoldersFetchId) return;
@@ -3273,6 +3265,10 @@ function renderSidebar({
 }
 
 function renderTopbar(viewContext = getRouteRenderContext()) {
+  const normalizedInputValue = String(state.searchInputValue || '').trim().toLowerCase();
+  const searchAction = normalizedInputValue
+    ? (normalizedInputValue === state.searchTerm ? 'clear' : 'search')
+    : (state.searchTerm ? 'clear' : 'hidden');
   renderReact('renderTopbar', topbarRoot, {
     searchValue: state.searchInputValue,
     showBackButton: Boolean(
@@ -3280,15 +3276,16 @@ function renderTopbar(viewContext = getRouteRenderContext()) {
       || viewContext.isArtistView
       || viewContext.isCollectionView
     ),
-    showClearButton: Boolean(state.searchInputValue),
+    searchAction,
     mobileSidebarOpen: document.body.classList.contains('mobile-sidebar-open'),
     focusNonce: state.searchFocusNonce,
     folderOptions: getFolderFilterOptions(),
     activeFolders: [...state.folderFilters],
     showFolderFilter: shouldShowFolderFilter(viewContext),
     onSearchChange: (value) => {
-      updateSearchValue(value, { refresh: true });
+      updateSearchValue(value);
     },
+    onSubmitSearch: submitSearchValue,
     onClearSearch: () => resetSearchState({ focus: true, refresh: true }),
     onBack: () => navigateToView(state.browseView),
     onOpenSidebar: () => setMobileSidebarOpen(true),

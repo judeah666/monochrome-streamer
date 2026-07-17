@@ -5,13 +5,14 @@ import { getFolderFilterLabel } from '../../utils/mobileFilters.js';
 export function Topbar({
   searchValue = '',
   showBackButton = false,
-  showClearButton = false,
+  searchAction = 'hidden',
   mobileSidebarOpen = false,
   focusNonce = 0,
   folderOptions = [],
   activeFolders = [],
   showFolderFilter = false,
   onSearchChange,
+  onSubmitSearch,
   onClearSearch,
   onBack,
   onOpenSidebar,
@@ -22,6 +23,8 @@ export function Topbar({
   const activeFolderSet = React.useMemo(() => new Set(activeFolders), [activeFolders]);
   const folderFilterLabel = getFolderFilterLabel(activeFolders);
   const closeFolderSheet = React.useCallback(() => setFolderSheetOpen(false), []);
+  const showSearchAction = searchAction === 'search';
+  const showClearAction = searchAction === 'clear';
 
   React.useEffect(() => {
     if (!focusNonce) return;
@@ -67,18 +70,36 @@ export function Topbar({
             placeholder="Search for tracks, artists, albums..."
             value={searchValue}
             onChange={(event) => onSearchChange?.(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter') return;
+              event.preventDefault();
+              if (searchValue.trim()) {
+                onSubmitSearch?.();
+              } else {
+                onClearSearch?.();
+              }
+            }}
           />
         </label>
 
         <button
-          id="clear-search-button"
+          id="search-action-button"
           className="icon-button"
           type="button"
-          hidden={!showClearButton}
-          aria-label="Clear search"
-          onClick={() => onClearSearch?.()}
+          hidden={!showSearchAction && !showClearAction}
+          aria-label={showSearchAction ? 'Search' : 'Clear search'}
+          onClick={() => {
+            if (showSearchAction) {
+              onSubmitSearch?.();
+              return;
+            }
+            onClearSearch?.();
+          }}
         >
-          <i className="fa-solid fa-xmark" aria-hidden="true" />
+          <i
+            className={`fa-solid ${showSearchAction ? 'fa-magnifying-glass' : 'fa-xmark'}`}
+            aria-hidden="true"
+          />
         </button>
       </header>
 

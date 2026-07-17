@@ -889,10 +889,6 @@
     padding-bottom: calc(var(--measured-player-reserve) + env(safe-area-inset-bottom, 0px));
   }
 
-  #clear-search-button {
-    display: none;
-  }
-
   .track-table-header,
   .album-track-row {
     grid-template-columns: 34px minmax(0, 1fr) auto;

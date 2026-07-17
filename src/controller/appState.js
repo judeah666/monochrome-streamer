@@ -139,7 +139,6 @@ export function createInitialState() {
     scanPollId: null,
     scanPollInFlight: false,
     searchFetchId: 0,
-    searchDebounceId: 0,
     unsearchedLibraryStale: false,
     artistFetchId: 0,
     widgetSettings: null,
