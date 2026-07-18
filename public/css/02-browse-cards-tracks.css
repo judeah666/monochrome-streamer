@@ -989,7 +989,7 @@ body.light-ui .album-hero-scrim {
 
 .track-table-header {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) minmax(120px, 180px) 192px;
+  grid-template-columns: 56px minmax(0, 1fr) minmax(120px, 180px) auto;
   gap: 18px;
   align-items: center;
 }

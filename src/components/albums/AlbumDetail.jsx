@@ -27,7 +27,7 @@ const albumActionIconClassName = 'album-action-icon';
 const albumContentLayoutClassName = 'album-content-layout tw-mt-7 tw-grid tw-grid-cols-[minmax(0,1fr)_320px] tw-gap-7 max-[1100px]:tw-grid-cols-1';
 const albumMainClassName = 'album-main tw-overflow-hidden tw-rounded-[24px] tw-border tw-border-line tw-bg-[var(--glass-heavy)] tw-shadow-panel tw-backdrop-blur-[22px]';
 const trackTableHeaderClassName = [
-  'track-table-header tw-grid tw-grid-cols-[56px_minmax(0,1fr)_minmax(120px,180px)_192px]',
+  'track-table-header tw-grid tw-grid-cols-[56px_minmax(0,1fr)_minmax(120px,180px)_auto]',
   'tw-items-center tw-gap-[18px] tw-border-b tw-border-line tw-px-5 tw-pb-3.5 tw-pt-[18px]',
   'tw-text-[0.86rem] tw-text-muted max-[720px]:tw-hidden',
 ].join(' ');
@@ -54,7 +54,6 @@ export function AlbumDetail({
   onPlayAlbum,
   onQueueAlbum,
   onDownloadAlbum,
-  onShuffleAlbum,
   onShareAlbum,
   onEditAlbum,
   onFavoriteAlbum,
@@ -132,10 +131,6 @@ export function AlbumDetail({
                   <i className={`fa-solid fa-download ${albumActionIconClassName}`} aria-hidden="true"></i>
                 )}
                 <span className="album-action-label">{downloadBusy ? 'Downloading' : 'Download'}</span>
-              </button>
-              <button className={`secondary-button ${albumActionButtonClassName}`} type="button" disabled={!canQueue} aria-label="Shuffle album" title="Shuffle album" onClick={() => onShuffleAlbum?.(album.id)}>
-                <i className={`fa-solid fa-shuffle ${albumActionIconClassName}`} aria-hidden="true"></i>
-                <span className="album-action-label">Shuffle</span>
               </button>
               <button
                 className={`secondary-button ${albumActionButtonClassName}`}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CoverImage, FontAwesomeIcon, PlayerIcon } from '../common/VisualBits.jsx';
 import addToPlaylistIconUrl from '../../assets/icons/actions/add-to-playlist.svg';
 
@@ -190,73 +190,80 @@ function AlbumInlineButton({ album, className = '', onAlbumClick }) {
 }
 
 function TrackActions({ track, onFavorite, onAddQueue, onAddPlaylist, onDownload, onRemove }) {
+  const [expanded, setExpanded] = useState(false);
+  const runAction = (event, action) => {
+    event.stopPropagation();
+    setExpanded(false);
+    action?.();
+  };
+
   return (
-    <div className={rowActionsClassName}>
+    <div className={`${rowActionsClassName}${expanded ? ' is-expanded' : ''}`}>
       <button
         type="button"
-        className={`favorite-toggle-button ${rowIconButtonClassName}${track.favorite ? ' active' : ''}`}
-        aria-label={`${track.favorite ? 'Unfavorite' : 'Favorite'} ${track.title}`}
+        className={`track-action-menu-toggle ${rowIconButtonClassName}`}
+        aria-label={`${expanded ? 'Close' : 'Show'} actions for ${track.title}`}
+        aria-expanded={expanded}
+        aria-haspopup="true"
         onClick={(event) => {
           event.stopPropagation();
-          onFavorite?.();
+          setExpanded((current) => !current);
         }}
       >
-        <FontAwesomeIcon name="favorite" />
+        <FontAwesomeIcon name={expanded ? 'close' : 'fa-ellipsis'} />
       </button>
-      <button
-        type="button"
-        className={`queue-track-button ${rowIconButtonClassName}`}
-        aria-label={`Add ${track.title} to queue`}
-        onClick={(event) => {
-          event.stopPropagation();
-          onAddQueue?.();
-        }}
-      >
-        <FontAwesomeIcon name="addQueue" />
-      </button>
-      {onAddPlaylist ? (
+      <div className="track-action-menu" role="group" aria-label={`Actions for ${track.title}`}>
         <button
           type="button"
-          className={`playlist-track-button ${rowIconButtonClassName}`}
-          aria-label={`Add ${track.title} to a playlist`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onAddPlaylist();
-          }}
+          className={`favorite-toggle-button ${rowIconButtonClassName}${track.favorite ? ' active' : ''}`}
+          aria-label={`${track.favorite ? 'Unfavorite' : 'Favorite'} ${track.title}`}
+          onClick={(event) => runAction(event, onFavorite)}
         >
-          <span
-            className="add-to-playlist-icon"
-            style={{ '--add-to-playlist-icon': `url("${addToPlaylistIconUrl}")` }}
-            aria-hidden="true"
-          />
+          <FontAwesomeIcon name="favorite" />
         </button>
-      ) : null}
-      {onDownload ? (
         <button
           type="button"
-          className={`download-track-button ${rowIconButtonClassName}`}
-          aria-label={`Download ${track.title}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onDownload();
-          }}
+          className={`queue-track-button ${rowIconButtonClassName}`}
+          aria-label={`Add ${track.title} to queue`}
+          onClick={(event) => runAction(event, onAddQueue)}
         >
-          <PlayerIcon name="download" />
+          <FontAwesomeIcon name="addQueue" />
         </button>
-      ) : null}
-      {onRemove ? (
-        <button
-          type="button"
-          className={`playlist-remove-track-button ${rowIconButtonClassName}`}
-          aria-label={`Remove ${track.title} from playlist`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onRemove();
-          }}
-        >
-          <FontAwesomeIcon name="remove" />
-        </button>
-      ) : null}
+        {onAddPlaylist ? (
+          <button
+            type="button"
+            className={`playlist-track-button ${rowIconButtonClassName}`}
+            aria-label={`Add ${track.title} to a playlist`}
+            onClick={(event) => runAction(event, onAddPlaylist)}
+          >
+            <span
+              className="add-to-playlist-icon"
+              style={{ '--add-to-playlist-icon': `url("${addToPlaylistIconUrl}")` }}
+              aria-hidden="true"
+            />
+          </button>
+        ) : null}
+        {onDownload ? (
+          <button
+            type="button"
+            className={`download-track-button ${rowIconButtonClassName}`}
+            aria-label={`Download ${track.title}`}
+            onClick={(event) => runAction(event, onDownload)}
+          >
+            <PlayerIcon name="download" />
+          </button>
+        ) : null}
+        {onRemove ? (
+          <button
+            type="button"
+            className={`playlist-remove-track-button ${rowIconButtonClassName}`}
+            aria-label={`Remove ${track.title} from playlist`}
+            onClick={(event) => runAction(event, onRemove)}
+          >
+            <FontAwesomeIcon name="remove" />
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

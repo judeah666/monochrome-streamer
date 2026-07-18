@@ -4569,10 +4569,6 @@ function renderAlbumDetail(album) {
     onDownloadAlbum: (albumId) => {
       downloadAlbumTracks(albumId).catch((error) => console.error(error));
     },
-    onShuffleAlbum: (albumId) => {
-      const selectedAlbum = state.albumMap.get(albumId);
-      if (selectedAlbum) playAlbumFromCard(selectedAlbum, { shuffle: true }).catch((error) => console.error(error));
-    },
     onShareAlbum: (albumId) => {
       shareAlbumLink(albumId).catch((error) => console.error(error));
     },

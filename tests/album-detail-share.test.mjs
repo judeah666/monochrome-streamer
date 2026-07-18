@@ -46,6 +46,7 @@ test('album detail renders a share action and copied feedback', async () => {
   }));
   assert.match(shareHtml, /aria-label="Share album link"/u);
   assert.match(shareHtml, />Share<\/span>/u);
+  assert.doesNotMatch(shareHtml, /aria-label="Shuffle album"/u);
 
   const copiedHtml = renderToStaticMarkup(React.createElement(AlbumDetail, {
     album,

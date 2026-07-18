@@ -186,7 +186,7 @@
   }
 
   .album-track-row-shell {
-    @apply tw-grid tw-grid-cols-[56px_minmax(0,1fr)_minmax(120px,180px)_192px] tw-items-center tw-gap-[18px] tw-border-b tw-border-line tw-bg-surface tw-px-5 tw-py-4 tw-backdrop-blur-md tw-cursor-pointer tw-transition;
+    @apply tw-grid tw-grid-cols-[56px_minmax(0,1fr)_minmax(120px,180px)_auto] tw-items-center tw-gap-[18px] tw-border-b tw-border-line tw-bg-surface tw-px-5 tw-py-4 tw-backdrop-blur-md tw-cursor-pointer tw-transition;
   }
 
   .album-track-row-shell:nth-child(even) {
@@ -206,11 +206,21 @@
   }
 
   .track-action-row {
-    @apply tw-flex tw-items-center tw-gap-2;
+    @apply tw-flex tw-items-center tw-justify-end tw-gap-2;
+  }
+
+  .track-action-menu {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .track-action-button {
     @apply tw-inline-flex tw-h-[42px] tw-w-[42px] tw-items-center tw-justify-center tw-rounded-pill tw-border tw-border-line tw-bg-[var(--glass)] tw-p-0 tw-backdrop-blur-md;
+  }
+
+  .track-action-menu-toggle {
+    display: none;
   }
 
   .track-action-button:hover {
@@ -237,7 +247,7 @@
   }
 
   .playlist-track-table .album-track-row-shell {
-    grid-template-columns: 56px minmax(0, 1fr) minmax(120px, 180px) 192px;
+    grid-template-columns: 56px minmax(0, 1fr) minmax(120px, 180px) auto;
   }
 
   .add-to-playlist-icon {
