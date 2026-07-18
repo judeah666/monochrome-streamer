@@ -524,7 +524,7 @@ body.mobile-filter-sheet-open {
 
 .album-track-row-shell {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) minmax(120px, 180px) 156px;
+  grid-template-columns: 56px minmax(0, 1fr) minmax(120px, 180px) 192px;
   align-items: center;
   gap: 18px;
   border-bottom: 1px solid var(--line);
@@ -609,6 +609,12 @@ body.mobile-filter-sheet-open {
 
 .track-action-button .fa-solid {
   font-size: 20px;
+}
+
+.track-action-button .player-symbol,
+.folder-track-row .player-symbol {
+  width: 20px;
+  height: 20px;
 }
 
 @media (max-width: 720px) {

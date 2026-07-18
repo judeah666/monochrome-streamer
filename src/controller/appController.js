@@ -3473,6 +3473,21 @@ function isPlaylistUser() {
   return Boolean(state.currentUser && state.currentUser.role !== 'guest');
 }
 
+function canCurrentUserDownloadTracks() {
+  return Boolean(
+    state.currentUser
+    && state.currentUser.role !== 'guest'
+    && state.canDownload !== false
+  );
+}
+
+function downloadTrackFromRow(trackOrId) {
+  const track = typeof trackOrId === 'string' ? state.trackMap.get(trackOrId) : trackOrId;
+  if (!track?.id || !canCurrentUserDownloadTracks()) return;
+  triggerTrackBrowserDownload(track, { target: `track:${track.id}` })
+    .catch((error) => console.error(error));
+}
+
 function normalizeSettingsTab(tab = state.settingsTab) {
   const visibleTabIds = new Set(SETTINGS_TABS.map(([id]) => id));
   return visibleTabIds.has(tab) ? tab : 'appearance';
@@ -3764,12 +3779,12 @@ function renderFolderBrowser() {
     expandedPaths: [...state.expandedFolderPaths],
     loadingPaths: [...state.folderLoading],
     currentTrackId: state.currentTrackId,
-    playing: !audioPlayer.paused,
     isFavoriteTrack,
     onToggleFolder: handleFolderToggle,
     onPlayFolder: playFolderFromBrowser,
     onPlayTrack: playFolderTrackFromBrowser,
     onToggleFavorite: toggleFavoriteTrack,
+    onDownloadTrack: canCurrentUserDownloadTracks() ? downloadTrackFromRow : null,
   });
   if (!listing) {
     loadFolderListing('').catch((error) => console.error(error));
@@ -3860,6 +3875,7 @@ function renderLibraryTracksPanel() {
       if (track) addTracksToQueue([track]);
     },
     onAddTrackToPlaylist: isPlaylistUser() ? openPlaylistDialog : null,
+    onDownloadTrack: canCurrentUserDownloadTracks() ? downloadTrackFromRow : null,
     onArtistClick: (artistName) => {
       if (artistName) openArtist(artistName);
     },
@@ -3917,6 +3933,7 @@ function renderPlaylistsBrowser() {
       const track = state.trackMap.get(trackId);
       if (track) addTracksToQueue([track]);
     },
+    onDownloadTrack: canCurrentUserDownloadTracks() ? downloadTrackFromRow : null,
     onRemoveTrack: removeTrackFromSelectedPlaylist,
     onArtistClick: openArtist,
     onAlbumClick: openAlbumForTrackId,
@@ -4476,6 +4493,7 @@ function renderTrackCollection(container, tracks, queueTracks, emptyMessage) {
       openAlbumForTrackId(trackId);
     },
     onAddTrackToPlaylist: isPlaylistUser() ? openPlaylistDialog : null,
+    onDownloadTrack: canCurrentUserDownloadTracks() ? downloadTrackFromRow : null,
   });
 }
 
@@ -4591,6 +4609,7 @@ function renderAlbumDetail(album) {
       if (selectedAlbum) playAlbumFromCard(selectedAlbum).catch((error) => console.error(error));
     },
     onAddTrackPlaylist: isPlaylistUser() ? openPlaylistDialog : null,
+    onDownloadTrack: canCurrentUserDownloadTracks() ? downloadTrackFromRow : null,
   });
 }
 

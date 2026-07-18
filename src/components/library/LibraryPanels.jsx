@@ -43,6 +43,7 @@ export function LibraryTracksPanel({
   onFavoriteTrack,
   onAddTrackToQueue,
   onAddTrackToPlaylist,
+  onDownloadTrack,
   onArtistClick,
   onAlbumClick,
 }) {
@@ -69,6 +70,7 @@ export function LibraryTracksPanel({
               onFavorite={onFavoriteTrack}
               onAddQueue={onAddTrackToQueue}
               onAddPlaylist={onAddTrackToPlaylist}
+              onDownload={onDownloadTrack}
               onArtistClick={onArtistClick}
               onAlbumClick={onAlbumClick}
             />

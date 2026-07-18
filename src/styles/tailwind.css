@@ -230,6 +230,12 @@
     font-size: 20px;
   }
 
+  .track-action-button .player-symbol,
+  .folder-track-row .player-symbol {
+    width: 20px;
+    height: 20px;
+  }
+
   .playlist-track-table .album-track-row-shell {
     grid-template-columns: 56px minmax(0, 1fr) minmax(120px, 180px) 192px;
   }

@@ -33,6 +33,7 @@ export function PlaylistBrowser({
   onPlayTrack,
   onFavoriteTrack,
   onAddTrackToQueue,
+  onDownloadTrack,
   onRemoveTrack,
   onArtistClick,
   onAlbumClick,
@@ -62,6 +63,7 @@ export function PlaylistBrowser({
         onPlayTrack={onPlayTrack}
         onFavoriteTrack={onFavoriteTrack}
         onAddTrackToQueue={onAddTrackToQueue}
+        onDownloadTrack={onDownloadTrack}
         onRemoveTrack={onRemoveTrack}
         onArtistClick={onArtistClick}
         onAlbumClick={onAlbumClick}
@@ -123,6 +125,7 @@ function PlaylistDetail({
   onPlayTrack,
   onFavoriteTrack,
   onAddTrackToQueue,
+  onDownloadTrack,
   onRemoveTrack,
   onArtistClick,
   onAlbumClick,
@@ -190,6 +193,7 @@ function PlaylistDetail({
             onPlay={onPlayTrack}
             onFavorite={onFavoriteTrack}
             onAddQueue={onAddTrackToQueue}
+            onDownload={onDownloadTrack}
             onRemove={onRemoveTrack}
             onArtistClick={onArtistClick}
             onAlbumClick={onAlbumClick}

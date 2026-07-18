@@ -1,4 +1,5 @@
 import React from 'react';
+import { PlayerIcon } from '../common/VisualBits.jsx';
 
 const folderNodeClassName = 'folder-node tw-m-0 tw-pl-[22px]';
 const folderSummaryClassName = [
@@ -25,12 +26,12 @@ export function FolderBrowser({
   expandedPaths = [],
   loadingPaths = [],
   currentTrackId = '',
-  playing = false,
   isFavoriteTrack,
   onToggleFolder,
   onPlayFolder,
   onPlayTrack,
   onToggleFavorite,
+  onDownloadTrack,
 }) {
   if (!rootListing) {
     return <p className="empty-state">Loading folders from database...</p>;
@@ -55,12 +56,12 @@ export function FolderBrowser({
           expandedSet={expandedSet}
           loadingSet={loadingSet}
           currentTrackId={currentTrackId}
-          playing={playing}
           isFavoriteTrack={isFavoriteTrack}
           onToggleFolder={onToggleFolder}
           onPlayFolder={onPlayFolder}
           onPlayTrack={onPlayTrack}
           onToggleFavorite={onToggleFavorite}
+          onDownloadTrack={onDownloadTrack}
         />
       ))}
       {(rootListing.tracks || []).map((track) => (
@@ -69,10 +70,10 @@ export function FolderBrowser({
           track={track}
           queueTracks={rootListing.tracks || []}
           currentTrackId={currentTrackId}
-          playing={playing}
           favorite={Boolean(isFavoriteTrack?.(track.id))}
           onPlayTrack={onPlayTrack}
           onToggleFavorite={onToggleFavorite}
+          onDownloadTrack={onDownloadTrack}
         />
       ))}
     </>
@@ -85,12 +86,12 @@ function FolderNode({
   expandedSet,
   loadingSet,
   currentTrackId,
-  playing,
   isFavoriteTrack,
   onToggleFolder,
   onPlayFolder,
   onPlayTrack,
   onToggleFavorite,
+  onDownloadTrack,
 }) {
   const folderPath = normalizeFolderPath(folder.path || folder.name);
   const listing = folderCache.get(folderPath);
@@ -158,12 +159,12 @@ function FolderNode({
             expandedSet={expandedSet}
             loadingSet={loadingSet}
             currentTrackId={currentTrackId}
-            playing={playing}
             isFavoriteTrack={isFavoriteTrack}
             onToggleFolder={onToggleFolder}
             onPlayFolder={onPlayFolder}
             onPlayTrack={onPlayTrack}
             onToggleFavorite={onToggleFavorite}
+            onDownloadTrack={onDownloadTrack}
           />
         ) : null}
       </div>
@@ -178,12 +179,12 @@ function FolderNodeBody({
   expandedSet,
   loadingSet,
   currentTrackId,
-  playing,
   isFavoriteTrack,
   onToggleFolder,
   onPlayFolder,
   onPlayTrack,
   onToggleFavorite,
+  onDownloadTrack,
 }) {
   if (!listing) {
     return <p className="empty-state">{loading ? 'Loading folder...' : 'Loading folder...'}</p>;
@@ -199,12 +200,12 @@ function FolderNodeBody({
           expandedSet={expandedSet}
           loadingSet={loadingSet}
           currentTrackId={currentTrackId}
-          playing={playing}
           isFavoriteTrack={isFavoriteTrack}
           onToggleFolder={onToggleFolder}
           onPlayFolder={onPlayFolder}
           onPlayTrack={onPlayTrack}
           onToggleFavorite={onToggleFavorite}
+          onDownloadTrack={onDownloadTrack}
         />
       ))}
       {(listing.tracks || []).map((track) => (
@@ -213,10 +214,10 @@ function FolderNodeBody({
           track={track}
           queueTracks={listing.tracks || []}
           currentTrackId={currentTrackId}
-          playing={playing}
           favorite={Boolean(isFavoriteTrack?.(track.id))}
           onPlayTrack={onPlayTrack}
           onToggleFavorite={onToggleFavorite}
+          onDownloadTrack={onDownloadTrack}
         />
       ))}
     </>
@@ -227,14 +228,12 @@ function FolderTrackRow({
   track,
   queueTracks,
   currentTrackId,
-  playing,
   favorite,
   onPlayTrack,
   onToggleFavorite,
+  onDownloadTrack,
 }) {
   const active = track.id === currentTrackId;
-  const isPlaying = active && playing;
-
   return (
     <div className={`${folderTrackRowBaseClassName}${active ? folderTrackActiveClassName : ''}`}>
       <button type="button" className={folderTrackMainClassName} aria-label={`Play ${track.title}`} onClick={() => onPlayTrack?.(track, queueTracks)}>
@@ -253,17 +252,19 @@ function FolderTrackRow({
         >
           <i className={`${favorite ? 'fa-solid' : 'fa-regular'} fa-heart`}></i>
         </button>
-        <button
-          type="button"
-          className={`row-play-button ${rowButtonClassName}`}
-          aria-label={`Play ${track.title}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onPlayTrack?.(track, queueTracks, { toggleIfCurrent: true });
-          }}
-        >
-          <i className={`fa-solid ${isPlaying ? 'fa-pause' : 'fa-play'}`}></i>
-        </button>
+        {onDownloadTrack ? (
+          <button
+            type="button"
+            className={`download-track-button ${rowButtonClassName}`}
+            aria-label={`Download ${track.title}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onDownloadTrack(track);
+            }}
+          >
+            <PlayerIcon name="download" />
+          </button>
+        ) : null}
       </div>
     </div>
   );

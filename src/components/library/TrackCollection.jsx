@@ -15,6 +15,7 @@ export function TrackCollection({
   onFavoriteTrack,
   onAddTrackToQueue,
   onAddTrackToPlaylist,
+  onDownloadTrack,
   onArtistClick,
   onAlbumClick,
 }) {
@@ -35,6 +36,7 @@ export function TrackCollection({
           onFavorite={onFavoriteTrack}
           onAddQueue={onAddTrackToQueue}
           onAddPlaylist={onAddTrackToPlaylist}
+          onDownload={onDownloadTrack}
           onArtistClick={onArtistClick}
           onAlbumClick={onAlbumClick}
         />
