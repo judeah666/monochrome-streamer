@@ -39,6 +39,9 @@ const sideCardGridClassName = 'side-card-grid';
 
 export function AlbumDetail({
   album,
+  loading = false,
+  error = '',
+  onBack,
   tracks = [],
   relatedAlbums = [],
   epAlbums = [],
@@ -64,7 +67,18 @@ export function AlbumDetail({
   onOpenAlbum,
   onPlayRelatedAlbum,
 }) {
-  if (!album) return null;
+  if (!album) {
+    return (
+      <section className="content-section">
+        <p className="empty-state">{loading ? 'Loading album...' : (error || 'Album was not found.')}</p>
+        {!loading ? (
+          <button className="secondary-button" type="button" onClick={() => onBack?.()}>
+            Back to library
+          </button>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <>

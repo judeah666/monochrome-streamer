@@ -51,6 +51,7 @@ import {
   writeLyricsOverridesDatabase,
 } from './lib/library-db.mjs';
 import { parseCollectionNames, replaceCollectionName } from './src/shared/collectionNames.js';
+import { createAlbumSharePage, getAlbumSharePath } from './src/shared/albumShare.js';
 import {
   DEFAULT_MAX_CONCURRENT_MP3_DOWNLOADS,
   DOWNLOAD_MAX_REQUESTS,
@@ -309,6 +310,16 @@ const server = http.createServer(async (request, response) => {
 
     if (!authUser && !isPublicLoginShellRequest) {
       return requireLogin(request, response, url);
+    }
+
+    const albumShareMatch = /^\/share\/album\/([^/]+)$/u.exec(url.pathname);
+    if (albumShareMatch) {
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        return respondJson(response, 405, { error: 'Method Not Allowed' });
+      }
+      return serveAlbumSharePage(request, response, decodeURIComponent(albumShareMatch[1]), {
+        headOnly: request.method === 'HEAD',
+      });
     }
 
     if (url.pathname === '/api/auth/me') {
@@ -3012,6 +3023,51 @@ async function createLibraryPayload(library) {
       };
     }),
   };
+}
+
+async function serveAlbumSharePage(request, response, albumId, { headOnly = false } = {}) {
+  const library = await readLibraryAlbumPage(libraryDatabasePath, await applyDeletedAlbumExclusions({
+    albumIds: [albumId],
+    includeTracks: false,
+    includeCoverTracks: true,
+  }));
+  const payload = await createLibraryPayload(library);
+  const album = payload.albums.find((candidate) => candidate.id === albumId);
+  if (!album) {
+    return respondHtml(response, 404, createSimplePage('Album not found', 'This album is no longer available.'));
+  }
+
+  const origin = getPublicRequestOrigin(request);
+  const canonicalUrl = new URL(getAlbumSharePath(albumId), origin).toString();
+  const appUrl = new URL(`/#album/${encodeURIComponent(albumId)}`, origin).toString();
+  const coverPath = album.fullCoverUrl || album.coverUrl || '';
+  const imageUrl = coverPath ? new URL(coverPath, origin).toString() : '';
+  const html = createAlbumSharePage({
+    siteTitle: config.title,
+    album,
+    canonicalUrl,
+    appUrl,
+    imageUrl,
+  });
+  return respondHtml(response, 200, html, { headOnly });
+}
+
+function getPublicRequestOrigin(request) {
+  const forwardedHost = config.trustProxy
+    ? String(request.headers['x-forwarded-host'] || '').split(',')[0].trim()
+    : '';
+  const host = forwardedHost || String(request.headers.host || `${config.host}:${config.port}`).trim();
+  const forwardedProto = config.trustProxy
+    ? String(request.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase()
+    : '';
+  const protocol = forwardedProto === 'https' || forwardedProto === 'http'
+    ? forwardedProto
+    : (isSecureRequest(request) ? 'https' : 'http');
+  try {
+    return new URL(`${protocol}://${host}`).origin;
+  } catch {
+    return getRequestOrigin(request);
+  }
 }
 
 function getDeletedAlbumIdSet(overrides = {}) {
@@ -6121,14 +6177,14 @@ function respondJson(response, statusCode, body, headers = {}) {
   response.end(payload);
 }
 
-function respondHtml(response, statusCode, html) {
+function respondHtml(response, statusCode, html, { headOnly = false } = {}) {
   response.writeHead(statusCode, {
     ...getSecurityHeaders(),
     'Content-Type': 'text/html; charset=utf-8',
     'Content-Length': Buffer.byteLength(html),
     'Cache-Control': 'no-store',
   });
-  response.end(html);
+  response.end(headOnly ? undefined : html);
 }
 
 function redirect(response, location) {

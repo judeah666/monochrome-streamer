@@ -45,10 +45,9 @@ test('parseRouteFromHash supports login and stable browse return hashes', () => 
   });
 });
 
-test('parseRouteFromHash returns album route only when album exists', () => {
+test('parseRouteFromHash preserves album routes before album data is loaded', () => {
   assert.deepEqual(parseRouteFromHash('#album/album%201', {
     browseView: 'library',
-    hasAlbum: (albumId) => albumId === 'album 1',
   }), {
     route: { view: 'album', albumId: 'album 1', artistName: null },
     artistNameToLoad: null,
@@ -57,8 +56,15 @@ test('parseRouteFromHash returns album route only when album exists', () => {
 
   assert.deepEqual(parseRouteFromHash('#album/missing', {
     browseView: 'library',
-    hasAlbum: () => false,
   }), {
+    route: { view: 'album', albumId: 'missing', artistName: null },
+    artistNameToLoad: null,
+    collectionNameToLoad: null,
+  });
+});
+
+test('parseRouteFromHash safely rejects malformed encoded route segments', () => {
+  assert.deepEqual(parseRouteFromHash('#album/%E0%A4%A', { browseView: 'library' }), {
     route: { view: 'library', albumId: null, artistName: null },
     artistNameToLoad: null,
     collectionNameToLoad: null,
@@ -110,11 +116,11 @@ test('route helpers encode hashes and browse routes', () => {
 test('album share urls preserve the current app path and replace the hash', () => {
   assert.equal(getAlbumShareUrl('album 1', {
     href: 'https://music.example/app/?theme=light#library',
-  }), 'https://music.example/app/?theme=light#album/album%201');
+  }), 'https://music.example/share/album/album%201');
 
   assert.equal(getAlbumShareUrl('A/B & C', {
     href: 'https://music.example/#album/old',
-  }), 'https://music.example/#album/A%2FB%20%26%20C');
+  }), 'https://music.example/share/album/A%2FB%20%26%20C');
 });
 
 test('fullscreen return hash ignores current and legacy playing hashes', () => {

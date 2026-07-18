@@ -1,9 +1,10 @@
+import { getAlbumSharePath } from '../shared/albumShare.js';
+
 export const BROWSE_VIEWS = new Set(['home', 'library', 'playlists', 'favorites', 'wishlist', 'settings', 'admin', 'login']);
 const PLAYING_HASHES = new Set(['playing', 'fullscreen']);
 
 export function parseRouteFromHash(hashValue, {
   browseView = 'home',
-  hasAlbum = () => false,
 } = {}) {
   const hash = String(hashValue || '').replace(/^#\/?/, '');
   const albumMatch = /^album\/(.+)$/u.exec(hash);
@@ -27,8 +28,8 @@ export function parseRouteFromHash(hashValue, {
   }
 
   if (albumMatch) {
-    const albumId = decodeURIComponent(albumMatch[1]);
-    if (hasAlbum(albumId)) {
+    const albumId = decodeRouteSegment(albumMatch[1]);
+    if (albumId) {
       return {
         route: { view: 'album', albumId, artistName: null },
         artistNameToLoad: null,
@@ -38,7 +39,8 @@ export function parseRouteFromHash(hashValue, {
   }
 
   if (artistMatch) {
-    const artistName = decodeURIComponent(artistMatch[1]);
+    const artistName = decodeRouteSegment(artistMatch[1]);
+    if (!artistName) return createBrowseRouteResult(browseView);
     return {
       route: { view: 'artist', albumId: null, artistName },
       artistNameToLoad: artistName,
@@ -47,7 +49,8 @@ export function parseRouteFromHash(hashValue, {
   }
 
   if (collectionMatch) {
-    const collectionName = decodeURIComponent(collectionMatch[1]);
+    const collectionName = decodeRouteSegment(collectionMatch[1]);
+    if (!collectionName) return createBrowseRouteResult(browseView);
     return {
       route: { view: 'collection', albumId: null, artistName: null, collectionName },
       artistNameToLoad: null,
@@ -63,6 +66,18 @@ export function parseRouteFromHash(hashValue, {
     };
   }
 
+  return createBrowseRouteResult(browseView);
+}
+
+function decodeRouteSegment(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return '';
+  }
+}
+
+function createBrowseRouteResult(browseView) {
   return {
     route: { view: browseView, albumId: null, artistName: null },
     artistNameToLoad: null,
@@ -79,16 +94,16 @@ export function getAlbumHash(albumId) {
 }
 
 export function getAlbumShareUrl(albumId, locationLike = globalThis.location) {
-  const hash = `#${getAlbumHash(albumId)}`;
+  const sharePath = getAlbumSharePath(albumId);
   try {
     const url = new URL(String(locationLike?.href || '/'));
-    url.hash = hash;
+    url.pathname = sharePath;
+    url.search = '';
+    url.hash = '';
     return url.toString();
   } catch {
     const origin = String(locationLike?.origin || '').replace(/\/$/u, '');
-    const pathname = String(locationLike?.pathname || '/');
-    const search = String(locationLike?.search || '');
-    return `${origin}${pathname}${search}${hash}`;
+    return `${origin}${sharePath}`;
   }
 }
 

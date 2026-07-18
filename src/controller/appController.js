@@ -274,6 +274,7 @@ let settingsPanelStore = null;
 let albumShareCopiedTimer = 0;
 let downloadStatusRoot = null;
 let downloadStatusTimer = 0;
+const albumTrackHydrationRequests = new Map();
 const playbackController = createPlaybackController({
   state,
   audioPlayer,
@@ -353,7 +354,6 @@ async function init() {
 
   const initialRouteResult = resolveRouteFromLocation({
     browseView: state.browseView,
-    hasAlbum: () => false,
   });
   const shouldBootstrapLoginRoute = isLoginOnlyLocation();
 
@@ -806,6 +806,7 @@ function hydrateLibrary(config, library) {
   if (library.generatedAt && previousGeneratedAt && library.generatedAt !== previousGeneratedAt) {
     state.albumTrackHydrationAttempts.clear();
     state.albumTrackHydrationInFlight.clear();
+    albumTrackHydrationRequests.clear();
   }
   state.albums = library.albums;
   if (!isLightweight) {
@@ -887,27 +888,41 @@ function hydrateAlbumTracksForDetail(album, tracks = []) {
 }
 
 async function loadAlbumTracksForDetail(albumId) {
-  if (!albumId) return;
+  if (!albumId) return null;
 
   const key = getAlbumTrackHydrationKey(albumId);
-  if (state.albumTrackHydrationInFlight.has(key) || state.albumTrackHydrationAttempts.has(key)) {
-    return;
+  if (state.albumTrackHydrationAttempts.has(key) && state.albumMap.has(albumId)) {
+    return state.albumMap.get(albumId);
+  }
+  if (albumTrackHydrationRequests.has(key)) {
+    return albumTrackHydrationRequests.get(key);
   }
 
-  state.albumTrackHydrationInFlight.add(key);
-  try {
-    const library = await fetchJson(`/api/albums/${encodeURIComponent(albumId)}/tracks`);
-    mergeLibraryData(library);
-    state.albumTrackHydrationAttempts.add(key);
-    if (state.route.view === 'album' && state.route.albumId === albumId) {
-      render();
+  const request = (async () => {
+    state.albumTrackHydrationInFlight.add(key);
+    try {
+      const library = await fetchJson(`/api/albums/${encodeURIComponent(albumId)}/tracks`);
+      const loadedAlbum = (library.albums || []).find((album) => album.id === albumId);
+      if (!loadedAlbum) throw new Error('Album was not found.');
+      mergeLibraryData(library);
+      state.albumTrackHydrationAttempts.add(key);
+      if (state.route.view === 'album'
+        && state.route.albumId === albumId
+        && state.albumRouteLoadingId !== albumId) {
+        render();
+      }
+      return state.albumMap.get(albumId) || loadedAlbum;
+    } catch (error) {
+      state.albumTrackHydrationAttempts.delete(key);
+      throw error;
+    } finally {
+      state.albumTrackHydrationInFlight.delete(key);
+      albumTrackHydrationRequests.delete(key);
     }
-  } catch (error) {
-    state.albumTrackHydrationAttempts.delete(key);
-    throw error;
-  } finally {
-    state.albumTrackHydrationInFlight.delete(key);
-  }
+  })();
+
+  albumTrackHydrationRequests.set(key, request);
+  return request;
 }
 
 function buildLibraryPageParams(offset = 0) {
@@ -1897,9 +1912,14 @@ function updateRouteFromLocation() {
   const previousRouteView = state.route?.view;
   const { route, artistNameToLoad, collectionNameToLoad } = resolveRouteFromLocation({
     browseView: state.browseView,
-    hasAlbum: (albumId) => state.albumMap.has(albumId),
   });
   state.route = route;
+  if (route.view === 'album' && !state.albumMap.has(route.albumId)) {
+    loadAlbumRoute(route.albumId);
+  } else {
+    state.albumRouteLoadingId = '';
+    state.albumRouteError = '';
+  }
   if (route.view === 'fullscreen' && previousRouteView !== 'fullscreen') {
     state.fullscreenLyricsHidden = shouldHideFullscreenLyricsByDefault(isMobileSidebarLayout());
     state.fullscreenUiHidden = false;
@@ -2198,7 +2218,13 @@ function navigateToView(view) {
 
 function openAlbum(albumId) {
   resetSearchForNavigation();
-  window.location.hash = getAlbumHash(albumId);
+  const nextHash = `#${getAlbumHash(albumId)}`;
+  if (window.location.hash === nextHash) {
+    updateRouteFromLocation();
+    render();
+  } else {
+    window.location.hash = nextHash;
+  }
   scrollPageToTop();
 }
 
@@ -3104,6 +3130,26 @@ function setLoginAmbientCoversFromAlbums(albums = []) {
   }
 }
 
+function loadAlbumRoute(albumId) {
+  if (!albumId || state.albumRouteLoadingId === albumId) return;
+  state.albumRouteLoadingId = albumId;
+  state.albumRouteError = '';
+
+  loadAlbumTracksForDetail(albumId)
+    .then(() => {
+      if (state.route.view !== 'album' || state.route.albumId !== albumId) return;
+      state.albumRouteLoadingId = '';
+      state.albumRouteError = '';
+      render();
+    })
+    .catch((error) => {
+      if (state.route.view !== 'album' || state.route.albumId !== albumId) return;
+      state.albumRouteLoadingId = '';
+      state.albumRouteError = error instanceof Error ? error.message : 'Unable to load this album.';
+      render();
+    });
+}
+
 function applyAmbientBackdrop() {
   const coverUrl = String(state.ambientCoverUrl || '').trim();
   const root = document.documentElement;
@@ -3342,7 +3388,7 @@ function isLoginOnlyLocation() {
     || ((pathname === '/' || pathname === '/index.html') && url.searchParams.get('login') === '1');
 }
 
-function resolveRouteFromLocation({ browseView, hasAlbum }) {
+function resolveRouteFromLocation({ browseView }) {
   if (isLoginOnlyLocation()) {
     return {
       route: {
@@ -3357,7 +3403,6 @@ function resolveRouteFromLocation({ browseView, hasAlbum }) {
   }
   return parseRouteFromHash(window.location.hash, {
     browseView,
-    hasAlbum,
   });
 }
 
@@ -3450,7 +3495,7 @@ function getRouteRenderContext() {
   const currentArtist = getCurrentArtist();
   const currentCollectionName = state.route.collectionName || '';
   const isLoginView = state.route.view === 'login';
-  const isAlbumView = state.route.view === 'album' && !!currentAlbum;
+  const isAlbumView = state.route.view === 'album';
   const isArtistView = state.route.view === 'artist';
   const isCollectionView = state.route.view === 'collection';
   const isPlaylistsView = state.route.view === 'playlists';
@@ -4450,7 +4495,12 @@ function getQueueTracksForRenderedRow(track, queueTracks, variant) {
 
 function renderAlbumDetail(album) {
   if (!album) {
-    navigateToView(state.browseView);
+    renderReact('renderAlbumDetail', albumView, {
+      album: null,
+      loading: state.albumRouteLoadingId === state.route.albumId,
+      error: state.albumRouteError,
+      onBack: () => navigateToView(state.browseView),
+    });
     return;
   }
 

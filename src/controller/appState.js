@@ -11,6 +11,8 @@ export function createInitialState() {
     albumTracksMap: new Map(),
     albumTrackHydrationAttempts: new Set(),
     albumTrackHydrationInFlight: new Set(),
+    albumRouteLoadingId: '',
+    albumRouteError: '',
     artistGroups: [],
     artistGroupMap: new Map(),
     artistLibraryRequests: new Map(),
