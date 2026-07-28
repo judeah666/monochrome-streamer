@@ -197,6 +197,71 @@ test('near-end preload is skipped when gapless playback is disabled', () => {
   assert.equal(createdPreloads.length, 0);
 });
 
+test('ended playback advances the queue when gapless preloading is disabled', () => {
+  const { audioPlayer, controller, state, tracks } = createHarness({
+    state: {
+      currentTrackId: 'a',
+      queueIds: ['a', 'b', 'c'],
+      shuffledQueueIds: ['a', 'b', 'c'],
+      settings: { gaplessPlayback: false },
+    },
+  });
+
+  controller.handleTrackEnded();
+
+  assert.equal(state.currentTrackId, 'b');
+  assert.equal(audioPlayer.src, tracks[1].streamUrl);
+  assert.equal(audioPlayer.playCount, 1);
+});
+
+test('ended playback advances through the full queue on one persistent audio player', () => {
+  const { audioPlayer, controller, state, tracks } = createHarness({
+    state: {
+      currentTrackId: 'a',
+      queueIds: ['a', 'b', 'c'],
+      shuffledQueueIds: ['a', 'b', 'c'],
+      settings: { gaplessPlayback: false },
+    },
+  });
+
+  controller.handleTrackEnded();
+  assert.equal(state.currentTrackId, 'b');
+  assert.equal(audioPlayer.src, tracks[1].streamUrl);
+
+  controller.handleTrackEnded();
+  assert.equal(state.currentTrackId, 'c');
+  assert.equal(audioPlayer.src, tracks[2].streamUrl);
+  assert.equal(audioPlayer.playCount, 2);
+
+  controller.handleTrackEnded();
+  assert.equal(state.currentTrackId, 'c');
+  assert.equal(audioPlayer.paused, true);
+});
+
+test('mobile background playback skips hidden next-track preloading', () => {
+  const createdPreloads = [];
+  const { controller } = createHarness({
+    audioPlayer: { ...createAudio(), paused: false, duration: 100, currentTime: 96 },
+    state: {
+      currentTrackId: 'a',
+      queueIds: ['a', 'b', 'c'],
+      settings: { gaplessPlayback: true },
+    },
+    controller: {
+      canPreloadNextTrack: () => false,
+      createPreloadAudio: () => {
+        const audio = createAudio();
+        createdPreloads.push(audio);
+        return audio;
+      },
+    },
+  });
+
+  controller.maybePreloadNextTrack();
+
+  assert.equal(createdPreloads.length, 0);
+});
+
 test('near-end preload starts only for the next expected track', () => {
   const createdPreloads = [];
   const { controller, tracks } = createHarness({

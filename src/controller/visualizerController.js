@@ -25,11 +25,15 @@ export function updateVisualizerState({
   audioPlayer,
   canvas,
   button,
+  allowAudioGraph = true,
   windowRef = window,
 }) {
-  button.classList.toggle('active', state.visualizerActive);
-  canvas.hidden = !state.visualizerActive;
-  if (shouldRunVisualizer({
+  const visualizerEnabled = Boolean(state.visualizerActive && allowAudioGraph);
+  button.classList.toggle('active', visualizerEnabled);
+  button.disabled = !allowAudioGraph;
+  button.setAttribute?.('aria-disabled', String(!allowAudioGraph));
+  canvas.hidden = !visualizerEnabled;
+  if (allowAudioGraph && shouldRunVisualizer({
     visualizerActive: state.visualizerActive,
     view: state.route.view,
     paused: audioPlayer.paused,

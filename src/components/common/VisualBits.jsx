@@ -133,15 +133,24 @@ export function MediaTypeIcons({ mediaTypes = [], includeLabels = false }) {
 }
 
 export function AudioQualityBadge({ quality, includeLabel = false }) {
-  if (!quality || quality.iconType !== 'hires') return null;
+  const iconType = String(quality?.iconType || '').toLowerCase();
+  const iconUrl = AUDIO_QUALITY_ICONS[iconType];
+  if (!iconUrl) return null;
 
-  const label = quality.label || quality.labelTop || 'Hi-Res Audio';
+  const iconAlt = getAudioQualityIconAlt(iconType);
+  const label = quality.label || quality.labelTop || iconAlt;
   return (
-    <span className="audio-quality-badge" title={label}>
-      <img src={AUDIO_QUALITY_ICONS.hires} alt="Hi-Res Audio" loading="lazy" />
+    <span className={`audio-quality-badge is-${iconType}`} title={label}>
+      <img src={iconUrl} alt={iconAlt} loading="lazy" />
       {includeLabel ? <span>{quality.labelTop || label}</span> : null}
     </span>
   );
+}
+
+function getAudioQualityIconAlt(iconType) {
+  if (iconType === 'cd') return 'CD Audio';
+  if (iconType === 'mp3') return 'MP3 Audio';
+  return 'Hi-Res Audio';
 }
 
 function getMediaTypes(mediaTypes) {

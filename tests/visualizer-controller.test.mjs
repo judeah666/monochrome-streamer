@@ -55,6 +55,38 @@ test('updateVisualizerState toggles button and canvas visibility', () => {
   assert.equal(state.visualizerFrameId, 0);
 });
 
+test('mobile background playback mode does not create a Web Audio graph', () => {
+  const button = createButton();
+  const canvas = { hidden: false, getContext: () => ({}) };
+  const state = {
+    visualizerActive: true,
+    visualizerFrameId: 0,
+    route: { view: 'fullscreen' },
+  };
+  let audioContextCreations = 0;
+
+  updateVisualizerState({
+    state,
+    audioPlayer: { paused: false },
+    canvas,
+    button,
+    allowAudioGraph: false,
+    windowRef: {
+      AudioContext: class {
+        constructor() {
+          audioContextCreations += 1;
+        }
+      },
+    },
+  });
+
+  assert.equal(audioContextCreations, 0);
+  assert.equal(button.classList.contains('active'), false);
+  assert.equal(button.disabled, true);
+  assert.equal(canvas.hidden, true);
+  assert.equal(state.audioContext, undefined);
+});
+
 test('drawVisualizerFrame sizes canvas and draws frequency bars', () => {
   const fills = [];
   const context = {

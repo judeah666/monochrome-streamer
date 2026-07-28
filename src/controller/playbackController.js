@@ -14,6 +14,7 @@ export function createPlaybackController({
   getDefaultQueueForTrack,
   getTrackStreamUrl = (track) => track?.streamUrl || '',
   createPreloadAudio = null,
+  canPreloadNextTrack = () => true,
   loadTrackLyrics,
   persistPlaybackState,
   updatePlayerUi,
@@ -141,13 +142,6 @@ export function createPlaybackController({
       playAudio();
       return;
     }
-    if (!state.settings.gaplessPlayback) {
-      audioPlayer.pause();
-      audioPlayer.currentTime = 0;
-      persistPlaybackState();
-      refreshPlayer();
-      return;
-    }
     const nextTarget = getNextPlaybackTarget();
     if (nextTarget && preloadedNextTrack?.trackId === nextTarget.track.id) {
       const streamUrl = preloadedNextTrack.streamUrl;
@@ -174,7 +168,7 @@ export function createPlaybackController({
   }
 
   function getNextPlaybackTarget() {
-    if (!state.settings.gaplessPlayback || state.repeatMode === 'one') return null;
+    if (state.repeatMode === 'one') return null;
     const queue = getPlaybackQueue();
     if (queue.length === 0 || !state.currentTrackId) return null;
     const currentIndex = queue.indexOf(state.currentTrackId);
@@ -190,7 +184,10 @@ export function createPlaybackController({
   }
 
   function maybePreloadNextTrack() {
-    if (!state.settings.gaplessPlayback || state.repeatMode === 'one' || !createPreloadAudio) {
+    if (!state.settings.gaplessPlayback
+      || state.repeatMode === 'one'
+      || !createPreloadAudio
+      || !canPreloadNextTrack()) {
       clearPreloadedTrack();
       return;
     }

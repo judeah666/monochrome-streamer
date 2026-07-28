@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { seekAudioBy, setAudioCurrentTime } from '../src/controller/mediaSession.js';
+import {
+  configureBackgroundAudioPlayback,
+  seekAudioBy,
+  setAudioCurrentTime,
+} from '../src/controller/mediaSession.js';
 
 function createAudio(overrides = {}) {
   return {
@@ -46,4 +50,26 @@ test('setAudioCurrentTime uses fastSeek when requested and available', () => {
 
   assert.equal(audio.fastSeekTime, 25);
   assert.equal(audio.currentTime, 25);
+});
+
+test('background playback config keeps native audio metadata-only and selects playback audio session', () => {
+  const attributes = new Map();
+  const audio = {
+    preload: '',
+    playsInline: false,
+    setAttribute(name, value) {
+      attributes.set(name, value);
+    },
+  };
+  const audioSession = { type: 'auto' };
+
+  configureBackgroundAudioPlayback({
+    audioPlayer: audio,
+    navigatorRef: { audioSession },
+  });
+
+  assert.equal(audio.preload, 'metadata');
+  assert.equal(audio.playsInline, true);
+  assert.equal(attributes.get('playsinline'), '');
+  assert.equal(audioSession.type, 'playback');
 });

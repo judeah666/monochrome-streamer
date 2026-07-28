@@ -1,5 +1,24 @@
 import { clamp } from './utils.js';
 
+export function configureBackgroundAudioPlayback({
+  audioPlayer,
+  navigatorRef = globalThis.navigator,
+} = {}) {
+  if (audioPlayer) {
+    audioPlayer.preload = 'metadata';
+    audioPlayer.playsInline = true;
+    audioPlayer.setAttribute?.('playsinline', '');
+  }
+
+  const audioSession = navigatorRef?.audioSession;
+  if (!audioSession || !('type' in audioSession)) return;
+  try {
+    audioSession.type = 'playback';
+  } catch {
+    // Audio Session is optional and may be read-only in some embedded browsers.
+  }
+}
+
 export function setupMediaSessionActions({
   audioPlayer,
   hasCurrentTrack,

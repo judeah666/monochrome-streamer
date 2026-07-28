@@ -15,6 +15,7 @@ async function loadModules() {
     PlayerTransportControls: '../src/components/player/PlayerTransportControls.jsx',
     QueueList: '../src/components/queue/QueueList.jsx',
     QueuePanel: '../src/components/queue/QueuePanel.jsx',
+    VisualBits: '../src/components/common/VisualBits.jsx',
   };
   const loaded = {};
   for (const [name, entry] of Object.entries(entries)) {
@@ -56,6 +57,30 @@ test('player utility controls use player SVG assets when assets exist', async ()
   assert.match(utility, /download\.svg/u);
   assert.match(utility, /list-ul\.svg/u);
   assert.match(utility, /volume-medium\.svg/u);
+});
+
+test('album audio quality badges use Hi-Res, CD, and MP3 source assets', async () => {
+  const modules = await modulesPromise;
+  const { AudioQualityBadge } = modules.VisualBits;
+  const qualities = [
+    ['hires', 'Hi-Res Audio', 'hi-res-quality.svg'],
+    ['cd', 'CD Audio', 'cd-quality.svg'],
+    ['mp3', 'MP3 Audio', 'mp3-quality.svg'],
+  ];
+
+  for (const [iconType, iconAlt, assetName] of qualities) {
+    const badge = renderToStaticMarkup(React.createElement(AudioQualityBadge, {
+      quality: { iconType },
+    }));
+    assert.match(badge, new RegExp(`is-${iconType}`, 'u'));
+    assert.match(badge, new RegExp(assetName.replaceAll('.', '\\.'), 'u'));
+    assert.match(badge, new RegExp(`alt="${iconAlt}"`, 'u'));
+  }
+
+  const unsupported = renderToStaticMarkup(React.createElement(AudioQualityBadge, {
+    quality: { iconType: 'audio' },
+  }));
+  assert.equal(unsupported, '');
 });
 
 test('shuffle and repeat render playback mode SVG icons', async () => {

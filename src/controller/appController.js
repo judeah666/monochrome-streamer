@@ -26,6 +26,7 @@ import { buildQueuePanelSnapshot } from './queuePanelPresenter.js';
 import { createQueuePanelStore } from './queuePanelStore.js';
 import { createPlaybackController } from './playbackController.js';
 import {
+  configureBackgroundAudioPlayback,
   seekAudioBy,
   setAudioCurrentTime,
   setupMediaSessionActions,
@@ -67,7 +68,6 @@ import {
   writeLibraryFilterState,
 } from './libraryFilterPersistence.js';
 import {
-  ensureAudioGraph,
   updateVisualizerState as updateFullscreenVisualizerState,
 } from './visualizerController.js';
 import {
@@ -282,6 +282,7 @@ const playbackController = createPlaybackController({
   getDefaultQueueForTrack: buildDefaultQueueForTrack,
   getTrackStreamUrl: getTrackPlaybackUrl,
   createPreloadAudio: () => document.createElement('audio'),
+  canPreloadNextTrack: () => !shouldPrioritizeBackgroundPlayback(),
   loadTrackLyrics,
   persistPlaybackState,
   updatePlayerUi,
@@ -378,6 +379,7 @@ async function init() {
   state.volume = clamp(readStoredNumber(STORAGE_KEYS.volume, 0.7), 0, 1);
   state.lastVolume = state.volume || 0.7;
   audioPlayer.preload = 'metadata';
+  configureBackgroundAudioPlayback({ audioPlayer, navigatorRef: navigator });
   audioPlayer.volume = getEffectiveAudioVolume();
   await restorePlaybackState();
   applySettings();
@@ -688,6 +690,7 @@ function bindEvents() {
     renderFullscreenView();
   });
   fullscreenVisualizerButton.addEventListener('click', () => {
+    if (shouldPrioritizeBackgroundPlayback()) return;
     state.visualizerActive = !state.visualizerActive;
     updateVisualizerState();
   });
@@ -718,7 +721,6 @@ function bindEvents() {
   fullscreenRepeatButton.addEventListener('click', cycleRepeatMode);
 
   audioPlayer.addEventListener('play', () => {
-    ensureAudioVisualizer();
     startLyricsTicker();
     updateMediaSessionPlaybackState({ audioPlayer, currentTrackId: state.currentTrackId });
     updatePlayerUi();
@@ -5461,6 +5463,10 @@ function setVolume(volume) {
 }
 
 function shouldUseDeviceVolume() {
+  return shouldPrioritizeBackgroundPlayback();
+}
+
+function shouldPrioritizeBackgroundPlayback() {
   return window.matchMedia?.('(hover: none) and (pointer: coarse)').matches ?? false;
 }
 
@@ -5481,16 +5487,13 @@ function syncVolumeUi() {
   renderIconHtml(fullscreenVolumeButton, getVolumePlayerIcon());
 }
 
-function ensureAudioVisualizer() {
-  ensureAudioGraph({ state, audioPlayer, windowRef: window });
-}
-
 function updateVisualizerState() {
   updateFullscreenVisualizerState({
     state,
     audioPlayer,
     canvas: fullscreenVisualizer,
     button: fullscreenVisualizerButton,
+    allowAudioGraph: !shouldPrioritizeBackgroundPlayback(),
     windowRef: window,
   });
 }
