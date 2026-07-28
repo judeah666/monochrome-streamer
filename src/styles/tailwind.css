@@ -296,3 +296,80 @@
   .playlist-name-field input { width: 100%; border: 1px solid var(--line); border-radius: 16px; padding: 13px 15px; background: var(--surface-2); color: var(--text); }
   .playlist-dialog-status { margin: 0; color: var(--accent); font-weight: 700; }
 }
+
+/* Keep the app's corner language consistent without changing pill or round controls. */
+@layer components {
+  :is(
+    .home-hero,
+    .library-browser,
+    .settings-shell,
+    .album-hero,
+    .artist-hero,
+    .collection-detail-hero,
+    .playlist-detail-hero,
+    .tag-editor-modal,
+    .playlist-dialog-modal,
+    .collection-cover-editor-modal,
+    .artist-editor-modal,
+    .lyrics-editor-modal,
+    .login-glass-card,
+    .mobile-filter-sheet
+  ) {
+    border-radius: var(--radius-large);
+  }
+
+  :is(
+    .now-playing-bar,
+    .queue-panel,
+    .settings-group,
+    .collection-browser-header,
+    .playlist-card,
+    .album-main,
+    .album-sidebar .content-section,
+    .sidebar-account,
+    .admin-table-wrap,
+    .library-pager,
+    .track-table,
+    .playlist-track-table
+  ),
+  body.player-layout-floating .now-playing-bar,
+  .sidebar-bottom::before {
+    border-radius: var(--radius);
+  }
+
+  :is(
+    .setting-row,
+    .settings-field,
+    .folder-filter-row,
+    .library-filter-bar,
+    .track-row-shell,
+    .queue-item,
+    .folder-track-row,
+    .tag-disc-card,
+    .tag-scraper-panel,
+    .tag-scraper-result
+  ) {
+    border-radius: var(--radius-small);
+  }
+}
+
+@layer utilities {
+  .tw-rounded-\[38px\],
+  .tw-rounded-\[30px\],
+  .tw-rounded-\[28px\],
+  .tw-rounded-\[26px\] {
+    border-radius: var(--radius-large);
+  }
+
+  .tw-rounded-\[24px\],
+  .tw-rounded-\[22px\],
+  .tw-rounded-\[20px\] {
+    border-radius: var(--radius);
+  }
+
+  .tw-rounded-\[18px\],
+  .tw-rounded-\[16px\],
+  .tw-rounded-\[14px\] {
+    border-radius: var(--radius-small);
+  }
+}

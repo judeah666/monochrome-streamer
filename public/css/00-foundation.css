@@ -32,8 +32,10 @@
   --sidebar-expanded-width: 210px;
   --sidebar-collapsed-width: 84px;
   --album-card-size: 150px;
-  --radius: 24px;
-  --radius-small: 18px;
+  --radius-large: 20px;
+  --radius: 16px;
+  --radius-small: 12px;
+  --radius-card: 16px;
   --font-body: "Plus Jakarta Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-display: "Space Grotesk", "Plus Jakarta Sans", "Segoe UI", sans-serif;
   --body-top: #1c120d;
