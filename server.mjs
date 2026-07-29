@@ -417,6 +417,7 @@ const server = http.createServer(async (request, response) => {
         let pageOptions = {
           limit: url.searchParams.get('limit'),
           offset: url.searchParams.get('offset'),
+          knownTotal: url.searchParams.get('knownTotal'),
           search: url.searchParams.get('search'),
           letter: url.searchParams.get('letter'),
           folders: getFolderFilterParams(url),
@@ -613,6 +614,7 @@ const server = http.createServer(async (request, response) => {
       const library = await readTrackPage(libraryDatabasePath, await applyDeletedAlbumExclusions({
         limit: url.searchParams.get('limit'),
         offset: url.searchParams.get('offset'),
+        knownTotal: url.searchParams.get('knownTotal'),
         search: url.searchParams.get('search'),
         letter: url.searchParams.get('letter'),
         trackIds,
@@ -662,6 +664,7 @@ const server = http.createServer(async (request, response) => {
       return respondJson(response, 200, await readArtistPage(libraryDatabasePath, {
         limit: url.searchParams.get('limit'),
         offset: url.searchParams.get('offset'),
+        knownTotal: url.searchParams.get('knownTotal'),
         search: url.searchParams.get('search'),
         letter: url.searchParams.get('letter'),
         folders: getFolderFilterParams(url),
@@ -2281,6 +2284,7 @@ async function refreshLibrary(selectedFoldersInput = null, { forceMetadataRefres
     scanDurations: config.scanDurations,
     includeFolders: selectedFolders,
     cachedTracks: cachedLibrary.tracks,
+    cachedAlbums: cachedLibrary.albums,
     forceMetadataRefresh,
     skipInitialCount: Array.isArray(cachedLibrary.tracks) && cachedLibrary.tracks.length > 0,
     onProgress: updateScanProgress,

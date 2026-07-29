@@ -48,6 +48,19 @@ export function AlbumCollection({
         />
       ) : null}
 
+      {showPager ? (
+        <LibraryPager
+          page={pagerPage}
+          total={pagerTotal}
+          itemLabel={itemLabel}
+          position="top"
+          showPageSize={showPageSize}
+          loading={loading}
+          onPage={onPage}
+          onPageSize={onPageSize}
+        />
+      ) : null}
+
       {albums.length === 0 ? (
         <p className="empty-state">{emptyMessage}</p>
       ) : wrapGrid ? (
@@ -63,6 +76,7 @@ export function AlbumCollection({
           page={pagerPage}
           total={pagerTotal}
           itemLabel={itemLabel}
+          position="bottom"
           showPageSize={showPageSize}
           loading={loading}
           onPage={onPage}

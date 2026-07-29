@@ -5,13 +5,16 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
+  buildAlbums,
   buildByteRange,
   createTrackId,
+  getAlbumFolderIdentity,
   inferCollectionNameFromFolderPath,
   inferTrackMetadata,
   scanMusicLibrary,
 } from '../lib/library.mjs';
 import {
+  readArtistPage,
   readCollectionFolderAlbumPage,
   readCollectionFolders,
   readLibraryAlbumPage,
@@ -21,6 +24,26 @@ import {
   renameCollectionInDatabase,
   writeLibraryDatabase,
 } from '../lib/library-db.mjs';
+
+function createAlbumGroupingTrack(id, relativePath, overrides = {}) {
+  return {
+    id,
+    title: id,
+    artist: 'Artist',
+    albumArtist: 'Artist',
+    album: 'Same Album',
+    trackNumber: 1,
+    discNumber: 1,
+    date: '',
+    year: null,
+    relativePath,
+    coverArtPath: '',
+    hasEmbeddedCover: false,
+    audioQuality: null,
+    collectionName: '',
+    ...overrides,
+  };
+}
 
 test('inferTrackMetadata uses folder structure and track number', () => {
   const metadata = inferTrackMetadata('Massive Attack\\Mezzanine\\03 - Teardrop.flac');
@@ -62,6 +85,75 @@ test('scanMusicLibrary does not infer a collection from a single album name', as
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('scanMusicLibrary does not combine matching album tags from different folders', async () => {
+  const root = path.join(tmpdir(), `monochrome-folder-albums-${Date.now()}`);
+  try {
+    const firstAlbumPath = path.join(root, 'Collection A', 'Artist', 'Same Album');
+    const secondAlbumPath = path.join(root, 'Collection B', 'Artist', 'Same Album');
+    mkdirSync(firstAlbumPath, { recursive: true });
+    mkdirSync(secondAlbumPath, { recursive: true });
+    writeFileSync(path.join(firstAlbumPath, '01 - First.mp3'), '');
+    writeFileSync(path.join(secondAlbumPath, '01 - Second.mp3'), '');
+
+    const library = await scanMusicLibrary(root, { scanMetadata: 'filename', scanDurations: false });
+
+    assert.equal(library.albums.length, 2);
+    assert.deepEqual(library.albums.map((album) => album.title), ['Same Album', 'Same Album']);
+    assert.deepEqual(library.albums.map((album) => album.trackIds.length), [1, 1]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('buildAlbums keeps matching tags in different physical folders as separate albums', () => {
+  const tracks = [
+    createAlbumGroupingTrack('first', 'Collection A/Artist/Same Album/01 - Song.mp3'),
+    createAlbumGroupingTrack('second', 'Collection B/Artist/Same Album/01 - Song.mp3'),
+  ];
+
+  const albums = buildAlbums(tracks);
+
+  assert.equal(albums.length, 2);
+  assert.deepEqual(albums.flatMap((album) => album.trackIds).sort(), ['first', 'second']);
+  assert.notEqual(albums[0].id, albums[1].id);
+});
+
+test('buildAlbums keeps CD subfolders together as one physical album', () => {
+  const tracks = [
+    createAlbumGroupingTrack('disc-one', 'Artist/Same Album/CD 1/01 - Song.mp3', { discNumber: 1 }),
+    createAlbumGroupingTrack('disc-two', 'Artist/Same Album/Disc 2/01 - Song.mp3', { discNumber: 2 }),
+  ];
+
+  const albums = buildAlbums(tracks);
+
+  assert.equal(albums.length, 1);
+  assert.deepEqual(albums[0].trackIds, ['disc-one', 'disc-two']);
+  assert.equal(getAlbumFolderIdentity(tracks[0].relativePath), 'Artist/Same Album');
+  assert.equal(getAlbumFolderIdentity(tracks[1].relativePath), 'Artist/Same Album');
+});
+
+test('buildAlbums preserves an existing album id when a duplicate folder is added later', () => {
+  const existingTrack = createAlbumGroupingTrack('existing', 'Collection A/Artist/Same Album/01 - Song.mp3');
+  const newTrack = createAlbumGroupingTrack('new-copy', 'Collection B/Artist/Same Album/01 - Song.mp3');
+  const cachedAlbum = {
+    id: 'existing-album-id',
+    title: 'Same Album',
+    artist: 'Artist',
+    albumArtist: 'Artist',
+    trackIds: ['existing'],
+  };
+
+  const albums = buildAlbums([existingTrack, newTrack], {
+    cachedAlbums: [cachedAlbum],
+    cachedTracks: [existingTrack],
+  });
+  const existingAlbum = albums.find((album) => album.trackIds.includes('existing'));
+  const newAlbum = albums.find((album) => album.trackIds.includes('new-copy'));
+
+  assert.equal(existingAlbum.id, 'existing-album-id');
+  assert.notEqual(newAlbum.id, 'existing-album-id');
 });
 
 test('scanMusicLibrary incremental refresh reuses unchanged cached tracks', async () => {
@@ -627,6 +719,50 @@ test('random and recently added album card pages can stay lightweight', async ()
     assert.equal(randomPage.tracks.length, 0);
     assert.equal(recentPage.tracks.length, 0);
     assert.deepEqual(recentPage.albums.map((album) => album.trackCount), [1, 1]);
+  } finally {
+    rmSync(databasePath, { force: true });
+  }
+});
+
+test('paged database readers reuse a validated known total on later pages', async () => {
+  const databasePath = path.join(tmpdir(), `monochrome-known-page-total-${Date.now()}.sqlite`);
+  try {
+    const tracks = [
+      createDatabaseTrack({
+        id: 'known-total-track-a',
+        title: 'Track A',
+        artist: 'Artist A',
+        album: 'Album A',
+        relativePath: 'Artist A/Album A/01 - Track A.flac',
+      }),
+      createDatabaseTrack({
+        id: 'known-total-track-b',
+        title: 'Track B',
+        artist: 'Artist B',
+        album: 'Album B',
+        relativePath: 'Artist B/Album B/01 - Track B.flac',
+      }),
+    ];
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: new Date().toISOString(),
+      trackCount: tracks.length,
+      albumCount: tracks.length,
+      tracks,
+      albums: [
+        createDatabaseAlbum({ id: 'known-total-album-a', title: 'Album A', artist: 'Artist A', trackIds: ['known-total-track-a'] }),
+        createDatabaseAlbum({ id: 'known-total-album-b', title: 'Album B', artist: 'Artist B', trackIds: ['known-total-track-b'] }),
+      ],
+    });
+
+    const albumPage = await readLibraryAlbumPage(databasePath, { limit: 25, offset: 25, knownTotal: 72 });
+    const trackPage = await readTrackPage(databasePath, { limit: 25, offset: 25, knownTotal: 73, search: 'Track' });
+    const artistPage = await readArtistPage(databasePath, { limit: 25, offset: 25, knownTotal: 74 });
+    const invalidTotalPage = await readLibraryAlbumPage(databasePath, { limit: 25, knownTotal: 'invalid' });
+
+    assert.equal(albumPage.page.total, 72);
+    assert.equal(trackPage.page.total, 73);
+    assert.equal(artistPage.page.total, 74);
+    assert.equal(invalidTotalPage.page.total, 2);
   } finally {
     rmSync(databasePath, { force: true });
   }

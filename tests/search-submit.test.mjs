@@ -43,10 +43,12 @@ test('submitted searches bypass delayed queues and do not prefetch adjacent resu
 
   assert.match(controllerSource, /queueVisiblePageFetch\(0, \{ immediate \}\)/u);
   assert.match(controllerSource, /queueLibraryPageFetch\(0, \{ immediate \}\)/u);
-  assert.match(controllerSource, /if \(!state\.searchTerm\) prefetchAdjacentLibraryPages/u);
-  assert.match(controllerSource, /if \(!state\.searchTerm\) prefetchAdjacentWishlistPages/u);
-  assert.match(controllerSource, /if \(!state\.searchTerm\) prefetchAdjacentArtistPages/u);
-  assert.match(controllerSource, /if \(!state\.searchTerm\) prefetchAdjacentCollectionPages/u);
+  assert.match(controllerSource, /function scheduleIdlePagePrefetch/u);
+  assert.match(controllerSource, /if \(state\.searchTerm\) return/u);
+  assert.match(controllerSource, /scheduleLibraryPagePrefetch\(state\.libraryPage\)/u);
+  assert.match(controllerSource, /scheduleBrowsePagePrefetch\(\(\) => prefetchAdjacentWishlistPages/u);
+  assert.match(controllerSource, /scheduleBrowsePagePrefetch\(\(\) => prefetchAdjacentArtistPages/u);
+  assert.match(controllerSource, /scheduleBrowsePagePrefetch\(\(\) => prefetchAdjacentCollectionPages/u);
   assert.doesNotMatch(controllerSource, /prefetchAdjacentTrackPages/u);
 });
 
@@ -58,4 +60,24 @@ test('search action remains available at mobile breakpoints', async () => {
   assert.doesNotMatch(browseCss, /#clear-search-button/u);
   assert.doesNotMatch(responsiveCss, /#search-action-button\s*\{[^}]*display:\s*none/isu);
   assert.doesNotMatch(responsiveCss, /#clear-search-button/u);
+});
+
+test('result detail navigation restores search while library tab changes clear it', async () => {
+  const [, controllerSource, stateSource] = await sourcesPromise;
+  const albumStart = controllerSource.indexOf('function openAlbum(');
+  const albumEnd = controllerSource.indexOf('async function shareAlbumLink', albumStart);
+  const artistStart = controllerSource.indexOf('function openArtist(');
+  const artistEnd = controllerSource.indexOf('function openCollection(', artistStart);
+  const tabStart = controllerSource.indexOf('function setLibraryTab(');
+  const tabEnd = controllerSource.indexOf('function getLibraryTabPageOffset', tabStart);
+
+  assert.match(stateSource, /searchReturnState: null/u);
+  assert.match(controllerSource, /function preserveSearchForResultNavigation/u);
+  assert.match(controllerSource, /function restoreSearchAfterResultNavigation/u);
+  assert.match(controllerSource.slice(albumStart, albumEnd), /preserveSearchForResultNavigation\(\)/u);
+  assert.match(controllerSource.slice(artistStart, artistEnd), /preserveSearchForResultNavigation\(\)/u);
+  assert.match(controllerSource, /restoreSearchAfterResultNavigation\(\);\s*render\(\)/u);
+  assert.match(controllerSource, /function returnToBrowseView\(\) \{\s*navigateToView\(state\.browseView, \{ preserveResultSearch: true \}\);/u);
+  assert.match(controllerSource, /onBack: returnToBrowseView/u);
+  assert.match(controllerSource.slice(tabStart, tabEnd), /discardSearchReturnState\(\);\s*resetSearchForNavigation\(\)/u);
 });

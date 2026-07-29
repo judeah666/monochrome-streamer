@@ -546,6 +546,32 @@ function resetSearchForNavigation() {
   state.unsearchedLibraryStale = true;
 }
 
+function preserveSearchForResultNavigation() {
+  if (!hasSearchState() || state.searchReturnState) return;
+  state.searchReturnState = {
+    searchTerm: state.searchTerm,
+    searchInputValue: state.searchInputValue,
+    returnHash: getRouteHash(state.route),
+    libraryTab: state.libraryTab,
+  };
+  resetSearchForNavigation();
+}
+
+function restoreSearchAfterResultNavigation() {
+  const savedSearch = state.searchReturnState;
+  if (!savedSearch || getRouteHash(state.route) !== savedSearch.returnHash) return false;
+  if (state.route.view === 'library' && state.libraryTab !== savedSearch.libraryTab) return false;
+
+  state.searchTerm = savedSearch.searchTerm;
+  state.searchInputValue = savedSearch.searchInputValue;
+  state.searchReturnState = null;
+  return true;
+}
+
+function discardSearchReturnState() {
+  state.searchReturnState = null;
+}
+
 function bindEvents() {
   sidebarOverlay.addEventListener('click', () => setMobileSidebarOpen(false));
   window.addEventListener('resize', () => {
@@ -786,12 +812,14 @@ function bindEvents() {
       return;
     }
     persistPlaybackState({ includeTime: false });
+    restoreSearchAfterResultNavigation();
     render();
     refreshUnsearchedRouteData({
       force: previousRouteView !== state.route.view
         && state.route.view === 'library'
         && state.libraryTab === 'albums'
         && !state.searchTerm,
+      libraryOffset: getLibraryTabPageOffset(state.libraryTab),
     });
   });
 
@@ -932,6 +960,7 @@ function buildLibraryPageParams(offset = 0) {
     limit: String(state.settings.libraryPageSize || 50),
     offset: String(Math.max(0, offset)),
   });
+  appendKnownPageTotal(params, offset, state.libraryPage);
   if (state.searchTerm) {
     params.set('search', state.searchTerm);
   }
@@ -1053,6 +1082,35 @@ function prefetchBrowsePage(queryKey, url) {
   });
 }
 
+function scheduleIdlePagePrefetch(callback, cacheGeneration, getCurrentGeneration) {
+  if (state.searchTerm) return;
+  const run = () => {
+    if (state.searchTerm || cacheGeneration !== getCurrentGeneration()) return;
+    callback();
+  };
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(run, { timeout: 1000 });
+    return;
+  }
+  window.setTimeout(run, 250);
+}
+
+function scheduleLibraryPagePrefetch(page) {
+  scheduleIdlePagePrefetch(
+    () => prefetchAdjacentLibraryPages(page),
+    state.libraryPageCacheGeneration,
+    () => state.libraryPageCacheGeneration,
+  );
+}
+
+function scheduleBrowsePagePrefetch(callback) {
+  scheduleIdlePagePrefetch(
+    callback,
+    state.browsePageCacheGeneration,
+    () => state.browsePageCacheGeneration,
+  );
+}
+
 async function fetchLibraryPagePayload(offset = 0, { preferCache = true } = {}) {
   const queryKey = getLibraryPageQueryKey(offset);
   if (preferCache) {
@@ -1098,6 +1156,13 @@ function prefetchAdjacentLibraryPages(page = state.libraryPage) {
 function appendFolderFilterParams(params) {
   for (const folderPath of state.folderFilters) {
     if (folderPath) params.append('folders', folderPath);
+  }
+}
+
+function appendKnownPageTotal(params, offset, page) {
+  const total = Number(page?.total);
+  if (offset > 0 && Number.isSafeInteger(total) && total >= 0) {
+    params.set('knownTotal', String(total));
   }
 }
 
@@ -1182,10 +1247,13 @@ function queueVisiblePageFetch(offset = 0, { immediate = false } = {}) {
   queueLibraryPageFetch(offset, { immediate });
 }
 
-function refreshUnsearchedRouteData({ force = false } = {}) {
+function refreshUnsearchedRouteData({ force = false, libraryOffset = 0 } = {}) {
+  const safeLibraryOffset = Number.isSafeInteger(Number(libraryOffset)) && Number(libraryOffset) >= 0
+    ? Number(libraryOffset)
+    : 0;
   const needsFreshAlbumPage = state.route.view === 'library'
     && state.libraryTab === 'albums'
-    && !isLibraryAlbumsPageFresh(0);
+    && !isLibraryAlbumsPageFresh(safeLibraryOffset);
   if (state.searchTerm || (!force && !state.unsearchedLibraryStale && !needsFreshAlbumPage)) return false;
 
   if (state.route.view === 'home') {
@@ -1213,22 +1281,22 @@ function refreshUnsearchedRouteData({ force = false } = {}) {
   }
 
   if (state.libraryTab === 'artists') {
-    queueArtistPageFetch(0);
+    queueArtistPageFetch(safeLibraryOffset);
     return true;
   }
 
   if (state.libraryTab === 'collections') {
     state.selectedCollectionFolderPath = '';
-    loadCollectionFolders(0).catch((error) => console.error(error));
+    loadCollectionFolders(safeLibraryOffset).catch((error) => console.error(error));
     return true;
   }
 
   if (state.libraryTab === 'tracks') {
-    queueTrackPageFetch(0);
+    queueTrackPageFetch(safeLibraryOffset);
     return true;
   }
 
-  queueLibraryPageFetch(0);
+  queueLibraryPageFetch(safeLibraryOffset);
   return true;
 }
 
@@ -1281,6 +1349,7 @@ function updateSearchValue(value, { focus = false } = {}) {
 }
 
 function submitSearchValue() {
+  discardSearchReturnState();
   commitSearchValue(state.searchInputValue, { refresh: true, immediate: true });
 }
 
@@ -1300,10 +1369,14 @@ async function loadLibraryPage(offset = 0, { scrollTop = false, fetchId = 0 } = 
     state.libraryPageQueryKey = requestedQueryKey;
     state.unsearchedLibraryStale = Boolean(requestedSearch);
     sanitizeStoredFavorites();
-    if (!state.searchTerm) prefetchAdjacentLibraryPages(state.libraryPage);
+    if (state.libraryPageLoadingKey === requestedQueryKey) {
+      state.libraryPageLoading = false;
+      state.libraryPageLoadingKey = '';
+    }
     render();
     updatePlayerUi();
     if (scrollTop) scrollPageToTop();
+    scheduleLibraryPagePrefetch(state.libraryPage);
   } finally {
     if (state.libraryPageLoadingKey === requestedQueryKey) {
       state.libraryPageLoading = false;
@@ -1450,7 +1523,8 @@ async function loadWishlistAlbumsPage(offset = 0) {
     hasNext: false,
     hasPrevious: false,
   };
-  if (!state.searchTerm) prefetchAdjacentWishlistPages(state.wishlistPage);
+  const wishlistPage = state.wishlistPage;
+  scheduleBrowsePagePrefetch(() => prefetchAdjacentWishlistPages(wishlistPage));
   state.wishlistAlbumsLoaded = true;
   render();
 }
@@ -1460,6 +1534,7 @@ function buildArtistPageParams(offset = 0) {
     limit: String(state.settings.libraryPageSize || 50),
     offset: String(Math.max(0, offset)),
   });
+  appendKnownPageTotal(params, offset, state.artistPage);
   if (state.searchTerm) {
     params.set('search', state.searchTerm);
   }
@@ -1520,7 +1595,8 @@ async function loadArtistPage(offset = 0, { scrollTop = false, fetchId = 0 } = {
     hasNext: false,
     hasPrevious: false,
   };
-  if (!state.searchTerm) prefetchAdjacentArtistPages(state.artistPage);
+  const artistPage = state.artistPage;
+  scheduleBrowsePagePrefetch(() => prefetchAdjacentArtistPages(artistPage));
   if (scrollTop) {
     render();
     scrollPageToTop();
@@ -1534,6 +1610,7 @@ function buildTrackPageParams(offset = 0) {
     limit: String(state.settings.libraryPageSize || 50),
     offset: String(Math.max(0, offset)),
   });
+  appendKnownPageTotal(params, offset, state.trackPage);
   if (state.searchTerm) {
     params.set('search', state.searchTerm);
   }
@@ -2006,7 +2083,8 @@ async function loadCollectionAlbumsPage(offset = 0) {
       hasNext: false,
       hasPrevious: false,
     };
-    if (!state.searchTerm) prefetchAdjacentCollectionPages(state.collectionPage, { collectionPath });
+    const collectionPage = state.collectionPage;
+    scheduleBrowsePagePrefetch(() => prefetchAdjacentCollectionPages(collectionPage, { collectionPath }));
     state.collectionAlbumsLoaded = true;
     if (
       (state.route.view === 'library' && state.libraryTab === 'collections')
@@ -2047,7 +2125,8 @@ async function loadCollectionFolders(offset = 0, { preferCache = true } = {}) {
       hasNext: false,
       hasPrevious: false,
     };
-    if (!state.searchTerm) prefetchAdjacentCollectionPages(state.collectionFoldersPage);
+    const collectionFoldersPage = state.collectionFoldersPage;
+    scheduleBrowsePagePrefetch(() => prefetchAdjacentCollectionPages(collectionFoldersPage));
     state.collectionFoldersLoaded = true;
   } catch (error) {
     if (fetchId !== state.collectionFoldersFetchId) return;
@@ -2194,7 +2273,10 @@ async function logoutCurrentSession() {
   window.location.assign('/login');
 }
 
-function navigateToView(view) {
+function navigateToView(view, { preserveResultSearch = false } = {}) {
+  if (!preserveResultSearch) {
+    discardSearchReturnState();
+  }
   resetSearchForNavigation();
   state.browseView = view;
   if (state.settings.closePanelsOnNavigation) {
@@ -2211,7 +2293,10 @@ function navigateToView(view) {
   state.route = createBrowseRoute(view);
   persistPlaybackState({ includeTime: false });
   render();
-  if (refreshUnsearchedRouteData({ force: view === 'library' && state.libraryTab === 'albums' })) return;
+  if (refreshUnsearchedRouteData({
+    force: view === 'library' && state.libraryTab === 'albums',
+    libraryOffset: view === 'library' ? getLibraryTabPageOffset(state.libraryTab) : 0,
+  })) return;
   if (view === 'home') {
     loadHomeAlbums().catch((error) => console.error(error));
     loadRecentlyAddedAlbums().catch((error) => console.error(error));
@@ -2219,7 +2304,7 @@ function navigateToView(view) {
 }
 
 function openAlbum(albumId) {
-  resetSearchForNavigation();
+  preserveSearchForResultNavigation();
   const nextHash = `#${getAlbumHash(albumId)}`;
   if (window.location.hash === nextHash) {
     updateRouteFromLocation();
@@ -2228,6 +2313,10 @@ function openAlbum(albumId) {
     window.location.hash = nextHash;
   }
   scrollPageToTop();
+}
+
+function returnToBrowseView() {
+  navigateToView(state.browseView, { preserveResultSearch: true });
 }
 
 async function shareAlbumLink(albumId) {
@@ -2318,7 +2407,7 @@ function preservePageScroll(callback) {
 }
 
 function openArtist(artistName) {
-  resetSearchForNavigation();
+  preserveSearchForResultNavigation();
   loadArtistLibrary(artistName).catch((error) => console.error(error));
   window.location.hash = getArtistHash(artistName);
 }
@@ -3335,7 +3424,7 @@ function renderTopbar(viewContext = getRouteRenderContext()) {
     },
     onSubmitSearch: submitSearchValue,
     onClearSearch: () => resetSearchState({ focus: true, refresh: true }),
-    onBack: () => navigateToView(state.browseView),
+    onBack: returnToBrowseView,
     onOpenSidebar: () => setMobileSidebarOpen(true),
     onFolderFilter: toggleFolderFilter,
   });
@@ -3662,25 +3751,44 @@ function setLibraryTab(tab) {
   }
   const tabChanged = state.libraryTab !== tab;
   if (tabChanged) {
+    discardSearchReturnState();
     resetSearchForNavigation();
   }
   state.libraryTab = tab;
+  const pageOffset = getLibraryTabPageOffset(tab);
   if (tab === 'folders') {
     loadFolderListing('').catch((error) => console.error(error));
   }
   if (tab === 'artists') {
-    loadArtistPage(0).catch((error) => console.error(error));
+    loadArtistPage(pageOffset).catch((error) => console.error(error));
   }
   if (tab === 'collections') {
     state.selectedCollectionFolderPath = '';
-    loadCollectionFolders().catch((error) => console.error(error));
+    loadCollectionFolders(pageOffset).catch((error) => console.error(error));
   }
   if (tab === 'tracks' && state.searchTerm) {
-    loadTrackPage(0).catch((error) => console.error(error));
+    loadTrackPage(pageOffset).catch((error) => console.error(error));
   }
   render();
-  refreshUnsearchedRouteData({ force: tab === 'albums' && !state.searchTerm && !isLibraryAlbumsPageFresh(0) });
+  if (
+    tab === 'albums'
+    && !state.searchTerm
+    && (state.unsearchedLibraryStale || !isLibraryAlbumsPageFresh(pageOffset))
+  ) {
+    loadLibraryPage(pageOffset).catch((error) => console.error(error));
+  }
   scrollPageToTop();
+}
+
+function getLibraryTabPageOffset(tab) {
+  const pageByTab = {
+    albums: state.libraryPage,
+    artists: state.artistPage,
+    collections: state.collectionFoldersPage,
+    tracks: state.trackPage,
+  };
+  const offset = Number(pageByTab[tab]?.offset);
+  return Number.isSafeInteger(offset) && offset >= 0 ? offset : 0;
 }
 
 function renderLibraryView(filteredTracks, filteredAlbums) {
@@ -4519,7 +4627,7 @@ function renderAlbumDetail(album) {
       album: null,
       loading: state.albumRouteLoadingId === state.route.albumId,
       error: state.albumRouteError,
-      onBack: () => navigateToView(state.browseView),
+      onBack: returnToBrowseView,
     });
     return;
   }

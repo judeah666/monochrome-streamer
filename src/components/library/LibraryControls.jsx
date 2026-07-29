@@ -108,6 +108,7 @@ export function LibraryPager({
   page = {},
   total = 0,
   itemLabel = 'item',
+  position = 'bottom',
   showPageSize = false,
   loading = false,
   pageSizeOptions = [25, 50, 100, 200, 500],
@@ -118,6 +119,7 @@ export function LibraryPager({
   const offset = page.offset || 0;
   const start = total === 0 ? 0 : offset + 1;
   const end = Math.min(total, offset + limit);
+  const positionClassName = position === 'top' ? ' tw-mb-3.5' : '';
   const handlePageClick = (event, direction) => {
     if (!onPage) return;
     event.stopPropagation();
@@ -130,7 +132,10 @@ export function LibraryPager({
   };
 
   return (
-    <div className="library-pager tw-col-span-full tw-mt-3.5 tw-flex tw-items-center tw-justify-end tw-gap-3.5 tw-rounded-[22px] tw-border tw-border-line tw-bg-[linear-gradient(135deg,color-mix(in_srgb,var(--surface)_88%,transparent),color-mix(in_srgb,var(--glass)_70%,transparent)),var(--glass)] tw-px-4 tw-py-3.5 tw-backdrop-blur-lg">
+    <div
+      className={`library-pager tw-col-span-full tw-mt-3.5 tw-flex tw-items-center tw-justify-end tw-gap-3.5 tw-rounded-[22px] tw-border tw-border-line tw-bg-[linear-gradient(135deg,color-mix(in_srgb,var(--surface)_88%,transparent),color-mix(in_srgb,var(--glass)_70%,transparent)),var(--glass)] tw-px-4 tw-py-3.5 tw-backdrop-blur-lg${positionClassName}`}
+      data-pagination-position={position}
+    >
       <div className="tw-mr-auto tw-text-muted">
         <strong className="tw-mr-1 tw-font-display tw-text-text">{start}-{end}</strong>
         <span>of {total} {itemLabel}{total === 1 ? '' : 's'}</span>

@@ -67,6 +67,7 @@ export function createInitialState() {
     wishlistFetchId: 0,
     searchTerm: '',
     searchInputValue: '',
+    searchReturnState: null,
     searchFocusNonce: 0,
     alphabetFilter: 'all',
     mediaTypeFilters: new Set(),

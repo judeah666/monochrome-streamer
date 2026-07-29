@@ -41,6 +41,14 @@ export function CollectionBrowser({
   return (
     <>
       {filterProps ? <LibraryFilterBar {...filterProps} /> : null}
+      {pagerProps ? (
+        <LibraryPager
+          {...pagerProps}
+          position="top"
+          onPage={onPage}
+          onPageSize={onPageSize}
+        />
+      ) : null}
       {loading ? (
         <p className="empty-state">Loading collections...</p>
       ) : folders.length ? (
@@ -69,7 +77,14 @@ export function CollectionBrowser({
       ) : (
         <p className="empty-state">No album collections matched this search.</p>
       )}
-      {pagerProps ? <LibraryPager {...pagerProps} onPage={onPage} onPageSize={onPageSize} /> : null}
+      {pagerProps ? (
+        <LibraryPager
+          {...pagerProps}
+          position="bottom"
+          onPage={onPage}
+          onPageSize={onPageSize}
+        />
+      ) : null}
     </>
   );
 }

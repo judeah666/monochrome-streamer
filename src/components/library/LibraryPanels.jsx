@@ -20,6 +20,7 @@ export function LibraryArtistsPanel({
   return (
     <>
       <LibraryFilterBar {...filterProps} />
+      <LibraryPager {...pagerProps} position="top" />
       {artists.length === 0 ? (
         <EmptyState>{emptyMessage}</EmptyState>
       ) : (
@@ -27,7 +28,7 @@ export function LibraryArtistsPanel({
           <ArtistGrid artists={artists} onOpen={onOpenArtist} />
         </div>
       )}
-      <LibraryPager {...pagerProps} />
+      <LibraryPager {...pagerProps} position="bottom" />
     </>
   );
 }
@@ -52,12 +53,13 @@ export function LibraryTracksPanel({
   return (
     <>
       <LibraryFilterBar {...filterProps} />
+      {hasSearch ? <LibraryPager {...pagerProps} position="top" /> : null}
       {!hasSearch ? (
         <EmptyState>{promptMessage}</EmptyState>
       ) : tracks.length === 0 ? (
         <>
           <EmptyState>{emptyMessage}</EmptyState>
-          <LibraryPager {...pagerProps} />
+          <LibraryPager {...pagerProps} position="bottom" />
         </>
       ) : (
         <>
@@ -75,7 +77,7 @@ export function LibraryTracksPanel({
               onAlbumClick={onAlbumClick}
             />
           </div>
-          <LibraryPager {...pagerProps} />
+          <LibraryPager {...pagerProps} position="bottom" />
         </>
       )}
     </>
