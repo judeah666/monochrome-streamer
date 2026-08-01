@@ -9,3 +9,14 @@ test('audio settings describe gapless autoplay near-end preparation', async () =
   assert.match(source, /Prepare the next queued track near the end/u);
   assert.doesNotMatch(source, /title="Autoplay Queue"/u);
 });
+
+test('audio settings expose ReplayGain mode and preamp controls', async () => {
+  const source = await readFile(new URL('../src/components/settings/RemainingSettings.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /title="ReplayGain Mode"/u);
+  assert.match(source, /data-setting="replayGainMode"/u);
+  assert.match(source, /title="ReplayGain Pre-Amp"/u);
+  assert.match(source, /data-setting="replayGainPreamp"/u);
+  assert.match(source, /min="-15"/u);
+  assert.match(source, /max="15"/u);
+});

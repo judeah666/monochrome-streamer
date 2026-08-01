@@ -6,6 +6,10 @@ import {
   STORAGE_KEYS,
 } from './constants.js';
 import { readStoredObject } from './utils.js';
+import {
+  normalizeReplayGainMode,
+  normalizeReplayGainPreamp,
+} from './replayGain.js';
 
 export function clampAlbumCardSize(value) {
   const parsed = Number.parseInt(value, 10);
@@ -87,6 +91,18 @@ export function normalizeSettings(settings) {
   }
   if (normalized.playbackQuality && !['original', 'cd', 'mp3'].includes(normalized.playbackQuality)) {
     normalized.playbackQuality = DEFAULT_SETTINGS.playbackQuality;
+  }
+  if (normalized.replayGainMode != null) {
+    normalized.replayGainMode = normalizeReplayGainMode(
+      normalized.replayGainMode,
+      DEFAULT_SETTINGS.replayGainMode,
+    );
+  }
+  if (normalized.replayGainPreamp != null) {
+    normalized.replayGainPreamp = normalizeReplayGainPreamp(
+      normalized.replayGainPreamp,
+      DEFAULT_SETTINGS.replayGainPreamp,
+    );
   }
   if (normalized.fontPreset && !Object.hasOwn(FONT_PRESETS, normalized.fontPreset)) {
     normalized.fontPreset = DEFAULT_SETTINGS.fontPreset;

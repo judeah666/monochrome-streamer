@@ -26,6 +26,11 @@ import { buildQueuePanelSnapshot } from './queuePanelPresenter.js';
 import { createQueuePanelStore } from './queuePanelStore.js';
 import { createPlaybackController } from './playbackController.js';
 import {
+  getReplayGainMultiplier,
+  normalizeReplayGainMode,
+  normalizeReplayGainPreamp,
+} from './replayGain.js';
+import {
   configureBackgroundAudioPlayback,
   seekAudioBy,
   setAudioCurrentTime,
@@ -296,6 +301,9 @@ const playbackController = createPlaybackController({
   updatePlayerUi,
   updateProgressUi,
   render,
+  applyPlaybackVolume: () => {
+    audioPlayer.volume = getEffectiveAudioVolume();
+  },
   onPlaybackError: (error) => console.error(error),
   onLyricsError: (message, error) => console.warn(message, error),
 });
@@ -3221,10 +3229,15 @@ function applyPlaybackQualityChange() {
 }
 
 function updateSetting(key, value, avoidFullRender = false) {
+  const normalizedValue = key === 'replayGainMode'
+    ? normalizeReplayGainMode(value, DEFAULT_SETTINGS.replayGainMode)
+    : key === 'replayGainPreamp'
+      ? normalizeReplayGainPreamp(value, DEFAULT_SETTINGS.replayGainPreamp)
+      : value;
   state.settings = {
     ...state.settings,
-    [key]: value,
-    ...(key === 'themeBase' ? { customThemeBase: value } : {}),
+    [key]: normalizedValue,
+    ...(key === 'themeBase' ? { customThemeBase: normalizedValue } : {}),
     ...(key === 'nowPlayingClickAction' ? { nowPlayingClickActionUserSet: true } : {}),
   };
   persistSettings(state.settings);
@@ -3233,7 +3246,7 @@ function updateSetting(key, value, avoidFullRender = false) {
     applyPlaybackQualityChange();
     return;
   }
-  if (key === 'gaplessPlayback' && value === false) {
+  if (key === 'gaplessPlayback' && normalizedValue === false) {
     playbackController.clearPreloadedTrack();
   }
   if (['showQualityInfo', 'playerLayout'].includes(key)) {
@@ -3241,7 +3254,7 @@ function updateSetting(key, value, avoidFullRender = false) {
   }
   if (key === 'showRecentlyAdded') {
     state.recentlyAddedAlbumCacheKey = '';
-    if (value !== false && state.route.view === 'home' && !state.searchTerm) {
+    if (normalizedValue !== false && state.route.view === 'home' && !state.searchTerm) {
       loadRecentlyAddedAlbums({ force: true }).catch((error) => console.error(error));
     }
   }
@@ -5743,7 +5756,13 @@ function shouldPrioritizeBackgroundPlayback() {
 }
 
 function getEffectiveAudioVolume() {
-  return shouldUseDeviceVolume() ? 1 : state.volume;
+  const baseVolume = shouldUseDeviceVolume() ? 1 : state.volume;
+  const multiplier = getReplayGainMultiplier(
+    getCurrentTrack()?.replayGain,
+    state.settings.replayGainMode,
+    state.settings.replayGainPreamp,
+  );
+  return clamp(baseVolume * multiplier, 0, 1);
 }
 
 function bindVolumeControl(bar) {

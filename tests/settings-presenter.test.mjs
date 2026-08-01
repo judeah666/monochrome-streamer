@@ -57,6 +57,11 @@ test('audio settings snapshot exposes playback quality options with disabled tra
   assert.equal(snapshot.playbackQualityOptions.find((option) => option.value === 'original').disabled, false);
   assert.equal(snapshot.playbackQualityOptions.find((option) => option.value === 'cd').disabled, true);
   assert.equal(snapshot.playbackQualityOptions.find((option) => option.value === 'mp3').disabled, true);
+  assert.deepEqual(snapshot.replayGainModeOptions, [
+    ['off', 'Off'],
+    ['track', 'Track'],
+    ['album', 'Album'],
+  ]);
 });
 
 test('interface settings keep recently added visible by default', () => {

@@ -63,6 +63,7 @@ function createHarness(overrides = {}) {
     progress: 0,
     rendered: 0,
     ui: 0,
+    volume: 0,
   };
   const controller = createPlaybackController({
     state,
@@ -74,6 +75,7 @@ function createHarness(overrides = {}) {
     updatePlayerUi: () => calls.ui += 1,
     updateProgressUi: () => calls.progress += 1,
     render: () => calls.rendered += 1,
+    applyPlaybackVolume: () => calls.volume += 1,
     onPlaybackError: (error) => {
       throw error;
     },
@@ -100,6 +102,7 @@ test('playTrack sets the active track, source, and queue', () => {
   assert.equal(audioPlayer.playbackRate, 1);
   assert.equal(audioPlayer.playCount, 1);
   assert.equal(calls.persisted, 1);
+  assert.equal(calls.volume, 1);
   assert.equal(calls.ui, 1);
   assert.equal(calls.rendered, 1);
 });

@@ -117,6 +117,11 @@ export function buildSettingsPanelSnapshot({
         ['qobuz', 'Qobuz Player'],
       ],
       playbackQualityOptions: createPlaybackQualityOptions(playbackTranscoding),
+      replayGainModeOptions: [
+        ['off', 'Off'],
+        ['track', 'Track'],
+        ['album', 'Album'],
+      ],
     };
   }
 

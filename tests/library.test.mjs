@@ -322,6 +322,7 @@ test('library database migrations install stable paging indexes once', async () 
     const db = new DatabaseSync(databasePath);
     try {
       const userVersion = Object.values(db.prepare('PRAGMA user_version').get())[0];
+      const trackColumns = new Set(db.prepare('PRAGMA table_info(tracks)').all().map((row) => row.name));
       const indexes = new Set(db.prepare(`
         SELECT name FROM sqlite_master WHERE type = 'index'
       `).all().map((row) => row.name));
@@ -350,7 +351,8 @@ test('library database migrations install stable paging indexes once', async () 
         SELECT COUNT(*) AS count FROM tracks_fts WHERE tracks_fts MATCH ?
       `).get('title : "indexed"').count;
 
-      assert.equal(userVersion, 4);
+      assert.equal(userVersion, 5);
+      assert.ok(trackColumns.has('replay_gain_json'));
       assert.ok(indexes.has('idx_albums_library_order'));
       assert.ok(indexes.has('idx_albums_collection_order'));
       assert.ok(indexes.has('idx_albums_recently_added'));

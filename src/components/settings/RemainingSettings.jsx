@@ -33,7 +33,12 @@ const libraryFolderOptionClassName = [
   'tw-rounded-[14px] tw-border tw-border-line tw-bg-surface tw-px-3 tw-py-2.5 tw-font-extrabold tw-text-text',
 ].join(' ');
 
-export function AudioSettings({ settings, playerLayoutOptions = [], playbackQualityOptions = [] }) {
+export function AudioSettings({
+  settings,
+  playerLayoutOptions = [],
+  playbackQualityOptions = [],
+  replayGainModeOptions = [],
+}) {
   return (
     <SettingsGroup title="Playback" description="Controls that work with the browser audio element and your local files.">
       <label className={settingsFieldClassName}>
@@ -45,6 +50,25 @@ export function AudioSettings({ settings, playerLayoutOptions = [], playbackQual
         </select>
       </label>
       <p className={settingsHelpClassName}>Original keeps the source file as-is. CD FLAC only normalizes hi-res tracks down to 16-bit / 44.1 KHz. MP3 320 creates a remote-friendly stream.</p>
+      <label className={settingsFieldClassName}>
+        <SettingFieldLabel title="ReplayGain Mode" description="Normalize volume across tracks." />
+        <select data-setting="replayGainMode" defaultValue={settings.replayGainMode}>
+          {replayGainModeOptions.map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+      </label>
+      <label className={settingsFieldClassName}>
+        <SettingFieldLabel title="ReplayGain Pre-Amp" description="Adjust gain manually (dB)." />
+        <input
+          type="number"
+          min="-15"
+          max="15"
+          step="0.5"
+          data-setting="replayGainPreamp"
+          defaultValue={settings.replayGainPreamp}
+        />
+      </label>
       <label className={settingsFieldClassName}>
         <span>Player Layout</span>
         <select data-setting="playerLayout" defaultValue={settings.playerLayout}>
@@ -263,6 +287,15 @@ function SettingsGroup({ title, description, children }) {
       </div>
       <div className={settingsGroupBodyClassName}>{children}</div>
     </section>
+  );
+}
+
+function SettingFieldLabel({ title, description }) {
+  return (
+    <span className="tw-grid tw-gap-0.5">
+      <strong>{title}</strong>
+      <small className="tw-text-muted">{description}</small>
+    </span>
   );
 }
 

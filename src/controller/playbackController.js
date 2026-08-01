@@ -20,6 +20,7 @@ export function createPlaybackController({
   updatePlayerUi,
   updateProgressUi,
   render,
+  applyPlaybackVolume = () => {},
   onPlaybackError = console.error,
   onLyricsError = console.warn,
   onPreloadError = () => {},
@@ -45,6 +46,7 @@ export function createPlaybackController({
   function loadTrack(track, options = {}) {
     clearPreloadedTrack();
     state.currentTrackId = track.id;
+    applyPlaybackVolume(track);
     state.lyricsRefreshRequestedIds.delete(track.id);
     Promise.resolve(loadTrackLyrics(track.id)).catch((error) => onLyricsError('Unable to load lyrics', error));
     audioPlayer.src = options.streamUrl || getTrackStreamUrl(track);
