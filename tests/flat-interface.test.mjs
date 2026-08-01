@@ -13,7 +13,10 @@ test('the reduced corner pass preserves the established glass surfaces', async (
     source,
     /body:not\(\[data-view='login'\]\):not\(\[data-view='fullscreen'\]\) \.album-card-shell:hover\s*\{[\s\S]*?transform:\s*none;/u,
   );
-  const cornerOverrides = source.slice(source.indexOf('/* Keep the established glass surfaces'));
+  const cornerOverrides = source.slice(
+    source.indexOf('/* Keep the established glass surfaces'),
+    source.indexOf('/* Settings use one calm glass context'),
+  );
   assert.doesNotMatch(cornerOverrides, /(?:background|backdrop-filter)\s*:/u);
   assert.match(cornerOverrides, /box-shadow:\s*none/u);
   assert.match(sidebarCss, /\.sidebar\s*\{[\s\S]*?background:\s*var\(--glass-heavy\);[\s\S]*?backdrop-filter:\s*blur\(18px\);/u);

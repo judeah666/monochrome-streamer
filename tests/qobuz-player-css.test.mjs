@@ -5,10 +5,12 @@ import test from 'node:test';
 test('qobuz player CSS keeps thicker seek and volume controls', async () => {
   const playerCss = await readFile(new URL('../public/css/05-player.css', import.meta.url), 'utf8');
   const responsiveCss = await readFile(new URL('../public/css/09-responsive.css', import.meta.url), 'utf8');
+  const adminCss = await readFile(new URL('../public/css/10-admin.css', import.meta.url), 'utf8');
 
   assert.match(playerCss, /body\.player-layout-qobuz \s*\{[^}]*--player-height:\s*100px;/u);
   assert.doesNotMatch(playerCss, /body\.player-layout-qobuz \s*\{[^}]*--player-height:\s*88px;/u);
   assert.doesNotMatch(playerCss, /body\.player-layout-qobuz \s*\{[^}]*--player-height:\s*76px;/u);
+  assert.doesNotMatch(adminCss, /body\[data-view=["']admin["']\]\s*\{[^}]*--player-height/u);
   assert.match(playerCss, /body\.player-layout-qobuz \.now-playing-bar \s*\{[^}]*left:\s*var\(--sidebar-width\);/u);
   assert.doesNotMatch(playerCss, /body\.player-layout-qobuz \.now-playing-bar \s*\{[^}]*left:\s*0;/u);
   assert.match(playerCss, /body\.player-layout-qobuz \.sidebar \s*\{[^}]*height:\s*100vh;/u);

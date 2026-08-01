@@ -1,9 +1,5 @@
 /* Admin panel shell */
 
-body[data-view="admin"] {
-  --player-height: 0px;
-}
-
 .admin-app-shell {
   min-height: 100vh;
 }

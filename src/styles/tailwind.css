@@ -581,6 +581,449 @@ body:not([data-view='login']):not([data-view='fullscreen']) :is(
   box-shadow: none;
 }
 
+/* Settings use one calm glass context with compact, separated rows. */
+body[data-view='settings'] #settings-intro-root {
+  display: none;
+}
+
+body[data-view='settings'] .settings-shell-flat {
+  padding: 0 18px 32px;
+  border-radius: 0;
+  background: var(--glass-heavy);
+  backdrop-filter: blur(22px);
+  box-shadow: none;
+}
+
+body[data-view='settings'] .settings-tabs {
+  flex-wrap: nowrap;
+  gap: clamp(20px, 4vw, 56px);
+  margin: 0 0 26px;
+  padding: 0 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+body[data-view='settings'] .settings-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+body[data-view='settings'] .settings-tab {
+  flex: 0 0 auto;
+  min-height: 46px;
+  padding: 0 2px 12px;
+  font-size: 0.94rem;
+}
+
+body[data-view='settings'] .settings-panels,
+body[data-view='settings'] .settings-react-panel {
+  display: grid;
+  gap: 0;
+  width: min(100%, 980px);
+}
+
+body[data-view='settings'] .settings-group {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin: 0 0 24px;
+  padding: 0 0 24px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-view='settings'] .settings-group:last-child {
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+body[data-view='settings'] .settings-group-heading {
+  padding: 0 0 8px;
+}
+
+body[data-view='settings'] .settings-group-heading h4 {
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+body[data-view='settings'] .settings-group-heading p {
+  max-width: 680px;
+  margin-top: 5px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+body[data-view='settings'] .settings-group-body {
+  gap: 0;
+}
+
+body[data-view='settings'] :is(.setting-row, .settings-field) {
+  min-height: 60px;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 260px);
+  gap: clamp(18px, 4vw, 48px);
+  align-items: center;
+  padding: 11px 0;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-view='settings'] .settings-group-body > :is(.setting-row, .settings-field):last-child {
+  border-bottom: 0;
+}
+
+body[data-view='settings'] .setting-row strong,
+body[data-view='settings'] .settings-field > span {
+  font-size: 0.92rem;
+}
+
+body[data-view='settings'] .setting-row span:not(.settings-pill),
+body[data-view='settings'] .settings-field span strong,
+body[data-view='settings'] .settings-field small {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+body[data-view='settings'] .settings-field > :last-child {
+  width: min(100%, 420px);
+  justify-self: end;
+}
+
+body[data-view='settings'] .settings-field > :is(input, select) {
+  width: min(100%, 240px);
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+body[data-view='settings'] .setting-row input[type='checkbox'],
+body[data-view='settings'] .settings-inline-toggle input[type='checkbox'] {
+  width: 40px;
+  height: 22px;
+}
+
+body[data-view='settings'] .setting-row input[type='checkbox']::after,
+body[data-view='settings'] .settings-inline-toggle input[type='checkbox']::after {
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+}
+
+body[data-view='settings'] .setting-row input[type='checkbox']:checked::after,
+body[data-view='settings'] .settings-inline-toggle input[type='checkbox']:checked::after {
+  transform: translateX(18px);
+}
+
+body[data-view='settings'] .settings-help {
+  margin: 0;
+  padding: 8px 0 12px;
+  font-size: 0.79rem;
+  line-height: 1.4;
+}
+
+body[data-view='settings'] .settings-actions {
+  justify-content: flex-end;
+}
+
+body[data-view='settings'] :is(.primary-button, .secondary-button) {
+  min-height: 38px;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+body[data-view='settings'] .theme-grid {
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 7px;
+  padding: 4px 0 14px;
+}
+
+body[data-view='settings'] .theme-swatch {
+  min-height: 46px;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+body[data-view='settings'] .theme-swatch:hover,
+body[data-view='settings'] .theme-swatch.is-active {
+  transform: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-preview-accent) 40%, transparent);
+}
+
+body[data-view='settings'] :is(
+  .album-card-size-preview,
+  .library-folder-list,
+  .library-folder-option,
+  .settings-code
+) {
+  border-radius: var(--radius-small);
+  box-shadow: none;
+}
+
+@media (max-width: 720px) {
+  body[data-view='settings'] .settings-shell-flat {
+    padding-inline: 12px;
+  }
+
+  body[data-view='settings'] .settings-tabs {
+    gap: 22px;
+    margin-bottom: 20px;
+  }
+
+  body[data-view='settings'] :is(.setting-row, .settings-field) {
+    gap: 12px;
+  }
+
+  body[data-view='settings'] .setting-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  body[data-view='settings'] .settings-field {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  body[data-view='settings'] .settings-field > :last-child,
+  body[data-view='settings'] .settings-field > :is(input, select) {
+    width: 100%;
+    justify-self: stretch;
+  }
+}
+
+/* Admin reuses the same compact settings language without changing its tools. */
+body[data-view='admin'] #admin-intro-root {
+  display: none;
+}
+
+body[data-view='admin'] :is(.admin-main-shell, .admin-page-shell) {
+  background: var(--glass-heavy);
+  backdrop-filter: blur(22px);
+  box-shadow: none;
+}
+
+body[data-view='admin'] .admin-main-shell {
+  padding: 0 18px 32px;
+}
+
+body[data-view='admin'] .admin-settings-embedded {
+  gap: 0;
+}
+
+body[data-view='admin'] .admin-settings-subtabs {
+  flex-wrap: nowrap;
+  gap: clamp(20px, 4vw, 56px);
+  margin: 0 0 26px;
+  padding: 0 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+body[data-view='admin'] .admin-settings-subtabs::-webkit-scrollbar {
+  display: none;
+}
+
+body[data-view='admin'] .admin-subtab {
+  flex: 0 0 auto;
+  min-height: 46px;
+  padding: 0 2px 12px;
+  font-size: 0.94rem;
+}
+
+body[data-view='admin'] .admin-subtab i {
+  display: none;
+}
+
+body[data-view='admin'] .admin-settings-group {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin: 0 0 24px;
+  padding: 0 0 24px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-view='admin'] .admin-settings-group:last-child {
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+body[data-view='admin'] .admin-settings-group .settings-group-heading {
+  padding: 0 0 8px;
+}
+
+body[data-view='admin'] .admin-settings-group .settings-group-heading h4 {
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+body[data-view='admin'] .admin-settings-group .settings-group-heading p {
+  max-width: 680px;
+  margin-top: 5px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+body[data-view='admin'] .admin-settings-group .settings-group-body {
+  gap: 0;
+}
+
+body[data-view='admin'] .admin-settings-group :is(.setting-row, .settings-field) {
+  min-height: 60px;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 260px);
+  gap: clamp(18px, 4vw, 48px);
+  align-items: center;
+  padding: 11px 0;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-view='admin'] .admin-settings-group .settings-group-body > :is(.setting-row, .settings-field):last-child {
+  border-bottom: 0;
+}
+
+body[data-view='admin'] .admin-settings-group .setting-row strong,
+body[data-view='admin'] .admin-settings-group .settings-field > span {
+  font-size: 0.92rem;
+}
+
+body[data-view='admin'] .admin-settings-group .setting-row span:not(.settings-pill),
+body[data-view='admin'] .admin-settings-group .settings-field span strong,
+body[data-view='admin'] .admin-settings-group .settings-field small {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+body[data-view='admin'] .admin-settings-group .settings-field > :last-child {
+  width: min(100%, 420px);
+  justify-self: end;
+}
+
+body[data-view='admin'] .admin-settings-group .settings-field > :is(input, select) {
+  width: min(100%, 240px);
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+body[data-view='admin'] .admin-settings-group .setting-row input[type='checkbox'] {
+  width: 40px;
+  height: 22px;
+}
+
+body[data-view='admin'] .admin-settings-group .setting-row input[type='checkbox']::after {
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+}
+
+body[data-view='admin'] .admin-settings-group .setting-row input[type='checkbox']:checked::after {
+  transform: translateX(18px);
+}
+
+body[data-view='admin'] .admin-settings-group .settings-help {
+  margin: 0;
+  padding: 8px 0 12px;
+  font-size: 0.79rem;
+  line-height: 1.4;
+}
+
+body[data-view='admin'] .admin-settings-group .settings-actions {
+  justify-content: flex-end;
+}
+
+body[data-view='admin'] .admin-settings-group :is(.primary-button, .secondary-button) {
+  min-height: 38px;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+body[data-view='admin'] .admin-table-wrap {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-view='admin'] .admin-table th,
+body[data-view='admin'] .admin-table td {
+  padding: 12px 10px;
+}
+
+body[data-view='admin'] :is(
+  .library-folder-list,
+  .library-folder-option,
+  .settings-code
+) {
+  border-radius: var(--radius-small);
+  box-shadow: none;
+}
+
+body[data-view='admin'] .admin-hero {
+  min-height: 0;
+  padding: 18px 0 24px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-view='admin'] .admin-hero h2 {
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+@media (max-width: 720px) {
+  body[data-view='admin'] .admin-main-shell {
+    padding-inline: 12px;
+  }
+
+  body[data-view='admin'] .admin-settings-subtabs {
+    gap: 22px;
+    margin-bottom: 20px;
+  }
+
+  body[data-view='admin'] .admin-settings-group :is(.setting-row, .settings-field) {
+    gap: 12px;
+  }
+
+  body[data-view='admin'] .admin-settings-group .setting-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  body[data-view='admin'] .admin-settings-group .settings-field {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  body[data-view='admin'] .admin-settings-group .settings-field > :last-child,
+  body[data-view='admin'] .admin-settings-group .settings-field > :is(input, select) {
+    width: 100%;
+    justify-self: stretch;
+  }
+}
+
 body:not([data-view='login']):not([data-view='fullscreen']) .nav-link {
   border-radius: var(--radius-small);
 }
