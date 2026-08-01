@@ -1,32 +1,34 @@
-# monochrome-streamer
+# Monochrome-Streamer
 
-Current release: `v0.3.4`
+Current release: `v0.3.5`
 
-`monochrome-streamer` is a self-hosted music streamer for your own local music files. It is inspired by [Monochrome](https://github.com/monochrome-music/monochrome), but the library, album edits, lyrics, covers, users, and scan data live on your own server.
+Monochrome-Streamer is a self-hosted music server and responsive web player for your own audio library. Music stays on your server, while the library index, users, edits, lyrics, playlists, collections, and cached artwork are stored under your app data directory.
 
-## Features
+Inspired by [Monochrome](https://github.com/monochrome-music/monochrome), this project is built around local files and independent server ownership.
 
-- Stream local music from a mounted server folder.
-- Browse albums, artists, tracks, collections, wishlist albums, and favorites.
-- Scan selected top-level folders instead of forcing a full-library scan on startup.
-- Store the library index, album overrides, artist overrides, lyrics, users, and cached covers in SQLite/data storage.
-- Cache optimized album covers as WebP images for faster loading across devices.
-- Edit album tags locally without rewriting the original audio files.
-- Save synced lyrics as `.lrc` sidecar files beside music files when possible.
-- Search MusicBrainz and Cover Art Archive for album metadata and covers.
-- Use two player layouts: Floating Player and Edge-to-Edge.
-- Manage users, download permissions, widget API keys, download settings, database backup/import, Excel exports, and scans from the Admin sidebar tab.
+## Highlights
 
-## Release Highlights In `v0.3.4`
+- Browse albums, artists, tracks, collections, playlists, favorites, and wishlist albums.
+- Stream original files with byte-range seeking or use cached `CD FLAC` and `MP3 320 kbps` playback profiles.
+- Use Floating and Qobuz player layouts, stable shuffle, gapless autoplay, ReplayGain, queue persistence, and fullscreen now playing.
+- Scan selected top-level folders incrementally, scan one folder, or force a full metadata refresh.
+- Edit album metadata without rewriting source audio files.
+- Search MusicBrainz and Cover Art Archive, upload covers, and save synced `.lrc` lyrics.
+- Download tracks or ZIP archives with configurable names, disc folders, permissions, and visible status feedback.
+- Manage users, online activity, download history, scans, backups, exports, and widget access from the Admin view.
+- Cache optimized WebP artwork and lightweight album-card payloads for large libraries.
+- Run with Docker, Dockge, or Node.js on Windows and Linux.
 
-- Faster album-card responses and cheaper Home/Recently Added loading for large libraries.
-- Playback quality selection with `Original`, `CD FLAC (16-Bit / 44.1 KHz)`, and `MP3 320 kbps`.
-- Near-end Gapless Autoplay that prepares only the next queued track shortly before the current track ends.
-- Stable shuffle progression so autoplay follows the same shuffled queue order.
-- Drag-and-drop cover upload support for album and collection cover editing.
-- Clear download feedback with busy buttons and a global download status toast.
-- Horizontal sidebar scan progress and Qobuz player layout fixes.
-- Maintenance fixes for Docker startup, reverse-proxy origin checks, widget settings, and collection/folder filtering.
+## What Is New In `v0.3.5`
+
+- Simplified, flatter layouts across library, detail, settings, and admin views while preserving glass player and queue surfaces.
+- Numbered pagination with hidden single-page controls and preserved page state during navigation.
+- Submit-based search that avoids requests while typing and restores search state after opening a result.
+- Album quality indicators for Hi-Res, CD-quality, and MP3 libraries.
+- ReplayGain track/album modes with configurable pre-amplification.
+- Cleaner album, artist, and collection detail views with compact track action menus.
+- Improved album sharing, login flow, fullscreen controls, mobile track actions, and Qobuz player consistency.
+- Additional bundled font choices managed from Admin settings.
 
 ## Screenshots
 
@@ -42,40 +44,17 @@ Current release: `v0.3.4`
 
 ![Floating player layout](docs/screenshots/floating-player.png)
 
-![Edge-to-edge player layout](docs/screenshots/edge-to-edge-player.png)
-
-## Recommended Library Layout
-
-The app scans recursively, but clean folder/tag organization gives the best result:
-
-```text
-Music/
-  Artist Name/
-    Album Name/
-      cover.jpg
-      01 - First Song.flac
-      02 - Second Song.flac
-```
-
-For multi-disc or collection albums, nested folders are supported:
-
-```text
-Music/
-  Various Artists/
-    80s Collection/
-      Vol 1/
-      Vol 2/
-```
+![Qobuz player layout](docs/screenshots/edge-to-edge-player.png)
 
 ## Docker Quick Start
 
-Copy the example environment file:
+1. Copy the environment template.
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Edit `.env`:
+2. Set your host paths and admin credentials in `.env`.
 
 ```env
 MUSIC_DIR=D:\Music
@@ -89,27 +68,19 @@ PUID=1000
 PGID=1000
 UMASK=022
 CHOWN_DATA=auto
-WIDGET_API_KEY=
-WIDGET_CORS_ORIGIN=
 ```
 
-Start the app:
+3. Start the container.
 
 ```powershell
 docker compose up -d
 ```
 
-Open:
+4. Open `http://localhost:8888`.
 
-```text
-http://localhost:8888
-```
+Guest browsing is enabled by default, but guest downloads are disabled. Open `/login` to sign in as an admin or managed user.
 
-Guest browsing is enabled by default. Visit `/login` when you want to sign in as admin or as a managed user, then open the `Admin` sidebar tab, select folders in `System`, and click `Save & Scan`.
-
-## Dockge / Server Compose
-
-Use this shape for Dockge or a Linux server:
+### Dockge Or Linux Server
 
 ```yaml
 services:
@@ -122,170 +93,160 @@ services:
     env_file:
       - .env
     volumes:
-      - /path/to/your/music:/music
+      - /path/to/your/music:/music:ro
       - /opt/monochrome-streamer/data:/data
 ```
 
-On Linux, use Linux paths like `/mnt/music`, `/media/music`, or `/home/user/Music`. Do not use Windows paths like `D:\Music` inside Dockge unless Dockge itself is running on Windows.
+Use Linux host paths such as `/mnt/music` or `/home/user/Music`. The music mount may be read-only unless you want the app to write `.lrc` sidecars beside tracks.
 
-The Docker image already defaults to:
+## First Run
 
-```env
-MUSIC_LIBRARY_PATH=/music
-DATA_DIR=/data
-SCAN_METADATA=tags
-SCAN_DURATIONS=false
-AUTO_SCAN_ON_START=false
-PORT=8888
+1. Open `/login` and sign in as admin.
+2. Open `Admin`, then select `System`.
+3. Click `Refresh Folders`.
+4. Select the top-level music folders to index and click `Save Folders`.
+5. Use `Scan Changes` for a normal incremental scan, `Scan Folder` for one selected folder, or `Full Rescan` to reread all selected folders.
+
+Automatic scanning on container startup is disabled by default so large libraries do not delay startup.
+
+## Library Layout
+
+Scanning is recursive, but consistent folders and tags produce the best results.
+
+```text
+Music/
+  Artist Name/
+    Album Name/
+      cover.jpg
+      01 - First Song.flac
+      02 - Second Song.flac
 ```
 
-## Data Folder
+Nested disc or volume folders are supported.
 
-`APP_DATA_DIR` on the host is mounted as `/data` inside Docker.
+```text
+Music/
+  Various Artists/
+    80s Collection/
+      CD1/
+      CD2/
+```
 
-This folder stores:
+Normal scans reuse unchanged files by size and modification time. Use `Full Rescan` after changing tags with a third-party editor when you need every selected file parsed again.
 
-- `library.sqlite`
-- cached cover art
-- user accounts
-- widget settings
-- app edits and overrides
-- saved lyrics data
+## Data And Backups
 
-Keep this folder when updating Docker images. If it is deleted, the app will need to rebuild the library index.
+The host `APP_DATA_DIR` is mounted as `/data` and contains the persistent application state, including:
 
-## Backup And Export
+- `library.sqlite` and its SQLite support files
+- user accounts and activity history
+- library folder selections and local metadata overrides
+- playlists, collections, favorites, wishlist state, and lyrics data
+- optimized covers and playback transcode caches
+- widget and download settings
 
-Admin users can export and import the SQLite database from the `Admin` sidebar tab. This is the safest way to move library metadata, users, overrides, lyrics, collections, wishlist albums, and scan state between installs.
+Preserve `/data` when updating the image.
 
-The Admin panel can also export an Excel workbook for album inventory. The Excel export supports optional filters for wishlist albums, media type, and scanned folder.
+For a complete backup, stop the container or otherwise pause writes, then copy the entire app data directory to a timestamped location outside the active directory. Restoring that snapshot before restarting the app returns all persistent state together.
 
-## Login And Admin
+The Admin database export is useful for a consistent SQLite snapshot, but it does not replace a full `/data` backup. Excel export is intended for album inventory and supports wishlist, media-type, and folder filters.
 
-Guest browsing is now the default startup posture:
+## Authentication And Security
+
+The built-in defaults allow guest browsing while keeping downloads private:
 
 ```env
 NOAUTH=true
 DOWNLOADS=false
 ```
 
-That means the main app opens without a login wall, but downloads stay locked behind a signed-in non-guest account. Guests can still visit `/login` manually if you want to sign in as admin or as a managed user.
+- Guests can browse and play music but cannot download files.
+- Downloads require a signed-in non-guest account with download permission.
+- Admin and authenticated mutations use per-session CSRF tokens and same-origin validation.
+- Login attempts are rate-limited and logout uses a protected POST request.
+- Widget access requires a real API key and a specific `http://` or `https://` CORS origin.
 
-If you want a login wall from first launch, set `NOAUTH=false` and provide an admin account in `.env`:
+To require login before browsing, set `NOAUTH=false` and provide `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
 
-```env
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=change-this-admin-password
-```
-
-When auth is enabled in Docker, the entrypoint requires both values but does not force a specific password policy. Use a strong password before exposing the app on your network.
-
-Admin users can:
-
-- add or update users
-- enable or disable downloads per user
-- manage download behavior
-- manage widget API keys
-- choose scan folders
-- start manual scans
-- view scan status
-
-Regular users only see the main app.
-
-## Security Defaults
-
-- Anonymous browsing is enabled by default with `NOAUTH=true`.
-- Anonymous downloads are disabled by default with `DOWNLOADS=false`.
-- All downloads now require a signed-in non-guest session.
-- Admin and download mutations are protected with same-origin checks and CSRF tokens.
-- Widget stats should be enabled only with a real API key and a specific allowed browser origin.
-
-## Scanning
-
-The app does not auto-scan the whole mounted music folder by default. This avoids memory spikes on large libraries.
-
-Recommended first scan:
-
-1. Sign in as admin.
-2. Open `Admin`.
-3. Go to `System`.
-4. Click `Refresh Folders`.
-5. Select one or more top-level folders.
-6. Click `Save & Scan`.
-
-Scans are incremental after the first successful scan. Unchanged files are reused from `library.sqlite` by size and modified time.
-
-If your server runs out of memory, use the safer scan mode:
+For an HTTPS reverse proxy such as Caddy, Traefik, Nginx Proxy Manager, or Cloudflare Tunnel, forward the original host/protocol and set:
 
 ```env
-SCAN_METADATA=filename
-SCAN_DURATIONS=false
-AUTO_SCAN_ON_START=false
+TRUST_PROXY=true
+REQUIRE_HTTPS_FOR_AUTH=true
 ```
 
-Then scan smaller folder groups from the Admin panel.
+Only enable `TRUST_PROXY` when requests reach the app through a proxy you control.
 
-## Environment Variables
+## Configuration
 
-Common variables:
+Common host and access variables:
 
-| Variable | Purpose |
-| --- | --- |
-| `MUSIC_DIR` | Host path mounted to `/music` by compose |
-| `APP_DATA_DIR` | Host path mounted to `/data` by compose |
-| `APP_TITLE` | Browser/app/sidebar title |
-| `ADMIN_USERNAME` | First admin username when auth is enabled |
-| `ADMIN_PASSWORD` | First admin password when auth is enabled |
-| `NOAUTH` | `true` enables guest browsing without the login wall |
-| `DOWNLOADS` | Guest download access when `NOAUTH=true` |
-| `PUID` / `PGID` | Linux owner for Docker-created files |
-| `UMASK` | File permission mask |
-| `CHOWN_DATA` | `auto` checks write access first; `true` forces recursive ownership repair; `false` skips it |
-| `WIDGET_API_KEY` | API key for external stats widgets; leave empty unless enabled |
-| `WIDGET_CORS_ORIGIN` | Allowed browser origin for widget API when enabled |
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MUSIC_DIR` | `./sample-library` | Host music path mounted to `/music` by Compose |
+| `APP_DATA_DIR` | `./data` | Host application data path mounted to `/data` |
+| `APP_TITLE` | `Monochrome-Streamer` | Browser and application title |
+| `ADMIN_USERNAME` | `admin` | Environment admin username |
+| `ADMIN_PASSWORD` | unset | Environment admin password |
+| `NOAUTH` | `true` | Allow guest browsing without a login wall |
+| `DOWNLOADS` | `false` | Allow anonymous guest downloads |
+| `PUID` / `PGID` | `1000` | Linux owner for container-created files |
+| `UMASK` | `022` | File permission mask |
+| `CHOWN_DATA` | `auto` | Check data write access; `true` forces recursive ownership repair |
 
-Advanced variables:
+Server and scan variables:
 
-| Variable | Default |
-| --- | --- |
-| `HOST` | `0.0.0.0` |
-| `PORT` | `8888` |
-| `MUSIC_LIBRARY_PATH` | `/music` |
-| `DATA_DIR` | `/data` |
-| `LIBRARY_DATABASE_PATH` | `/data/library.sqlite` |
-| `COVER_CACHE_PATH` | `/data/covers` |
-| `SCAN_METADATA` | `tags` |
-| `SCAN_DURATIONS` | `false` |
-| `AUTO_SCAN_ON_START` | `false` |
-| `REQUIRE_ADMIN_CREDENTIALS` | `true`; requires admin creds at container startup when `NOAUTH=false` |
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `HOST` | `0.0.0.0` | Bind address |
+| `PORT` | `8888` | HTTP port |
+| `MUSIC_LIBRARY_PATH` | `/music` | Music path inside Docker |
+| `DATA_DIR` | `/data` | Persistent data path inside Docker |
+| `SCAN_METADATA` | `tags` | Metadata mode; use `filename` for a lower-memory fallback |
+| `SCAN_DURATIONS` | `false` | Probe duration while scanning |
+| `AUTO_SCAN_ON_START` | `false` | Start a scan when the server starts |
+| `MAX_CONCURRENT_MP3_DOWNLOADS` | `2` | Maximum simultaneous MP3 conversions |
+| `API_SLOW_REQUEST_THRESHOLD_MS` | `250` | Log API requests slower than this threshold |
+
+Security and integration variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TRUST_PROXY` | `false` | Trust forwarded host and protocol headers |
+| `REQUIRE_HTTPS_FOR_AUTH` | `false` | Reject authenticated sessions over insecure requests |
+| `WIDGET_API_KEY` | unset | External widget stats API key |
+| `WIDGET_CORS_ORIGIN` | unset | Specific browser origin allowed to call the widget API |
+
+See [.env.example](.env.example) and [config.example.json](config.example.json) for templates.
+
+## Widget Stats API
+
+Enable the widget in `Admin > Instances`, then request:
+
+```text
+GET /api/widget/stats
+```
+
+Use either header or query authentication:
+
+```bash
+curl -H "x-api-key: your-widget-key" http://127.0.0.1:8888/api/widget/stats
+curl "http://127.0.0.1:8888/api/widget/stats?apiKey=your-widget-key"
+```
+
+The response contains the app title, album and track counts, library generation time, and current scan status.
 
 ## Local Development
 
-Install dependencies:
+Requires a current Node.js release plus `ffmpeg` for transcoding and media probing.
 
 ```powershell
 npm install
-```
-
-Build:
-
-```powershell
 npm run build
-```
-
-Start:
-
-```powershell
 npm start
 ```
 
-Open:
-
-```text
-http://localhost:8888
-```
-
-Useful scripts:
+Useful commands:
 
 ```powershell
 npm run dev
@@ -295,66 +256,22 @@ npm test
 npm run verify
 ```
 
-The frontend uses React, Vite, and Tailwind with a `tw-` prefix. Preflight is disabled so Tailwind can coexist with the existing app styling.
+The frontend uses React, Vite, and Tailwind with a `tw-` prefix. Tailwind preflight is disabled so utility styles can coexist with the existing CSS architecture.
 
-## Docker Hub Upload
-
-Log in:
+## Build And Publish The Docker Image
 
 ```powershell
 docker login
-```
-
-Build and push both the release tag and `latest`:
-
-```powershell
 docker buildx build --platform linux/amd64 `
-  -t judeah666/monochrome-streamer:0.3.4 `
+  --build-arg APP_VERSION=0.3.5 `
+  -t judeah666/monochrome-streamer:0.3.5 `
   -t judeah666/monochrome-streamer:latest `
   --push .
 ```
 
-## Widget Stats API
+## Project Notes
 
-Use this endpoint for dashboards that only need album count, track count, and scan status:
-
-```text
-GET /api/widget/stats
-```
-
-Header auth:
-
-```bash
-curl -H "x-api-key: your-real-widget-key" http://127.0.0.1:8888/api/widget/stats
-```
-
-Query auth:
-
-```bash
-curl "http://127.0.0.1:8888/api/widget/stats?apiKey=your-real-widget-key"
-```
-
-Example response:
-
-```json
-{
-  "title": "Monochrome-Streamer",
-  "albumCount": 1444,
-  "trackCount": 16285,
-  "generatedAt": "2026-05-20T10:18:30.000Z",
-  "scan": {
-    "status": "ready",
-    "percent": 100,
-    "processedFiles": 16285,
-    "totalFiles": 16285,
-    "error": null
-  }
-}
-```
-
-## Notes
-
-- Album edits, artist edits, lyrics, and user data are stored locally and survive Docker image updates when `/data` is preserved.
-- The album editor does not rewrite your audio files.
-- Lyrics can also be written as `.lrc` files beside tracks when the music folder is writable.
-- This is not a full fork of upstream Monochrome. It is a local-server streamer built around your own files.
+- Album and artist edits are local overrides; source audio tags are not rewritten.
+- Lyrics can be written beside tracks only when the music mount is writable.
+- Cached transcodes can be removed to reclaim space and will be regenerated when requested.
+- This is a local-server streamer inspired by Monochrome, not a full upstream fork.
