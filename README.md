@@ -258,17 +258,6 @@ npm run verify
 
 The frontend uses React, Vite, and Tailwind with a `tw-` prefix. Tailwind preflight is disabled so utility styles can coexist with the existing CSS architecture.
 
-## Build And Publish The Docker Image
-
-```powershell
-docker login
-docker buildx build --platform linux/amd64 `
-  --build-arg APP_VERSION=0.3.5 `
-  -t judeah666/monochrome-streamer:0.3.5 `
-  -t judeah666/monochrome-streamer:latest `
-  --push .
-```
-
 ## Project Notes
 
 - Album and artist edits are local overrides; source audio tags are not rewritten.
