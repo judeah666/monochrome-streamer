@@ -8,13 +8,14 @@ import { fileURLToPath } from 'node:url';
 import yazl from 'yazl';
 import {
   buildByteRange,
+  mergeTargetedLibraryScan,
   createTrackId,
   getContentType,
   readEmbeddedCover,
   scanMusicLibrary,
 } from './lib/library.mjs';
 import {
-  addPlaylistTrack,
+  addPlaylistTracks,
   createPlaylist,
   deletePlaylist,
   deletePlaylistsForOwner,
@@ -50,6 +51,17 @@ import {
   writeLibraryDatabase,
   writeLyricsOverridesDatabase,
 } from './lib/library-db.mjs';
+import {
+  buildUserPresenceMap,
+  serializeUserPresence,
+} from './src/server/userActivity.js';
+import {
+  DOWNLOAD_HISTORY_DAYS,
+  readDownloadHistory,
+  recordDownloadHistory,
+} from './src/server/downloadHistory.js';
+import { getStaticAssetCacheControl } from './src/server/staticCachePolicy.js';
+import { resolveLibraryScanRequest } from './src/server/libraryScanPolicy.js';
 import { parseCollectionNames, replaceCollectionName } from './src/shared/collectionNames.js';
 import { createAlbumSharePage, getAlbumSharePath } from './src/shared/albumShare.js';
 import {
@@ -117,6 +129,7 @@ const defaultConfig = {
   playbackTranscodeCachePath: 'transcodes',
   widgetSettingsPath: 'widget-settings.json',
   authUsersPath: 'users.json',
+  userActivityDatabasePath: 'user-activity.sqlite',
   scanMetadata: 'tags',
   scanDurations: false,
   autoScanOnStart: false,
@@ -149,6 +162,9 @@ const coverCachePath = config.coverCachePath ? path.resolve(__dirname, config.co
 const playbackTranscodeCachePath = config.playbackTranscodeCachePath ? path.resolve(__dirname, config.playbackTranscodeCachePath) : '';
 const widgetSettingsPath = config.widgetSettingsPath ? path.resolve(__dirname, config.widgetSettingsPath) : '';
 const authUsersPath = config.authUsersPath ? path.resolve(__dirname, config.authUsersPath) : '';
+const userActivityDatabasePath = config.userActivityDatabasePath
+  ? path.resolve(__dirname, config.userActivityDatabasePath)
+  : '';
 const NATURAL_SORTER = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 const COVER_CACHE_EXTENSION = '.webp';
 const COVER_CACHE_MAX_SIZE = 1000;
@@ -174,6 +190,8 @@ let scanState = {
   finishedAt: null,
   error: null,
   selectedFolders: [],
+  scanFolders: [],
+  mode: 'changes',
   currentFolder: '',
   processedFiles: 0,
   totalFiles: 0,
@@ -327,6 +345,17 @@ const server = http.createServer(async (request, response) => {
         user: createPublicUser(authUser),
         csrfToken: getCsrfTokenForUser(authUser),
       });
+    }
+
+    if (url.pathname === '/api/playback/presence') {
+      if (request.method !== 'POST') {
+        return respondJson(response, 405, { error: 'Method Not Allowed' });
+      }
+      if (!authUser || authUser.role === 'guest') {
+        return respondJson(response, 403, { error: 'Signed-in user required.' });
+      }
+      assertPrivilegedMutation(request, authUser);
+      return updatePlaybackPresence(request, response);
     }
 
     if (url.pathname === '/admin' || url.pathname === '/admin/') {
@@ -686,7 +715,18 @@ const server = http.createServer(async (request, response) => {
         return respondJson(response, 403, { error: 'Admin access required.' });
       }
       assertPrivilegedMutation(request, authUser, { requireAdmin: true });
-      const scan = await startLibraryScan();
+      const payload = await readRequestJson(request, 64 * 1024);
+      const [selectedFolders, availableFolders] = await Promise.all([
+        getSelectedLibraryFolders(),
+        listLibraryFolders(),
+      ]);
+      let scanRequest;
+      try {
+        scanRequest = resolveLibraryScanRequest(payload, selectedFolders, availableFolders);
+      } catch (error) {
+        throw new HttpError(400, error instanceof Error ? error.message : 'Invalid scan request.');
+      }
+      const scan = await startLibraryScan(scanRequest);
       return respondJson(response, 202, { scan });
     }
 
@@ -815,7 +855,7 @@ const server = http.createServer(async (request, response) => {
       }
       assertPrivilegedMutation(request, authUser);
       enforceDownloadRateLimit(request, authUser);
-      return downloadTrack(response, request, decodeURIComponent(downloadMatch[1]));
+      return downloadTrack(response, request, decodeURIComponent(downloadMatch[1]), authUser);
     }
 
     if (url.pathname === '/api/downloads/bulk' && request.method === 'POST') {
@@ -824,7 +864,7 @@ const server = http.createServer(async (request, response) => {
       }
       assertPrivilegedMutation(request, authUser);
       enforceDownloadRateLimit(request, authUser);
-      return downloadBulkTracks(response, request);
+      return downloadBulkTracks(response, request, authUser);
     }
 
     const lyricsMatch = /^\/api\/tracks\/([^/]+)\/lyrics$/u.exec(url.pathname);
@@ -873,7 +913,7 @@ server.listen(config.port, config.host, () => {
   console.log(`Monochrome-Streamer ready at http://${config.host}:${config.port}`);
   console.log(`Streaming from: ${libraryRoot}`);
   if (config.autoScanOnStart) {
-    startLibraryScan({ forceMetadataRefresh: false });
+    startLibraryScan({ forceMetadataRefresh: false, mode: 'changes' });
   } else {
     console.log('Automatic startup scan is disabled. Open the Admin sidebar tab, then System, select folders, and scan.');
   }
@@ -904,6 +944,9 @@ async function loadConfig() {
     playbackTranscodeCachePath: process.env.PLAYBACK_TRANSCODE_CACHE_PATH || fileConfig.playbackTranscodeCachePath || dataPath(defaultConfig.playbackTranscodeCachePath),
     widgetSettingsPath: process.env.WIDGET_SETTINGS_PATH || fileConfig.widgetSettingsPath || dataPath(defaultConfig.widgetSettingsPath),
     authUsersPath: process.env.AUTH_USERS_PATH || fileConfig.authUsersPath || dataPath(defaultConfig.authUsersPath),
+    userActivityDatabasePath: process.env.USER_ACTIVITY_DATABASE_PATH
+      || fileConfig.userActivityDatabasePath
+      || dataPath(defaultConfig.userActivityDatabasePath),
     scanMetadata: normalizeScanMetadata(process.env.SCAN_METADATA || fileConfig.scanMetadata || defaultConfig.scanMetadata),
     scanDurations: parseBoolean(process.env.SCAN_DURATIONS ?? fileConfig.scanDurations ?? defaultConfig.scanDurations),
     autoScanOnStart: parseBoolean(process.env.AUTO_SCAN_ON_START ?? fileConfig.autoScanOnStart ?? defaultConfig.autoScanOnStart),
@@ -1292,6 +1335,22 @@ async function handleAdminApi(request, response, url) {
     }
   }
 
+  const userDownloadHistoryMatch = /^\/api\/admin\/users\/([^/]+)\/download-history$/u.exec(url.pathname);
+  if (userDownloadHistoryMatch && request.method === 'GET') {
+    const username = normalizeUsername(decodeURIComponent(userDownloadHistoryMatch[1]));
+    const users = await getAdminUsersPayload();
+    const exists = users.admin?.username.toLowerCase() === username
+      || users.users.some((user) => user.username === username);
+    if (!exists) throw new HttpError(404, 'User not found.');
+    return respondJson(response, 200, {
+      username,
+      days: DOWNLOAD_HISTORY_DAYS,
+      downloads: await readDownloadHistory(userActivityDatabasePath, username, {
+        days: DOWNLOAD_HISTORY_DAYS,
+      }),
+    });
+  }
+
   const userMatch = /^\/api\/admin\/users\/([^/]+)$/u.exec(url.pathname);
   if (userMatch) {
     const username = decodeURIComponent(userMatch[1]);
@@ -1332,20 +1391,65 @@ async function handleAdminApi(request, response, url) {
 
 async function getAdminUsersPayload() {
   const store = await readAuthStore();
+  const presence = buildUserPresenceMap(sessions);
+  const withPresence = (user) => ({
+    ...user,
+    ...serializeUserPresence(presence.get(user.username.toLowerCase())),
+  });
   return {
-    admin: {
+    admin: withPresence({
       username: config.adminUsername,
       role: 'admin',
       downloadsEnabled: true,
       source: 'environment',
-    },
-    users: store.users.map((user) => ({
+    }),
+    users: store.users.map((user) => withPresence({
       username: user.username,
       role: 'user',
       downloadsEnabled: user.downloadsEnabled !== false,
       createdAt: user.createdAt || '',
     })),
   };
+}
+
+async function updatePlaybackPresence(request, response) {
+  const token = getSessionToken(request);
+  const session = token ? sessions.get(token) : null;
+  if (!session) return respondJson(response, 401, { error: 'Session expired.' });
+
+  const payload = await readRequestJson(request, 16 * 1024);
+  const trackId = cleanText(payload.trackId).slice(0, 160);
+  const now = Date.now();
+  if (!trackId) {
+    session.playback = null;
+    session.lastSeenAt = now;
+    return respondJson(response, 200, { ok: true });
+  }
+
+  let metadata = session.playback?.trackId === trackId ? session.playback : null;
+  if (!metadata) {
+    const track = await getTrackById(trackId);
+    if (!track) {
+      session.playback = null;
+      return respondJson(response, 200, { ok: true });
+    }
+    metadata = {
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
+    };
+  }
+
+  session.playback = {
+    trackId,
+    title: metadata.title,
+    artist: metadata.artist,
+    album: metadata.album,
+    playing: payload.playing === true,
+    updatedAt: now,
+  };
+  session.lastSeenAt = now;
+  return respondJson(response, 200, { ok: true });
 }
 
 async function createManagedUser(request) {
@@ -1449,14 +1553,19 @@ async function handlePlaylistTracksApi(request, response, authUser, playlistId) 
   assertPrivilegedMutation(request, authUser);
   const payload = await readRequestJson(request, 64 * 1024);
   try {
-    const result = await addPlaylistTrack(
+    const trackIds = Array.isArray(payload.trackIds)
+      ? payload.trackIds
+      : [payload.trackId];
+    const result = await addPlaylistTracks(
       libraryDatabasePath,
       ownerKey,
       playlistId,
-      String(payload.trackId || ''),
+      trackIds,
     );
     return respondJson(response, 200, {
-      added: result.added,
+      added: result.addedCount > 0,
+      addedCount: result.addedCount,
+      skippedCount: result.skippedCount,
       playlist: await createPlaylistPayload(result.playlist),
     });
   } catch (error) {
@@ -2034,6 +2143,8 @@ async function initializeScanStateFromStore() {
     finishedAt: librarySummary.generatedAt || null,
     error: null,
     selectedFolders,
+    scanFolders: selectedFolders,
+    mode: 'changes',
     currentFolder: '',
     processedFiles: librarySummary.trackCount || 0,
     totalFiles: librarySummary.trackCount || 0,
@@ -2261,9 +2372,15 @@ async function ensureLibrary() {
   return getCurrentLibrary();
 }
 
-async function refreshLibrary(selectedFoldersInput = null, { forceMetadataRefresh = false } = {}) {
+async function refreshLibrary(selectedFoldersInput = null, {
+  forceMetadataRefresh = false,
+  scanFolders: scanFoldersInput = null,
+  mode = 'full',
+  targeted = false,
+} = {}) {
   const scanStartedAt = performance.now();
   const selectedFolders = selectedFoldersInput || (await getSelectedLibraryFolders());
+  const scanFolders = Array.isArray(scanFoldersInput) ? scanFoldersInput : selectedFolders;
   const cachedLibrary = await readLibraryStore();
   scanState = {
     status: 'scanning',
@@ -2271,7 +2388,9 @@ async function refreshLibrary(selectedFoldersInput = null, { forceMetadataRefres
     finishedAt: null,
     error: null,
     selectedFolders,
-    currentFolder: selectedFolders[0] || '',
+    scanFolders,
+    mode,
+    currentFolder: scanFolders[0] || '',
     processedFiles: 0,
     totalFiles: 0,
     reusedFiles: 0,
@@ -2282,13 +2401,19 @@ async function refreshLibrary(selectedFoldersInput = null, { forceMetadataRefres
   cachePromise = scanMusicLibrary(libraryRoot, {
     scanMetadata: config.scanMetadata,
     scanDurations: config.scanDurations,
-    includeFolders: selectedFolders,
+    includeFolders: scanFolders,
     cachedTracks: cachedLibrary.tracks,
     cachedAlbums: cachedLibrary.albums,
     forceMetadataRefresh,
     skipInitialCount: Array.isArray(cachedLibrary.tracks) && cachedLibrary.tracks.length > 0,
     onProgress: updateScanProgress,
-  }).then((library) => {
+  }).then((scannedLibrary) => {
+    const library = targeted
+      ? mergeTargetedLibraryScan(cachedLibrary, scannedLibrary, {
+        selectedFolders,
+        scannedFolders: scanFolders,
+      })
+      : scannedLibrary;
     libraryCache = library;
     trackMap = new Map(library.tracks.map((track) => [track.id, track]));
     albumCoverLookup = new Map();
@@ -2301,8 +2426,8 @@ async function refreshLibrary(selectedFoldersInput = null, { forceMetadataRefres
       finishedAt: new Date().toISOString(),
       error: null,
       currentFolder: '',
-      processedFiles: library.trackCount,
-      totalFiles: scanState.totalFiles || library.trackCount,
+      processedFiles: scanState.processedFiles || library.trackCount,
+      totalFiles: scanState.totalFiles || scanState.processedFiles || library.trackCount,
       percent: 100,
     };
     scheduleAlbumCoverCache(library);
@@ -2322,9 +2447,16 @@ async function refreshLibrary(selectedFoldersInput = null, { forceMetadataRefres
   });
 }
 
-async function startLibraryScan({ forceMetadataRefresh = true } = {}) {
+async function startLibraryScan({
+  forceMetadataRefresh = true,
+  selectedFolders: selectedFoldersInput = null,
+  scanFolders: scanFoldersInput = null,
+  mode = 'full',
+  targeted = false,
+} = {}) {
   if (cachePromise) return scanState;
-  const selectedFolders = await getSelectedLibraryFolders();
+  const selectedFolders = selectedFoldersInput || (await getSelectedLibraryFolders());
+  const scanFolders = Array.isArray(scanFoldersInput) ? scanFoldersInput : selectedFolders;
   scanState = {
     ...scanState,
     status: 'scanning',
@@ -2332,14 +2464,21 @@ async function startLibraryScan({ forceMetadataRefresh = true } = {}) {
     finishedAt: null,
     error: null,
     selectedFolders,
-    currentFolder: selectedFolders[0] || '',
+    scanFolders,
+    mode,
+    currentFolder: scanFolders[0] || '',
     processedFiles: 0,
     totalFiles: 0,
     reusedFiles: 0,
     parsedFiles: 0,
     percent: 0,
   };
-  refreshLibrary(selectedFolders, { forceMetadataRefresh })
+  refreshLibrary(selectedFolders, {
+    forceMetadataRefresh,
+    scanFolders,
+    mode,
+    targeted,
+  })
     .then(() => migrateLyricsOverridesToSidecars())
     .catch((error) => {
       console.error('Library scan failed:', error);
@@ -3664,7 +3803,19 @@ async function streamFileWithRange(response, filePath, rangeHeader, contentType 
   createReadStream(filePath, { start: range.start, end: range.end }).pipe(response);
 }
 
-async function downloadTrack(response, request, trackId) {
+async function recordUserDownload(authUser, entry) {
+  if (!authUser || authUser.role === 'guest') return;
+  try {
+    await recordDownloadHistory(userActivityDatabasePath, {
+      ...entry,
+      username: authUser.username,
+    });
+  } catch (error) {
+    console.warn(`Unable to record download history for ${authUser.username}:`, error.message);
+  }
+}
+
+async function downloadTrack(response, request, trackId, authUser) {
   const track = await getTrackById(trackId);
   if (!track) {
     return respondJson(response, 404, { error: 'Track not found' });
@@ -3677,13 +3828,13 @@ async function downloadTrack(response, request, trackId) {
   if (quality === 'mp3') {
     const releaseSlot = acquireMp3DownloadSlot();
     response.on('close', releaseSlot);
-    return downloadTrackAsMp3(response, track, requestedName, releaseSlot);
+    return downloadTrackAsMp3(response, track, requestedName, releaseSlot, authUser);
   }
 
-  return downloadOriginalTrack(response, track, requestedName);
+  return downloadOriginalTrack(response, track, requestedName, authUser);
 }
 
-async function downloadBulkTracks(response, request) {
+async function downloadBulkTracks(response, request, authUser) {
   const payload = await readRequestPayload(request, 2_000_000);
   const quality = normalizeDownloadQuality(payload.quality);
   const trackRequests = normalizeBulkTrackRequests(payload.tracks || payload.trackIds);
@@ -3727,6 +3878,13 @@ async function downloadBulkTracks(response, request) {
   const zip = new yazl.ZipFile();
   const activeConversions = new Set();
 
+  await recordUserDownload(authUser, {
+    downloadKind: 'bulk',
+    itemLabel: zipName.endsWith('.zip') ? zipName : `${zipName}.zip`,
+    quality,
+    trackCount: tracks.length,
+  });
+
   response.writeHead(200, {
     'Content-Type': 'application/zip',
     'Content-Disposition': createContentDisposition(zipName.endsWith('.zip') ? zipName : `${zipName}.zip`),
@@ -3768,9 +3926,20 @@ async function downloadBulkTracks(response, request) {
   zip.outputStream.pipe(response);
 }
 
-async function downloadOriginalTrack(response, track, requestedName) {
+async function downloadOriginalTrack(response, track, requestedName, authUser) {
   const stats = await fs.stat(track.path);
   const filename = requestedName || sanitizeDownloadFilename(path.basename(track.relativePath || track.path));
+
+  await recordUserDownload(authUser, {
+    downloadKind: 'track',
+    itemLabel: filename,
+    trackId: track.id,
+    title: track.title,
+    artist: track.artist,
+    album: track.album,
+    quality: 'original',
+    trackCount: 1,
+  });
 
   response.writeHead(200, {
     'Content-Length': String(stats.size),
@@ -3782,7 +3951,7 @@ async function downloadOriginalTrack(response, track, requestedName) {
   createReadStream(track.path).pipe(response);
 }
 
-async function downloadTrackAsMp3(response, track, requestedName, releaseSlot = null) {
+async function downloadTrackAsMp3(response, track, requestedName, releaseSlot = null, authUser = null) {
   if (!await isFfmpegAvailable()) {
     return respondJson(response, 503, {
       error: 'MP3 conversion requires ffmpeg. Rebuild the Docker image or install ffmpeg on the server.',
@@ -3793,6 +3962,17 @@ async function downloadTrackAsMp3(response, track, requestedName, releaseSlot = 
     ? requestedName.replace(/\.[^.]+$/u, '')
     : path.basename(track.relativePath || track.title || 'track', path.extname(track.relativePath || ''));
   const filename = `${sanitizeDownloadFilename(baseName) || 'track'}.mp3`;
+
+  await recordUserDownload(authUser, {
+    downloadKind: 'track',
+    itemLabel: filename,
+    trackId: track.id,
+    title: track.title,
+    artist: track.artist,
+    album: track.album,
+    quality: 'mp3',
+    trackCount: 1,
+  });
 
   response.writeHead(200, {
     'Content-Type': 'audio/mpeg',
@@ -5590,9 +5770,7 @@ async function serveStaticAsset(requestPath, response) {
     ? guessStaticContentType(resolvedPath)
     : getContentType(resolvedPath);
 
-  const cacheControl = ['.html', '.js', '.css'].includes(path.extname(resolvedPath).toLowerCase())
-    ? 'no-store'
-    : 'public, max-age=300';
+  const cacheControl = getStaticAssetCacheControl(normalizedPath, path.extname(resolvedPath));
 
   if (!isSourceAsset && normalizedPath === '/styles.css') {
     const stylesheet = await renderVersionedStylesheet(resolvedPath);

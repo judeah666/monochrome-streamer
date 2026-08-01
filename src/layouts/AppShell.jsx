@@ -47,7 +47,7 @@ function HomeView() {
 function LibraryView() {
   return (
     <section id="library-view" className="view" hidden>
-      <section className="content-section library-browser">
+      <section className="content-section library-browser library-browser-flat">
         <div id="library-intro-root" />
         <div id="library-tabs-root" />
 
@@ -68,7 +68,7 @@ function LibraryView() {
 function PlaylistsView() {
   return (
     <section id="playlists-view" className="view" hidden>
-      <section className="content-section library-browser">
+      <section className="content-section library-browser library-browser-flat">
         <div id="playlists-intro-root" />
         <div id="library-panel-playlists" className="library-panel" />
       </section>
@@ -106,7 +106,7 @@ function WishlistView() {
 function SettingsView() {
   return (
     <section id="settings-view" className="view" hidden>
-      <section className="content-section settings-shell">
+      <section className="content-section settings-shell settings-shell-flat">
         <div id="settings-intro-root" />
 
         <div id="settings-tabs" className="settings-tabs" role="tablist" aria-label="Settings sections" />
@@ -122,7 +122,7 @@ function SettingsView() {
 function AdminView() {
   return (
     <section id="admin-view" className="view" hidden>
-      <section className="content-section settings-shell admin-main-shell">
+      <section className="content-section settings-shell settings-shell-flat admin-main-shell">
         <div id="admin-intro-root" />
         <div id="admin-panel-root" />
       </section>

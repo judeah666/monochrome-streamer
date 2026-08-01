@@ -5,7 +5,8 @@ const NEW_PLAYLIST_VALUE = 'new';
 export function PlaylistDialog({
   mode = 'create',
   playlists = [],
-  trackTitle = '',
+  targetTitle = '',
+  trackCount = 0,
   busy = false,
   status = '',
   onClose,
@@ -49,7 +50,10 @@ export function PlaylistDialog({
         <div>
           <span className="eyebrow">Playlist</span>
           <h2 id={titleId}>{mode === 'create' ? 'New Playlist' : 'Add to Playlist'}</h2>
-          {trackTitle ? <p>Add “{trackTitle}” to one playlist.</p> : null}
+          {targetTitle && trackCount > 1 ? (
+            <p>Add all {trackCount} tracks from “{targetTitle}” to one playlist.</p>
+          ) : null}
+          {targetTitle && trackCount === 1 ? <p>Add “{targetTitle}” to one playlist.</p> : null}
         </div>
         <button type="button" className="icon-button" aria-label="Close playlist dialog" onClick={onClose} disabled={busy}>
           <i className="fa-solid fa-xmark" aria-hidden="true" />
@@ -108,7 +112,7 @@ export function PlaylistDialog({
         <footer className="playlist-dialog-actions">
           <button type="button" className="secondary-button" onClick={onClose} disabled={busy}>Cancel</button>
           <button type="submit" className="primary-button" disabled={busy || (creating && !name.trim())}>
-            {busy ? 'Saving...' : creating ? 'Create Playlist' : 'Add Track'}
+            {busy ? 'Saving...' : creating ? 'Create Playlist' : trackCount > 1 ? `Add ${trackCount} Tracks` : 'Add Track'}
           </button>
         </footer>
       </form>

@@ -16,7 +16,7 @@ async function loadAlbumDetailModule() {
     bundle: true,
     format: 'esm',
     platform: 'node',
-    external: ['react'],
+    external: ['react', 'react-dom'],
     loader: { '.svg': 'dataurl' },
     write: false,
   });
@@ -75,6 +75,30 @@ test('album detail share action calls the supplied handler with the album id', a
 
   shareButton.props.onClick();
   assert.equal(sharedAlbumId, 'album-1');
+});
+
+test('album detail offers signed-in users one action for adding every track to a playlist', async () => {
+  const { AlbumDetail } = await albumDetailModulePromise;
+  let selectedAlbumId = '';
+  const tree = AlbumDetail({
+    album,
+    tracks: [{ id: 'track-1' }, { id: 'track-2' }],
+    canQueue: true,
+    onAddAlbumPlaylist: (albumId) => {
+      selectedAlbumId = albumId;
+    },
+  });
+
+  const addButton = findElement(tree, (element) => (
+    element.type === 'button'
+    && element.props?.['aria-label'] === 'Add album to playlist'
+  ));
+  assert.ok(addButton, 'Expected album-level add-to-playlist button');
+  addButton.props.onClick();
+  assert.equal(selectedAlbumId, 'album-1');
+
+  const guestHtml = renderToStaticMarkup(React.createElement(AlbumDetail, { album }));
+  assert.doesNotMatch(guestHtml, /aria-label="Add album to playlist"/u);
 });
 
 function findElement(node, predicate) {

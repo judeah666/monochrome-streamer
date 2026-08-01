@@ -1,6 +1,7 @@
 import React from 'react';
 import { MobileFilterSheet } from '../common/MobileFilterSheet.jsx';
 import { getAlphabetFilterLabel } from '../../utils/mobileFilters.js';
+import { getPaginationState } from '../../utils/pagination.js';
 
 export function LibraryFilterBar({
   alphabetFilters = [],
@@ -119,11 +120,16 @@ export function LibraryPager({
   const offset = page.offset || 0;
   const start = total === 0 ? 0 : offset + 1;
   const end = Math.min(total, offset + limit);
+  const {
+    currentPage,
+    totalPages,
+    items: paginationItems,
+  } = getPaginationState({ total, limit, offset });
   const positionClassName = position === 'top' ? ' tw-mb-3.5' : '';
-  const handlePageClick = (event, direction) => {
+  const handlePageClick = (event, target) => {
     if (!onPage) return;
     event.stopPropagation();
-    onPage(direction);
+    onPage(target);
   };
   const handlePageSizeChange = (event) => {
     if (!onPageSize) return;
@@ -131,56 +137,89 @@ export function LibraryPager({
     onPageSize(Number(event.target.value));
   };
 
+  if (totalPages <= 1) return null;
+
   return (
     <div
-      className={`library-pager tw-col-span-full tw-mt-3.5 tw-flex tw-items-center tw-justify-end tw-gap-3.5 tw-rounded-[22px] tw-border tw-border-line tw-bg-[linear-gradient(135deg,color-mix(in_srgb,var(--surface)_88%,transparent),color-mix(in_srgb,var(--glass)_70%,transparent)),var(--glass)] tw-px-4 tw-py-3.5 tw-backdrop-blur-lg${positionClassName}`}
+      className={`library-pager tw-col-span-full tw-mt-3.5 tw-grid tw-grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] tw-items-center tw-gap-3.5 tw-rounded-[22px] tw-border tw-border-line tw-bg-[linear-gradient(135deg,color-mix(in_srgb,var(--surface)_88%,transparent),color-mix(in_srgb,var(--glass)_70%,transparent)),var(--glass)] tw-px-4 tw-py-3.5 tw-backdrop-blur-lg max-[720px]:tw-grid-cols-1 max-[720px]:tw-gap-2.5${positionClassName}`}
       data-pagination-position={position}
     >
-      <div className="tw-mr-auto tw-text-muted">
+      <div className="tw-min-w-0 tw-justify-self-start tw-text-muted max-[720px]:tw-justify-self-center max-[720px]:tw-text-center">
         <strong className="tw-mr-1 tw-font-display tw-text-text">{start}-{end}</strong>
         <span>of {total} {itemLabel}{total === 1 ? '' : 's'}</span>
         {loading ? (
           <span className="tw-ml-3 tw-font-extrabold tw-text-accent">Loading...</span>
         ) : null}
       </div>
-      {showPageSize ? (
-        <label className="tw-inline-flex tw-items-center tw-gap-2.5 tw-text-[0.86rem] tw-font-extrabold tw-text-muted">
-          <span>Per page</span>
-          <select
-            className="tw-min-w-[82px] tw-rounded-pill tw-border tw-border-line tw-bg-[var(--input-surface)] tw-px-3.5 tw-py-2 tw-font-extrabold tw-text-text"
-            data-library-page-size
-            value={limit}
-            disabled={loading}
-            onChange={handlePageSizeChange}
-          >
-            {pageSizeOptions.map((size) => (
-              <option key={size} value={size}>{size}</option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-      <button
-        type="button"
-        className="tw-inline-grid tw-h-[38px] tw-min-h-[38px] tw-w-[38px] tw-min-w-[38px] tw-place-items-center tw-border-0 tw-bg-transparent tw-p-0 tw-text-text tw-shadow-none tw-transition tw-duration-150 hover:-tw-translate-y-px hover:tw-text-accent disabled:tw-opacity-40 disabled:tw-grayscale"
-        disabled={loading || !page.hasPrevious}
-        aria-label="Previous page"
-        title="Previous page"
-        data-library-page-action="previous"
-        onClick={(event) => handlePageClick(event, 'previous')}
+      <nav
+        className="library-pager-navigation tw-flex tw-max-w-full tw-items-center tw-justify-center tw-gap-1.5 tw-justify-self-center max-[720px]:tw-gap-0.5"
+        aria-label={`${itemLabel} pages`}
       >
-        <i className="pager-symbol pager-symbol-left" aria-hidden="true"></i>
-      </button>
-      <button
-        type="button"
-        className="tw-inline-grid tw-h-[38px] tw-min-h-[38px] tw-w-[38px] tw-min-w-[38px] tw-place-items-center tw-border-0 tw-bg-transparent tw-p-0 tw-text-text tw-shadow-none tw-transition tw-duration-150 hover:-tw-translate-y-px hover:tw-text-accent disabled:tw-opacity-40 disabled:tw-grayscale"
-        disabled={loading || !page.hasNext}
-        aria-label="Next page"
-        title="Next page"
-        data-library-page-action="next"
-        onClick={(event) => handlePageClick(event, 'next')}
-      >
-        <i className="pager-symbol pager-symbol-right" aria-hidden="true"></i>
-      </button>
+        <button
+          type="button"
+          className="tw-inline-grid tw-h-[38px] tw-min-h-[38px] tw-w-[38px] tw-min-w-[38px] tw-place-items-center tw-rounded-pill tw-border-0 tw-bg-transparent tw-p-0 tw-text-text tw-shadow-none tw-transition tw-duration-150 hover:-tw-translate-y-px hover:tw-bg-[var(--hover-surface)] hover:tw-text-accent disabled:tw-opacity-40 disabled:tw-grayscale"
+          disabled={loading || !page.hasPrevious}
+          aria-label="Previous page"
+          title="Previous page"
+          data-library-page-action="previous"
+          onClick={(event) => handlePageClick(event, 'previous')}
+        >
+          <i className="pager-symbol pager-symbol-left" aria-hidden="true"></i>
+        </button>
+        {paginationItems.map((item) => (
+          typeof item === 'number' ? (
+            <button
+              key={item}
+              type="button"
+              className={`library-page-number tw-inline-grid tw-h-[38px] tw-min-w-[38px] tw-place-items-center tw-rounded-pill tw-border tw-px-2.5 tw-font-extrabold tw-transition tw-duration-150 ${item === currentPage ? 'is-active tw-border-accent tw-bg-accent tw-text-[var(--accent-contrast)]' : 'tw-border-transparent tw-bg-transparent tw-text-muted hover:tw-border-line hover:tw-bg-[var(--hover-surface)] hover:tw-text-text'}`}
+              disabled={loading || item === currentPage}
+              aria-label={item === currentPage ? `Page ${item}, current page` : `Go to page ${item}`}
+              aria-current={item === currentPage ? 'page' : undefined}
+              data-library-page-number={item}
+              onClick={(event) => handlePageClick(event, item)}
+            >
+              {item}
+            </button>
+          ) : (
+            <span
+              key={item}
+              className="tw-inline-grid tw-h-[38px] tw-min-w-[24px] tw-place-items-center tw-font-extrabold tw-text-muted"
+              aria-hidden="true"
+            >
+              &hellip;
+            </span>
+          )
+        ))}
+        <button
+          type="button"
+          className="tw-inline-grid tw-h-[38px] tw-min-h-[38px] tw-w-[38px] tw-min-w-[38px] tw-place-items-center tw-rounded-pill tw-border-0 tw-bg-transparent tw-p-0 tw-text-text tw-shadow-none tw-transition tw-duration-150 hover:-tw-translate-y-px hover:tw-bg-[var(--hover-surface)] hover:tw-text-accent disabled:tw-opacity-40 disabled:tw-grayscale"
+          disabled={loading || !page.hasNext}
+          aria-label="Next page"
+          title="Next page"
+          data-library-page-action="next"
+          onClick={(event) => handlePageClick(event, 'next')}
+        >
+          <i className="pager-symbol pager-symbol-right" aria-hidden="true"></i>
+        </button>
+      </nav>
+      <div className="tw-justify-self-end max-[720px]:tw-justify-self-center">
+        {showPageSize ? (
+          <label className="tw-inline-flex tw-items-center tw-gap-2.5 tw-text-[0.86rem] tw-font-extrabold tw-text-muted">
+            <span>Per page</span>
+            <select
+              className="tw-min-w-[82px] tw-rounded-pill tw-border tw-border-line tw-bg-[var(--input-surface)] tw-px-3.5 tw-py-2 tw-font-extrabold tw-text-text"
+              data-library-page-size
+              value={limit}
+              disabled={loading}
+              onChange={handlePageSizeChange}
+            >
+              {pageSizeOptions.map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { TrackList } from '../library/TrackList.jsx';
 import { AudioQualityBadge, CoverImage, FontAwesomeIcon, MediaTypeIcons } from '../common/VisualBits.jsx';
 
 const albumHeroClassName = [
-  'album-hero tw-relative tw-overflow-hidden tw-rounded-[30px] tw-border tw-border-line',
+  'album-hero detail-hero-flat tw-relative tw-overflow-hidden tw-rounded-[30px] tw-border tw-border-line',
   'tw-bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_10%,transparent),transparent),var(--glass-heavy)]',
   'tw-shadow-panel tw-backdrop-blur-[22px]',
 ].join(' ');
@@ -25,7 +25,7 @@ const albumActionsClassName = 'album-actions tw-mt-6 tw-flex tw-flex-wrap tw-ite
 const albumActionButtonClassName = 'album-action-button tw-inline-flex tw-items-center tw-justify-center tw-gap-2.5';
 const albumActionIconClassName = 'album-action-icon';
 const albumContentLayoutClassName = 'album-content-layout tw-mt-7 tw-grid tw-grid-cols-[minmax(0,1fr)_320px] tw-gap-7 max-[1100px]:tw-grid-cols-1';
-const albumMainClassName = 'album-main tw-overflow-hidden tw-rounded-[24px] tw-border tw-border-line tw-bg-[var(--glass-heavy)] tw-shadow-panel tw-backdrop-blur-[22px]';
+const albumMainClassName = 'album-main detail-track-list tw-overflow-hidden tw-rounded-[24px] tw-border tw-border-line tw-bg-[var(--glass-heavy)] tw-shadow-panel tw-backdrop-blur-[22px]';
 const trackTableHeaderClassName = [
   'track-table-header tw-grid tw-grid-cols-[56px_minmax(0,1fr)_minmax(120px,180px)_auto]',
   'tw-items-center tw-gap-[18px] tw-border-b tw-border-line tw-px-5 tw-pb-3.5 tw-pt-[18px]',
@@ -33,7 +33,7 @@ const trackTableHeaderClassName = [
 ].join(' ');
 const trackTableClassName = 'track-table tw-grid';
 const albumSidebarClassName = 'album-sidebar tw-grid tw-content-start tw-gap-0';
-const relatedSectionClassName = 'content-section tw-mt-0 tw-overflow-hidden tw-rounded-[24px] tw-border tw-border-line tw-bg-[var(--glass-heavy)] tw-p-[18px] tw-shadow-panel tw-backdrop-blur-[22px]';
+const relatedSectionClassName = 'content-section album-related-flat tw-mt-0 tw-overflow-hidden tw-rounded-[24px] tw-border tw-border-line tw-bg-[var(--glass-heavy)] tw-p-[18px] tw-shadow-panel tw-backdrop-blur-[22px]';
 const relatedTitleClassName = 'tw-m-0 tw-mb-3.5 tw-text-[1.1rem]';
 const sideCardGridClassName = 'side-card-grid';
 
@@ -53,6 +53,7 @@ export function AlbumDetail({
   canDownload = true,
   onPlayAlbum,
   onQueueAlbum,
+  onAddAlbumPlaylist,
   onDownloadAlbum,
   onShareAlbum,
   onEditAlbum,
@@ -79,6 +80,8 @@ export function AlbumDetail({
       </section>
     );
   }
+
+  const moreAlbums = [...relatedAlbums, ...epAlbums];
 
   return (
     <>
@@ -116,6 +119,19 @@ export function AlbumDetail({
                 <i className={`fa-solid fa-list-ul ${albumActionIconClassName}`} aria-hidden="true"></i>
                 <span className="album-action-label">Add to queue</span>
               </button>
+              {onAddAlbumPlaylist ? (
+                <button
+                  className={`secondary-button ${albumActionButtonClassName}`}
+                  type="button"
+                  disabled={!canQueue}
+                  aria-label="Add album to playlist"
+                  title="Add album to playlist"
+                  onClick={() => onAddAlbumPlaylist(album.id)}
+                >
+                  <i className={`fa-solid fa-folder-plus ${albumActionIconClassName}`} aria-hidden="true"></i>
+                  <span className="album-action-label">Add to playlist</span>
+                </button>
+              ) : null}
               <button
                 className={`secondary-button ${albumActionButtonClassName}${downloadBusy ? ' is-download-busy' : ''}`}
                 type="button"
@@ -198,13 +214,7 @@ export function AlbumDetail({
         <aside className={albumSidebarClassName}>
           <RelatedAlbums
             title={`More albums from ${album.artist}`}
-            albums={relatedAlbums}
-            onOpen={onOpenAlbum}
-            onPlay={onPlayRelatedAlbum}
-          />
-          <RelatedAlbums
-            title={`EPs and Singles from ${album.artist}`}
-            albums={epAlbums}
+            albums={moreAlbums}
             onOpen={onOpenAlbum}
             onPlay={onPlayRelatedAlbum}
           />

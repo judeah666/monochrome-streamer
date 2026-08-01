@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS, FONT_OPTIONS, FONT_PRESETS, STORAGE_KEYS } from '../c
 import { isLightTheme, resolveThemePreset } from '../controller/themeResolver.js';
 import { getCsrfToken } from '../controller/utils.js';
 import { mergeDiscoveredLibraryFolders } from '../shared/libraryFolders.js';
+import { canPollInDocument, getAdminPollingDelay } from '../shared/pollingPolicy.js';
 
 const ADMIN_TABS = [
   ['users', 'Users', 'fa-users'],
@@ -70,15 +71,45 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
   }, [embedded, appSettings?.fontPreset, appSettings?.fontSize]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (activeTab === 'system') {
-        loadFolders({ quiet: true }).catch(() => {});
+    const pollDelay = getAdminPollingDelay(activeTab);
+    if (pollDelay === null) return undefined;
+
+    let disposed = false;
+    let timer = 0;
+
+    const schedule = (delay = pollDelay) => {
+      window.clearTimeout(timer);
+      if (disposed || !canPollInDocument(document)) return;
+      timer = window.setTimeout(poll, delay);
+    };
+
+    const poll = async () => {
+      if (disposed || !canPollInDocument(document)) return;
+      try {
+        if (activeTab === 'system') {
+          await loadFolders({ quiet: true });
+        } else {
+          await loadUsers();
+        }
+      } catch {
+        // Quiet background refreshes should not replace the current panel state.
+      } finally {
+        schedule();
       }
-      if (activeTab === 'users') {
-        loadUsers().catch(() => {});
-      }
-    }, activeTab === 'system' || activeTab === 'users' ? 2500 : 5000);
-    return () => window.clearInterval(timer);
+    };
+
+    const handleVisibilityChange = () => {
+      window.clearTimeout(timer);
+      if (canPollInDocument(document)) schedule(0);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    schedule();
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [activeTab]);
 
   async function loadAll() {
@@ -148,15 +179,21 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
     window.location.assign('/login');
   }
 
-  async function saveSelectedFolders({ scan = false } = {}) {
+  async function saveSelectedFolders({ scanMode = null, scanFolders = [] } = {}) {
     const chosen = [...selectedFolders];
     await api('/api/library/folders', {
       method: 'POST',
       body: JSON.stringify({ folders: chosen }),
     });
-    if (scan) {
-      await api('/api/rescan', { method: 'POST', body: '{}' });
-      setStatus('Scan started.');
+    if (scanMode) {
+      await api('/api/rescan', {
+        method: 'POST',
+        body: JSON.stringify({ mode: scanMode, folders: scanFolders }),
+      });
+      const scanLabel = scanMode === 'folders'
+        ? `Folder scan started: ${scanFolders.join(', ')}.`
+        : scanMode === 'changes' ? 'Incremental scan started.' : 'Full rescan started.';
+      setStatus(scanLabel);
     } else {
       setStatus(`Saved ${chosen.length} selected folder${chosen.length === 1 ? '' : 's'}.`);
     }
@@ -216,8 +253,10 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
             selectedLabel={selectedLabel}
             scan={scan}
             onRefresh={() => refreshFoldersAndIncludeNew()}
-            onSave={() => saveSelectedFolders({ scan: false })}
-            onSaveScan={() => saveSelectedFolders({ scan: true })}
+            onSave={() => saveSelectedFolders()}
+            onScanChanges={() => saveSelectedFolders({ scanMode: 'changes' })}
+            onScanFolder={(folder) => saveSelectedFolders({ scanMode: 'folders', scanFolders: [folder] })}
+            onFullScan={() => saveSelectedFolders({ scanMode: 'full' })}
             fontSettings={fontSettings}
             onFontSettingChange={changeFontSetting}
           />
@@ -302,8 +341,10 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
             selectedLabel={selectedLabel}
             scan={scan}
             onRefresh={() => refreshFoldersAndIncludeNew()}
-            onSave={() => saveSelectedFolders({ scan: false })}
-            onSaveScan={() => saveSelectedFolders({ scan: true })}
+            onSave={() => saveSelectedFolders()}
+            onScanChanges={() => saveSelectedFolders({ scanMode: 'changes' })}
+            onScanFolder={(folder) => saveSelectedFolders({ scanMode: 'folders', scanFolders: [folder] })}
+            onFullScan={() => saveSelectedFolders({ scanMode: 'full' })}
             fontSettings={fontSettings}
             onFontSettingChange={changeFontSetting}
           />
@@ -314,6 +355,10 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
 }
 
 function UsersPanel({ users, onUsersChanged, setStatus }) {
+  const [expandedHistoryUser, setExpandedHistoryUser] = useState('');
+  const [historyByUser, setHistoryByUser] = useState({});
+  const [historyLoadingUser, setHistoryLoadingUser] = useState('');
+
   async function onSubmit(event) {
     event.preventDefault();
     const formElement = event.currentTarget;
@@ -349,8 +394,36 @@ function UsersPanel({ users, onUsersChanged, setStatus }) {
     setStatus('User deleted.');
   }
 
+  async function toggleDownloadHistory(username) {
+    if (expandedHistoryUser === username) {
+      setExpandedHistoryUser('');
+      return;
+    }
+    setExpandedHistoryUser(username);
+    if (historyByUser[username]) return;
+
+    setHistoryLoadingUser(username);
+    try {
+      const payload = await api(`/api/admin/users/${encodeURIComponent(username)}/download-history`);
+      setHistoryByUser((current) => ({
+        ...current,
+        [username]: payload.downloads || [],
+      }));
+    } catch (error) {
+      setExpandedHistoryUser('');
+      setStatus(error.message);
+    } finally {
+      setHistoryLoadingUser('');
+    }
+  }
+
+  const userRows = [
+    ...(users.admin ? [{ ...users.admin, roleLabel: 'Admin', managed: false }] : []),
+    ...(users.users || []).map((user) => ({ ...user, roleLabel: 'User', managed: true })),
+  ];
+
   return (
-    <PanelGroup title="Users" description="Add accounts for family or friends. Downloads can be disabled per account.">
+    <PanelGroup title="Users" description="Manage accounts, see who is online and playing, and review the last 30 days of downloads.">
       <form className="admin-form" onSubmit={onSubmit}>
         <label className={settingsFieldClassName}>
           <span>Username</span>
@@ -373,28 +446,116 @@ function UsersPanel({ users, onUsersChanged, setStatus }) {
       </form>
       <div className="admin-table-wrap">
         <table className="admin-table">
-          <thead><tr><th>User</th><th>Role</th><th>Downloads</th><th>Action</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>User</th>
+              <th>Role</th>
+              <th>Now playing</th>
+              <th>Downloads</th>
+              <th>History</th>
+              <th>Action</th>
+            </tr>
+          </thead>
           <tbody>
-            {users.admin ? (
-              <tr><td>{users.admin.username}</td><td>Admin</td><td>Enabled</td><td>Environment</td></tr>
-            ) : null}
-            {(users.users || []).map((user) => (
-              <tr key={user.username}>
-                <td>{user.username}</td>
-                <td>User</td>
-                <td>
-                  <button className="secondary-button" type="button" onClick={() => toggleDownloads(user.username)}>
-                    {user.downloadsEnabled ? 'Enabled' : 'Disabled'}
-                  </button>
-                </td>
-                <td><button className="secondary-button danger" type="button" onClick={() => deleteUser(user.username)}>Delete</button></td>
-              </tr>
+            {userRows.map((user) => (
+              <React.Fragment key={user.username}>
+                <tr>
+                  <td>
+                    <span className="tw-inline-flex tw-items-center tw-gap-2">
+                      <span
+                        className={user.online
+                          ? 'tw-h-2.5 tw-w-2.5 tw-rounded-full tw-bg-emerald-500'
+                          : 'tw-h-2.5 tw-w-2.5 tw-rounded-full tw-bg-line'}
+                        aria-hidden="true"
+                      ></span>
+                      <span>{user.online ? 'Online' : 'Offline'}</span>
+                    </span>
+                  </td>
+                  <td>{user.username}</td>
+                  <td>{user.roleLabel}</td>
+                  <td>
+                    {user.nowPlaying ? (
+                      <span className="tw-grid tw-min-w-[180px] tw-gap-0.5">
+                        <strong>{user.nowPlaying.title}</strong>
+                        <span className="tw-text-sm tw-text-muted">
+                          {user.nowPlaying.artist} - {user.nowPlaying.playing ? 'Playing' : 'Paused'}
+                        </span>
+                      </span>
+                    ) : <span className="tw-text-muted">Nothing playing</span>}
+                  </td>
+                  <td>
+                    {user.managed ? (
+                      <button className="secondary-button" type="button" onClick={() => toggleDownloads(user.username)}>
+                        {user.downloadsEnabled ? 'Enabled' : 'Disabled'}
+                      </button>
+                    ) : 'Enabled'}
+                  </td>
+                  <td>
+                    <button className="secondary-button" type="button" onClick={() => toggleDownloadHistory(user.username)}>
+                      {historyLoadingUser === user.username
+                        ? 'Loading...'
+                        : expandedHistoryUser === user.username ? 'Hide' : 'View 30 days'}
+                    </button>
+                  </td>
+                  <td>
+                    {user.managed
+                      ? <button className="secondary-button danger" type="button" onClick={() => deleteUser(user.username)}>Delete</button>
+                      : 'Environment'}
+                  </td>
+                </tr>
+                {expandedHistoryUser === user.username ? (
+                  <tr>
+                    <td colSpan="7">
+                      <DownloadHistoryTable
+                        downloads={historyByUser[user.username] || []}
+                        loading={historyLoadingUser === user.username}
+                      />
+                    </td>
+                  </tr>
+                ) : null}
+              </React.Fragment>
             ))}
           </tbody>
         </table>
       </div>
     </PanelGroup>
   );
+}
+
+function DownloadHistoryTable({ downloads, loading }) {
+  if (loading) return <p className="tw-p-3 tw-text-muted">Loading download history...</p>;
+  if (!downloads.length) return <p className="tw-p-3 tw-text-muted">No downloads in the last 30 days.</p>;
+
+  return (
+    <div className="tw-overflow-x-auto tw-rounded-[14px] tw-border tw-border-line tw-bg-[var(--background-soft)] tw-p-2">
+      <table className="admin-table">
+        <thead><tr><th>Date</th><th>Download</th><th>Type</th><th>Quality</th><th>Tracks</th></tr></thead>
+        <tbody>
+          {downloads.map((download) => (
+            <tr key={download.id}>
+              <td>{formatAdminDate(download.createdAt)}</td>
+              <td>
+                <span className="tw-grid tw-min-w-[220px] tw-gap-0.5">
+                  <strong>{download.title || download.itemLabel || 'Download'}</strong>
+                  {download.artist ? <span className="tw-text-sm tw-text-muted">{download.artist}</span> : null}
+                </span>
+              </td>
+              <td>{download.downloadKind === 'bulk' ? 'ZIP' : 'Track'}</td>
+              <td>{download.quality === 'mp3' ? 'MP3 320' : 'Original'}</td>
+              <td>{download.trackCount}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function formatAdminDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Unknown';
+  return date.toLocaleString();
 }
 
 function DownloadsPanel({ settings, onSaved, setStatus }) {
@@ -529,7 +690,9 @@ function SystemPanel({
   scan,
   onRefresh,
   onSave,
-  onSaveScan,
+  onScanChanges,
+  onScanFolder,
+  onFullScan,
   fontSettings,
   onFontSettingChange,
 }) {
@@ -539,6 +702,18 @@ function SystemPanel({
   const [excelWishlistOnly, setExcelWishlistOnly] = useState(false);
   const [excelMediaTypes, setExcelMediaTypes] = useState(new Set());
   const [excelFolders, setExcelFolders] = useState(new Set());
+  const [scanFolder, setScanFolder] = useState('');
+  const scanFolderOptions = useMemo(
+    () => folders
+      .filter((folder) => selectedFolders.has(folder))
+      .sort((left, right) => left.localeCompare(right)),
+    [folders, selectedFolders],
+  );
+  useEffect(() => {
+    if (!scanFolderOptions.includes(scanFolder)) {
+      setScanFolder(scanFolderOptions[0] || '');
+    }
+  }, [scanFolder, scanFolderOptions]);
   const stats = useMemo(() => ({
     tracks: scan.tracks || 0,
     albums: scan.albums || 0,
@@ -794,11 +969,35 @@ function SystemPanel({
             </label>
           )) : <p className={settingsHelpClassName}>No top-level folders were found in the mounted music folder.</p>}
         </div>
-        <div className={settingsActionsClassName}>
-          <button type="button" className="secondary-button" onClick={onSave}>Save Selected Folders</button>
-          <button type="button" className="primary-button" onClick={onSaveScan}>Save & Scan</button>
+        <div className={settingsFieldClassName}>
+          <span>Scan one folder</span>
+          <div className={settingsActionsClassName}>
+            <select
+              value={scanFolder}
+              onChange={(event) => setScanFolder(event.target.value)}
+              aria-label="Folder to scan"
+              disabled={scanFolderOptions.length === 0 || scan.status === 'scanning'}
+            >
+              {scanFolderOptions.length ? scanFolderOptions.map((folder) => (
+                <option key={folder} value={folder}>{folder}</option>
+              )) : <option value="">No selected folders</option>}
+            </select>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={!scanFolder || scan.status === 'scanning'}
+              onClick={() => onScanFolder(scanFolder)}
+            >
+              Scan Folder
+            </button>
+          </div>
         </div>
-        <p className={settingsHelpClassName}>Tip: start with one artist folder, scan, then add more folders after the app is stable.</p>
+        <div className={settingsActionsClassName}>
+          <button type="button" className="secondary-button" onClick={onSave}>Save Folders</button>
+          <button type="button" className="primary-button" disabled={scan.status === 'scanning'} onClick={onScanChanges}>Scan Changes</button>
+          <button type="button" className="secondary-button" disabled={scan.status === 'scanning'} onClick={onFullScan}>Full Rescan</button>
+        </div>
+        <p className={settingsHelpClassName}>Scan Changes reuses unchanged tags. Scan Folder fully rereads one selected folder. Full Rescan rereads every selected folder.</p>
       </PanelGroup>
     </>
   );
@@ -871,6 +1070,7 @@ function normalizeScan(scan = {}) {
   scan = scan && typeof scan === 'object' ? scan : {};
   const status = scan.status || 'idle';
   return {
+    status,
     statusLabel: toTitleCase(status),
     percent: Math.max(0, Math.min(100, Math.round(scan.percent || 0))),
     currentFolder: scan.currentFolder || '',

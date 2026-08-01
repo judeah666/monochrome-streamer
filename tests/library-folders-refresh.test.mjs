@@ -40,13 +40,13 @@ test('mergeDiscoveredLibraryFolders adds only folders missing from the known bas
   assert.deepEqual(result.merged, ['English Music', 'Pinoy Music']);
 });
 
-test('manual rescan is forced while startup scan stays incremental', async () => {
+test('manual rescan supports explicit scope while startup scan stays incremental', async () => {
   const source = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
 
-  assert.match(source, /async function startLibraryScan\(\{ forceMetadataRefresh = true \} = \{\}\)/u);
-  assert.match(source, /refreshLibrary\(selectedFolders, \{ forceMetadataRefresh \}\)/u);
-  assert.match(source, /startLibraryScan\(\{ forceMetadataRefresh: false \}\)/u);
-  assert.match(source, /const selectedFolders = await getSelectedLibraryFolders\(\)/u);
+  assert.match(source, /resolveLibraryScanRequest\(payload, selectedFolders, availableFolders\)/u);
+  assert.match(source, /mergeTargetedLibraryScan\(cachedLibrary, scannedLibrary/u);
+  assert.match(source, /startLibraryScan\(\{ forceMetadataRefresh: false, mode: 'changes' \}\)/u);
+  assert.match(source, /forceMetadataRefresh = true/u);
   assert.doesNotMatch(source, /resolveSelectedLibraryFoldersForScan/u);
 });
 

@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { AppShell } from '../layouts/AppShell.jsx';
 import { installMonochromeReactBridge } from '../services/rendererBridge.jsx';
+import { markAppBootFailed } from '../controller/appBoot.js';
 
 function ReactReadySignal() {
   useEffect(() => {
@@ -35,4 +36,5 @@ if (rootElement) {
 
 import('../controller/appController.js').catch((error) => {
   console.error('Unable to start Monochrome Streamer controller', error);
+  markAppBootFailed(error);
 });

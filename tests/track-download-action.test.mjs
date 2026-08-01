@@ -15,7 +15,7 @@ async function loadTrackListModule() {
     bundle: true,
     format: 'esm',
     platform: 'node',
-    external: ['react'],
+    external: ['react', 'react-dom'],
     loader: { '.svg': 'dataurl' },
     write: false,
   });
@@ -39,6 +39,7 @@ const track = {
 
 test('track rows render the bundled download action only when a callback is provided', async () => {
   const { TrackList } = await trackListModulePromise;
+  const trackListSource = await readFile(new URL('../src/components/library/TrackList.jsx', import.meta.url), 'utf8');
   const signedInHtml = renderToStaticMarkup(React.createElement(TrackList, {
     tracks: [track],
     variant: 'album',
@@ -49,15 +50,14 @@ test('track rows render the bundled download action only when a callback is prov
     variant: 'album',
   }));
 
-  assert.match(signedInHtml, /class="download-track-button track-action-button"/u);
-  assert.match(signedInHtml, /aria-label="Download Download Me"/u);
-  assert.match(signedInHtml, /class="player-symbol"/u);
   assert.match(signedInHtml, /class="track-action-menu-toggle track-action-button"/u);
+  assert.match(signedInHtml, /class="fa-solid fa-ellipsis-vertical"/u);
+  assert.doesNotMatch(signedInHtml, /class="fa-solid fa-ellipsis"/u);
   assert.match(signedInHtml, /aria-label="Show actions for Download Me"/u);
-  assert.match(signedInHtml, /class="track-action-menu"/u);
+  assert.match(guestHtml, /class="track-action-menu-toggle track-action-button"/u);
+  assert.match(trackListSource, /\{onDownload \? \([\s\S]*className="track-action-menu-item download-track-button"[\s\S]*<span>Download<\/span>/u);
+  assert.match(trackListSource, /expanded[\s\S]*createPortal\(menu, document\.body\)/u);
   assert.doesNotMatch(signedInHtml, /row-play-button/u);
-  assert.doesNotMatch(guestHtml, /download-track-button/u);
-  assert.doesNotMatch(guestHtml, /aria-label="Download Download Me"/u);
   assert.doesNotMatch(guestHtml, /row-play-button/u);
 });
 
@@ -69,16 +69,18 @@ test('track download callbacks are gated to non-guest users and reuse the secure
   assert.match(controllerSource, /onDownloadTrack: canCurrentUserDownloadTracks\(\) \? downloadTrackFromRow : null/u);
 });
 
-test('mobile track actions collapse behind the expand button', async () => {
+test('track actions use one three-dot menu at every viewport size', async () => {
   const responsiveCss = await readFile(new URL('../public/css/09-responsive.css', import.meta.url), 'utf8');
   const tailwindSource = await readFile(new URL('../src/styles/tailwind.css', import.meta.url), 'utf8');
   const albumDetailSource = await readFile(new URL('../src/components/albums/AlbumDetail.jsx', import.meta.url), 'utf8');
 
-  assert.match(tailwindSource, /\.track-action-button\s*\{[\s\S]*?\}\s*\.track-action-menu-toggle\s*\{\s*display:\s*none/u);
+  assert.match(tailwindSource, /\.track-action-menu-toggle\s*\{\s*display:\s*inline-flex/u);
+  assert.match(tailwindSource, /\.track-action-menu-toggle\.track-action-button,[\s\S]*?border-color:\s*transparent;[\s\S]*?background:\s*transparent;/u);
+  assert.match(tailwindSource, /\.track-action-menu\s*\{[\s\S]*?position:\s*fixed[\s\S]*?display:\s*grid/u);
+  assert.match(tailwindSource, /\.track-action-menu-item\s*\{[\s\S]*?grid-template-columns:\s*24px minmax\(0, 1fr\)/u);
   assert.match(tailwindSource, /tw-grid-cols-\[56px_minmax\(0,1fr\)_minmax\(120px,180px\)_auto\]/u);
   assert.match(albumDetailSource, /tw-grid-cols-\[56px_minmax\(0,1fr\)_minmax\(120px,180px\)_auto\]/u);
   assert.doesNotMatch(tailwindSource, /minmax\(120px,180px\)_192px/u);
-  assert.match(responsiveCss, /\.track-action-row \.track-action-menu-toggle\s*\{[\s\S]*display:\s*inline-flex/u);
-  assert.match(responsiveCss, /\.track-action-row \.track-action-menu\s*\{[\s\S]*position:\s*absolute[\s\S]*display:\s*none/u);
-  assert.match(responsiveCss, /\.track-action-row\.is-expanded \.track-action-menu\s*\{[\s\S]*display:\s*flex/u);
+  assert.doesNotMatch(responsiveCss, /\.track-action-row \.track-action-menu/u);
+  assert.doesNotMatch(responsiveCss, /\.track-action-row\.is-expanded \.track-action-menu/u);
 });

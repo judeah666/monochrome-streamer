@@ -3,6 +3,7 @@ import React from 'react';
 const NAV_ITEMS = [
   { id: 'home', label: 'Home', icon: '/assets/icons/sidebar/house.svg' },
   { id: 'library', label: 'Library', icon: '/assets/icons/sidebar/album-collection.svg' },
+  { id: 'collections', label: 'Collections', faIcon: 'fa-layer-group' },
   { id: 'playlists', label: 'Playlists', faIcon: 'fa-list-ul' },
   { id: 'favorites', label: 'Favorites', icon: '/assets/icons/sidebar/heart-pulse.svg' },
   { id: 'wishlist', label: 'Wishlist', icon: '/assets/icons/sidebar/bookmark.svg' },
@@ -53,7 +54,7 @@ export function Sidebar({
   const visibleItems = NAV_ITEMS.filter(({ id, adminOnly }) => {
     if (adminOnly) return isAdmin;
     if (id === 'home') return settings.showHome !== false;
-    if (id === 'library') return settings.showLibrary !== false;
+    if (id === 'library' || id === 'collections') return settings.showLibrary !== false;
     if (id === 'favorites' || id === 'wishlist') return settings.showFavorites !== false;
     return true;
   });

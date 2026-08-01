@@ -1,6 +1,6 @@
 import { getAlbumSharePath } from '../shared/albumShare.js';
 
-export const BROWSE_VIEWS = new Set(['home', 'library', 'playlists', 'favorites', 'wishlist', 'settings', 'admin', 'login']);
+export const BROWSE_VIEWS = new Set(['home', 'library', 'collections', 'playlists', 'favorites', 'wishlist', 'settings', 'admin', 'login']);
 const PLAYING_HASHES = new Set(['playing', 'fullscreen']);
 
 export function parseRouteFromHash(hashValue, {

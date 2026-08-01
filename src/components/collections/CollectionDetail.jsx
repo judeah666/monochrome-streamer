@@ -3,7 +3,7 @@ import { AlbumGrid } from '../albums/AlbumGrid.jsx';
 import { CoverImage } from '../common/VisualBits.jsx';
 
 const heroClassName = [
-  'collection-detail-hero tw-relative tw-grid tw-grid-cols-[220px_minmax(0,1fr)] tw-items-center tw-gap-7 tw-text-left',
+  'collection-detail-hero detail-hero-flat tw-relative tw-grid tw-grid-cols-[220px_minmax(0,1fr)] tw-items-center tw-gap-7 tw-text-left',
   'tw-overflow-hidden tw-rounded-[30px] tw-border tw-border-line tw-bg-surface tw-p-[34px]',
   'tw-shadow-panel tw-backdrop-blur-[22px] max-[860px]:tw-grid-cols-1 max-[860px]:tw-justify-items-center max-[860px]:tw-p-6 max-[860px]:tw-text-center',
 ].join(' ');

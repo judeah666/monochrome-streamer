@@ -36,3 +36,23 @@ test('font controls live in Admin System and use the shared app settings callbac
   assert.doesNotMatch(appearanceSource, /data-setting="fontSize"/u);
   assert.match(controllerSource, /onAppSettingChange: \(key, value\) => updateSetting\(key, value, true\)/u);
 });
+
+test('admin users show presence, now playing, and on-demand download history', async () => {
+  const adminSource = await readFile(new URL('../src/react/admin.jsx', import.meta.url), 'utf8');
+  const serverSource = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
+  const controllerSource = await readFile(new URL('../src/controller/appController.js', import.meta.url), 'utf8');
+
+  assert.match(adminSource, /user\.online \? 'Online' : 'Offline'/u);
+  assert.match(adminSource, /user\.nowPlaying\.title/u);
+  assert.match(adminSource, /\/download-history/u);
+  assert.match(serverSource, /buildUserPresenceMap\(sessions\)/u);
+  assert.match(serverSource, /readDownloadHistory\(userActivityDatabasePath/u);
+  assert.doesNotMatch(serverSource, /readDownloadHistory\(libraryDatabasePath/u);
+  assert.match(serverSource, /assertPrivilegedMutation\(request, authUser\);[\s\S]*updatePlaybackPresence/u);
+  assert.match(controllerSource, /PLAYBACK_PRESENCE_INTERVAL_MS = 20 \* 1000/u);
+  assert.match(controllerSource, /state\.currentUser\.role !== 'guest'/u);
+  assert.match(controllerSource, /if \(!track \|\| \(!playing && !force\)\) return;/u);
+  assert.match(controllerSource, /fetchJson\('\/api\/playback\/presence'/u);
+  assert.match(serverSource, /downloadTrack\(response, request, decodeURIComponent\(downloadMatch\[1\]\), authUser\)/u);
+  assert.match(serverSource, /recordUserDownload\(authUser/u);
+});

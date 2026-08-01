@@ -206,13 +206,66 @@
   }
 
   .track-action-row {
-    @apply tw-flex tw-items-center tw-justify-end tw-gap-2;
+    @apply tw-relative tw-flex tw-items-center tw-justify-end;
   }
 
   .track-action-menu {
-    display: flex;
+    position: fixed;
+    z-index: 1700;
+    display: grid;
+    min-width: 210px;
+    gap: 3px;
+    padding: 7px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-small);
+    background: color-mix(in srgb, var(--surface-2) 94%, transparent);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(20px);
+  }
+
+  .track-action-menu[data-positioned='false'] {
+    visibility: hidden;
+  }
+
+  .track-action-menu-item {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr);
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 11px;
+    border: 0;
+    border-radius: calc(var(--radius-small) - 5px);
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .track-action-menu-item:hover,
+  .track-action-menu-item:focus-visible {
+    outline: none;
+    background: var(--hover-surface);
+    color: var(--accent);
+  }
+
+  .track-action-menu-item.active {
+    color: var(--favorite-red);
+  }
+
+  .track-action-menu-item.is-destructive:hover,
+  .track-action-menu-item.is-destructive:focus-visible {
+    color: #ef4444;
+  }
+
+  .track-action-menu-item .fa-solid,
+  .track-action-menu-item .player-symbol,
+  .track-action-menu-item .add-to-playlist-icon {
+    width: 20px;
+    height: 20px;
+    justify-self: center;
+    font-size: 18px;
   }
 
   .track-action-button {
@@ -220,13 +273,34 @@
   }
 
   .track-action-menu-toggle {
-    display: none;
+    display: inline-flex;
+  }
+
+  .track-action-menu-toggle[aria-expanded='true'] {
+    border-color: var(--line-strong);
+    background: var(--hover-surface);
+    color: var(--accent);
   }
 
   .track-action-button:hover {
     color: var(--text);
     border-color: var(--line-strong);
     background: var(--hover-surface);
+  }
+
+  .track-action-menu-toggle.track-action-button,
+  .track-action-menu-toggle.track-action-button:hover,
+  .track-action-menu-toggle.track-action-button[aria-expanded='true'] {
+    border-color: transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .track-action-menu-toggle.track-action-button:hover,
+  .track-action-menu-toggle.track-action-button[aria-expanded='true'] {
+    color: var(--accent);
   }
 
   .track-action-button.active,
@@ -350,6 +424,114 @@
     .tag-scraper-result
   ) {
     border-radius: var(--radius-small);
+  }
+}
+
+/* Full detail pages stay visually open; cards remain reserved for browse content. */
+@layer components {
+  :is(.album-hero, .artist-hero, .collection-detail-hero).detail-hero-flat {
+    overflow: visible;
+    padding: clamp(12px, 2vw, 28px) 0 26px;
+    border-color: transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .album-hero.detail-hero-flat::before,
+  .artist-hero.detail-hero-flat::before,
+  .detail-hero-flat .album-hero-scrim {
+    display: none;
+  }
+
+  .detail-hero-flat .album-hero-content {
+    padding: 0;
+  }
+
+  .album-main.detail-track-list {
+    overflow: visible;
+    border-color: transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .library-browser.library-browser-flat {
+    border-color: transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .settings-shell.settings-shell-flat {
+    border-color: transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .album-sidebar .content-section.album-related-flat {
+    overflow: visible;
+    padding: 0;
+    border-color: transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .detail-track-list .track-table {
+    gap: 2px;
+  }
+
+  .detail-track-list .track-table-header {
+    background: transparent;
+  }
+
+  .track-list-shell .track-row-shell,
+  .detail-track-list .album-track-row-shell,
+  .detail-track-list .album-track-row-shell:nth-child(even) {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .track-list-shell .track-row-shell:hover,
+  .detail-track-list .album-track-row-shell:hover,
+  .detail-track-list .album-track-row-shell:nth-child(even):hover {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+    box-shadow: none;
+  }
+
+  .track-list-shell .track-row-shell.is-active,
+  .detail-track-list .album-track-row-shell.is-active,
+  .detail-track-list .album-track-row-shell:nth-child(even).is-active {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--accent) 18%, var(--surface-2));
+  }
+
+  .detail-track-list .album-track-row-shell {
+    border-radius: var(--radius-small);
+  }
+
+  @media (max-width: 860px) {
+    :is(.album-hero, .artist-hero, .collection-detail-hero).detail-hero-flat {
+      padding: 10px 0 22px;
+    }
+
+    .library-browser.library-browser-flat {
+      padding: 0;
+    }
+
+    .settings-shell.settings-shell-flat {
+      padding: 0;
+    }
   }
 }
 

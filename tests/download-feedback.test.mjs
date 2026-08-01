@@ -29,7 +29,7 @@ async function loadBundledModule(entry) {
     bundle: true,
     format: 'esm',
     platform: 'node',
-    external: ['react'],
+    external: ['react', 'react-dom'],
     loader: { '.svg': 'dataurl' },
     write: false,
   });

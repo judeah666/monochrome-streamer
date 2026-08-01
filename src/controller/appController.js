@@ -41,8 +41,14 @@ import {
   normalizeAudioQualityForReact,
 } from './playerUiState.js';
 import { buildPlayerSnapshot } from './playerPresenter.js';
+import { markAppBootFailed, markAppReady } from './appBoot.js';
 import { createZipFolderResolver } from './downloadZipFolders.js';
 import { mergeDiscoveredLibraryFolders } from '../shared/libraryFolders.js';
+import {
+  canPollInDocument,
+  getScanPollingDelay,
+  SCAN_ERROR_POLL_MS,
+} from '../shared/pollingPolicy.js';
 import { createPlayerStore } from './playerStore.js';
 import {
   bindWheelScrollLock,
@@ -105,6 +111,7 @@ import {
   persistSettings,
   readStoredSettings,
 } from './settingsStore.js';
+import { getPaginationOffset } from '../utils/pagination.js';
 import {
   applyTemplate,
   clamp,
@@ -268,6 +275,7 @@ const state = createInitialState();
 const LIBRARY_PAGE_CACHE_TTL_MS = 2 * 60 * 1000;
 const LIBRARY_PAGE_CACHE_MAX_ENTRIES = 40;
 const BROWSE_PAGE_CACHE_MAX_ENTRIES = 40;
+const PLAYBACK_PRESENCE_INTERVAL_MS = 20 * 1000;
 let queuePanelStore = null;
 let playerStore = null;
 let settingsPanelStore = null;
@@ -297,6 +305,10 @@ let settingsReactPanelTab = '';
 let playerReserveResizeObserver = null;
 let playerReserveFrame = 0;
 let measuredPlayerReserve = '';
+let playbackPresenceTimer = 0;
+let playbackPresenceRequest = null;
+let playbackPresencePending = false;
+let playbackPresencePendingForce = false;
 
 const LIBRARY_TAB_REGISTRY = [
   ['folders', 'Folders', libraryPanelFolders],
@@ -345,6 +357,7 @@ init().catch((error) => {
     scan: { status: 'error', percent: 0 },
   };
   renderSidebar();
+  markAppBootFailed(error);
 });
 
 async function init() {
@@ -407,11 +420,56 @@ async function init() {
   syncVolumeUi();
   updatePlayerUi();
   setupMeasuredPlayerReserve();
-  startScanStatusPolling(state.libraryFolders?.scan?.status === 'scanning' ? 1200 : 5000);
+  markAppReady();
+  startScanStatusPolling(getScanPollDelay());
+  startPlaybackPresenceReporting();
   if (state.route.view === 'home' && !state.searchTerm) {
     loadHomeAlbums().catch((error) => console.error(error));
     loadRecentlyAddedAlbums().catch((error) => console.error(error));
   }
+}
+
+function canReportPlaybackPresence() {
+  return Boolean(state.currentUser && state.currentUser.role !== 'guest');
+}
+
+function startPlaybackPresenceReporting() {
+  if (!canReportPlaybackPresence() || playbackPresenceTimer) return;
+  reportPlaybackPresence();
+  playbackPresenceTimer = window.setInterval(
+    reportPlaybackPresence,
+    PLAYBACK_PRESENCE_INTERVAL_MS,
+  );
+}
+
+function reportPlaybackPresence({ force = false } = {}) {
+  if (!canReportPlaybackPresence()) return;
+  const track = state.trackMap.get(state.currentTrackId);
+  const playing = Boolean(track && !audioPlayer.paused && !audioPlayer.ended);
+  if (!track || (!playing && !force)) return;
+  if (playbackPresenceRequest) {
+    playbackPresencePending = true;
+    playbackPresencePendingForce ||= force;
+    return;
+  }
+  const payload = {
+    trackId: track.id,
+    playing,
+  };
+  playbackPresenceRequest = fetchJson('/api/playback/presence', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+    .catch(() => null)
+    .finally(() => {
+      playbackPresenceRequest = null;
+      if (playbackPresencePending) {
+        const pendingForce = playbackPresencePendingForce;
+        playbackPresencePending = false;
+        playbackPresencePendingForce = false;
+        reportPlaybackPresence({ force: pendingForce });
+      }
+    });
 }
 
 async function initLoginRoute(route) {
@@ -456,6 +514,7 @@ async function initLoginRoute(route) {
 
   updateRouteFromLocation();
   render();
+  markAppReady();
 }
 
 function handleDownloadSettingsUpdated(event) {
@@ -574,6 +633,7 @@ function discardSearchReturnState() {
 
 function bindEvents() {
   sidebarOverlay.addEventListener('click', () => setMobileSidebarOpen(false));
+  document.addEventListener('visibilitychange', handleScanPollingVisibilityChange);
   window.addEventListener('resize', () => {
     if (!isMobileSidebarLayout()) {
       setMobileSidebarOpen(false);
@@ -751,6 +811,7 @@ function bindEvents() {
     updateMediaSessionPlaybackState({ audioPlayer, currentTrackId: state.currentTrackId });
     updatePlayerUi();
     render();
+    reportPlaybackPresence();
   });
   audioPlayer.addEventListener('pause', () => {
     stopLyricsTicker();
@@ -761,6 +822,7 @@ function bindEvents() {
     updateProgressUi();
     updatePlayerUi();
     render();
+    reportPlaybackPresence({ force: true });
   });
   audioPlayer.addEventListener('loadedmetadata', () => {
     updateProgressUi();
@@ -775,6 +837,7 @@ function bindEvents() {
   });
   audioPlayer.addEventListener('ended', () => {
     stopLyricsTicker();
+    reportPlaybackPresence({ force: true });
     handleTrackEnded();
   });
 
@@ -1192,6 +1255,7 @@ function getFolderFilterOptions() {
 }
 
 function shouldShowFolderFilter(viewContext = getRouteRenderContext()) {
+  if (viewContext.isCollectionsView) return false;
   return Boolean(
     viewContext.isHomeView
     || viewContext.isLibraryView
@@ -1232,7 +1296,7 @@ function queueVisiblePageFetch(offset = 0, { immediate = false } = {}) {
     queueArtistPageFetch(offset, { immediate });
     return;
   }
-  if (state.route.view === 'library' && state.libraryTab === 'collections') {
+  if (isCollectionBrowserRoute()) {
     loadCollectionFolders(offset).catch((error) => console.error(error));
     return;
   }
@@ -1272,6 +1336,12 @@ function refreshUnsearchedRouteData({ force = false, libraryOffset = 0 } = {}) {
     return true;
   }
 
+  if (state.route.view === 'collections') {
+    state.selectedCollectionFolderPath = '';
+    loadCollectionFolders(safeLibraryOffset).catch((error) => console.error(error));
+    return true;
+  }
+
   if (state.route.view !== 'library') return false;
 
   if (state.libraryTab === 'folders') {
@@ -1301,7 +1371,7 @@ function refreshUnsearchedRouteData({ force = false, libraryOffset = 0 } = {}) {
 }
 
 function shouldFetchSearchResultsForCurrentView() {
-  if (state.route.view === 'wishlist' || state.route.view === 'collection') {
+  if (state.route.view === 'wishlist' || state.route.view === 'collections' || state.route.view === 'collection') {
     return true;
   }
   if (state.route.view !== 'library') {
@@ -1993,6 +2063,14 @@ function updateRouteFromLocation() {
     browseView: state.browseView,
   });
   state.route = route;
+  if (route.view === 'collections') {
+    state.browseView = 'collections';
+    state.libraryTab = 'collections';
+    state.selectedCollectionFolderPath = '';
+  } else if (route.view === 'library' && previousRouteView === 'collections' && state.libraryTab === 'collections') {
+    state.browseView = 'library';
+    state.libraryTab = 'albums';
+  }
   if (route.view === 'album' && !state.albumMap.has(route.albumId)) {
     loadAlbumRoute(route.albumId);
   } else {
@@ -2028,13 +2106,9 @@ function buildCollectionPageParams(offset = 0, { collectionPath = '' } = {}) {
   if (state.searchTerm) {
     params.set('search', state.searchTerm);
   }
-  if (state.alphabetFilter !== 'all') {
-    params.set('letter', state.alphabetFilter);
-  }
   if (collectionPath && state.mediaTypeFilters.size > 0) {
     params.set('mediaTypes', [...state.mediaTypeFilters].join(','));
   }
-  appendFolderFilterParams(params);
   if (collectionPath) params.set('path', collectionPath);
   return params;
 }
@@ -2086,20 +2160,14 @@ async function loadCollectionAlbumsPage(offset = 0) {
     const collectionPage = state.collectionPage;
     scheduleBrowsePagePrefetch(() => prefetchAdjacentCollectionPages(collectionPage, { collectionPath }));
     state.collectionAlbumsLoaded = true;
-    if (
-      (state.route.view === 'library' && state.libraryTab === 'collections')
-      || state.route.view === 'collection'
-    ) {
+    if (isCollectionBrowserRoute() || state.route.view === 'collection') {
       render();
     }
   } finally {
     if (fetchId === state.collectionAlbumsFetchId) {
       state.collectionAlbumsLoading = false;
       state.collectionAlbumsLoadingPath = '';
-      if (
-        (state.route.view === 'library' && state.libraryTab === 'collections')
-        || state.route.view === 'collection'
-      ) {
+      if (isCollectionBrowserRoute() || state.route.view === 'collection') {
         render();
       }
     }
@@ -2111,7 +2179,7 @@ async function loadCollectionFolders(offset = 0, { preferCache = true } = {}) {
   state.collectionFoldersLoading = true;
   state.collectionFoldersError = '';
   const { queryKey, url } = getCollectionPageRequest(offset);
-  if (state.route.view === 'library' && state.libraryTab === 'collections' && !state.selectedCollectionFolderPath) {
+  if (isCollectionBrowserRoute() && !state.selectedCollectionFolderPath) {
     render();
   }
   try {
@@ -2144,10 +2212,7 @@ async function loadCollectionFolders(offset = 0, { preferCache = true } = {}) {
   } finally {
     if (fetchId !== state.collectionFoldersFetchId) return;
     state.collectionFoldersLoading = false;
-    if (
-      (state.route.view === 'library' && state.libraryTab === 'collections' && !state.selectedCollectionFolderPath)
-      || state.route.view === 'collection'
-    ) {
+    if ((isCollectionBrowserRoute() && !state.selectedCollectionFolderPath) || state.route.view === 'collection') {
       render();
     }
   }
@@ -2197,6 +2262,11 @@ function normalizeCollectionFolderKey(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function isCollectionBrowserRoute() {
+  return state.route.view === 'collections'
+    || (state.route.view === 'library' && state.libraryTab === 'collections');
+}
+
 function collectionFolderExists(collectionName) {
   const selectedKey = normalizeCollectionFolderKey(collectionName);
   if (!selectedKey) return false;
@@ -2206,8 +2276,8 @@ function collectionFolderExists(collectionName) {
 }
 
 function returnToCollectionLibrary() {
-  state.route = createBrowseRoute('library');
-  state.browseView = 'library';
+  state.route = createBrowseRoute('collections');
+  state.browseView = 'collections';
   state.libraryTab = 'collections';
   state.selectedCollectionFolderPath = '';
   state.collectionAlbums = [];
@@ -2219,7 +2289,7 @@ function returnToCollectionLibrary() {
     hasNext: false,
     hasPrevious: false,
   };
-  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#collections`);
 }
 
 function applyServerConfig(config = {}) {
@@ -2279,6 +2349,12 @@ function navigateToView(view, { preserveResultSearch = false } = {}) {
   }
   resetSearchForNavigation();
   state.browseView = view;
+  if (view === 'collections') {
+    state.libraryTab = 'collections';
+    state.selectedCollectionFolderPath = '';
+  } else if (view === 'library' && state.libraryTab === 'collections') {
+    state.libraryTab = 'albums';
+  }
   if (state.settings.closePanelsOnNavigation) {
     closeQueuePanel();
     closeTagEditor();
@@ -2444,7 +2520,7 @@ async function renameCollection(collectionName) {
     window.location.hash = getCollectionHash(cleanName);
     await loadCollectionAlbumsPage(0);
   }
-  if (state.route.view === 'library' && state.libraryTab === 'collections') {
+  if (isCollectionBrowserRoute()) {
     await loadCollectionFolders(0);
   }
   render();
@@ -2467,7 +2543,7 @@ async function deleteCollection(collectionName) {
   if (state.route.view === 'collection' && normalizeCollectionFolderKey(state.selectedCollectionFolderPath) === normalizeCollectionFolderKey(currentName)) {
     returnToCollectionLibrary();
   }
-  if (state.route.view === 'library' && state.libraryTab === 'collections') {
+  if (isCollectionBrowserRoute()) {
     await loadCollectionFolders(0);
   }
   render();
@@ -2857,13 +2933,16 @@ function handleSettingsAction(button) {
     renderSettingsView();
     showSettingsStatus('Settings cache cleared and defaults restored.');
   } else if (action === 'rescan-library') {
-    startLibraryScanAndPoll();
+    startLibraryScanAndPoll({ mode: 'full' });
   } else if (action === 'refresh-library-folders') {
     refreshLibraryFolders();
   } else if (action === 'save-library-folders') {
     saveLibraryFolders(false);
   } else if (action === 'save-and-scan-library-folders') {
-    saveLibraryFolders(true);
+    saveLibraryFolders('changes');
+  } else if (action === 'scan-library-folder') {
+    const folder = settingsPanels.querySelector('[data-library-scan-folder]')?.value || '';
+    if (folder) saveLibraryFolders('folders', [folder]);
   } else if (action === 'check-instance') {
     fetchJson('/api/config')
       .then(() => showSettingsStatus('Local API is online.'))
@@ -2957,7 +3036,7 @@ async function refreshLibraryFolders() {
     : 'Library folder list refreshed.');
 }
 
-async function saveLibraryFolders(shouldScan) {
+async function saveLibraryFolders(scanMode = null, scanFolders = []) {
   const folders = readCheckedLibraryFolders();
 
   state.libraryFolders = await fetchJson('/api/library/folders', {
@@ -2969,9 +3048,9 @@ async function saveLibraryFolders(shouldScan) {
   showSettingsStatus(`Saved ${folders.length} selected folder${folders.length === 1 ? '' : 's'}.`);
   renderSettingsView();
 
-  if (!shouldScan) return;
+  if (!scanMode) return;
 
-  await startLibraryScanAndPoll();
+  await startLibraryScanAndPoll({ mode: scanMode, folders: scanFolders });
 }
 
 function handleLibraryFolderSelectionChange(event) {
@@ -2995,9 +3074,16 @@ function updateLibraryFolderSummary() {
   });
 }
 
-async function startLibraryScanAndPoll() {
-  showSettingsStatus('Scanning selected folders...');
-  await fetchJson('/api/rescan', { method: 'POST' });
+async function startLibraryScanAndPoll(scanRequest = { mode: 'full' }) {
+  const mode = scanRequest.mode || 'full';
+  const status = mode === 'folders'
+    ? `Scanning ${scanRequest.folders?.join(', ') || 'selected folder'}...`
+    : mode === 'changes' ? 'Scanning changed files...' : 'Running full rescan...';
+  showSettingsStatus(status);
+  await fetchJson('/api/rescan', {
+    method: 'POST',
+    body: JSON.stringify(scanRequest),
+  });
   await pollLibraryScan();
 }
 
@@ -3011,20 +3097,37 @@ async function pollLibraryScan() {
   startScanStatusPolling(getScanPollDelay());
 }
 
-function startScanStatusPolling(delay = 5000) {
+function clearScanStatusPolling() {
   if (state.scanPollId) {
     window.clearTimeout(state.scanPollId);
+    state.scanPollId = null;
   }
+}
+
+function startScanStatusPolling(delay = getScanPollDelay()) {
+  clearScanStatusPolling();
+  if (!canPollInDocument(document)) return;
+
   state.scanPollId = window.setTimeout(() => {
     pollLibraryScan().catch((error) => {
       console.error(error);
-      startScanStatusPolling(5000);
+      startScanStatusPolling(SCAN_ERROR_POLL_MS);
     });
   }, delay);
 }
 
 function getScanPollDelay() {
-  return state.libraryFolders?.scan?.status === 'scanning' ? 1000 : 5000;
+  return getScanPollingDelay(state.libraryFolders?.scan?.status);
+}
+
+function handleScanPollingVisibilityChange() {
+  clearScanStatusPolling();
+  if (!canPollInDocument(document)) return;
+
+  pollLibraryScan().catch((error) => {
+    console.error(error);
+    startScanStatusPolling(SCAN_ERROR_POLL_MS);
+  });
 }
 
 async function refreshScanStatus() {
@@ -3062,7 +3165,10 @@ async function refreshScanStatus() {
     }
 
     if (scan.status === 'scanning') {
-      showSettingsStatus(`Scanning selected folders... ${scan.percent || 0}%`);
+      const scanLabel = scan.mode === 'folders' && scan.currentFolder
+        ? `Scanning ${scan.currentFolder}`
+        : scan.mode === 'changes' ? 'Scanning changed files' : 'Running full rescan';
+      showSettingsStatus(`${scanLabel}... ${scan.percent || 0}%`);
     } else if (scan.status === 'error') {
       showSettingsStatus(`Scan failed: ${scan.error || 'Unknown error'}`);
     } else if (shouldRefreshLibrary) {
@@ -3506,8 +3612,12 @@ function renderLibraryIntro() {
     tracks: 'Search tracks directly without loading the whole library.',
   };
   renderReact('renderLibraryIntro', libraryIntroRoot, {
-    title: 'Browse Library',
+    title: state.route.view === 'collections' ? 'Collections' : 'Browse Library',
     caption: captionsByTab[state.libraryTab] || captionsByTab.albums,
+    actionLabel: state.route.view === 'collections' && isCurrentUserAdmin() ? 'Add collection' : '',
+    onAction: state.route.view === 'collections' && isCurrentUserAdmin()
+      ? () => openAddAlbumEditor({ target: 'collection' }).catch((error) => console.error(error))
+      : null,
   });
 }
 
@@ -3519,8 +3629,9 @@ function renderPlaylistsIntro() {
 }
 
 function renderLibraryTabs() {
+  libraryTabsRoot.hidden = state.route.view === 'collections';
   renderReact('renderLibraryTabs', libraryTabsRoot, {
-    tabs: LIBRARY_TAB_REGISTRY.map(([id, label]) => ({
+    tabs: LIBRARY_TAB_REGISTRY.filter(([id]) => id !== 'collections').map(([id, label]) => ({
       id,
       label,
       hidden: id === 'folders' && !state.settings.showFolderBrowser,
@@ -3604,13 +3715,15 @@ function getRouteRenderContext() {
   const isAlbumView = state.route.view === 'album';
   const isArtistView = state.route.view === 'artist';
   const isCollectionView = state.route.view === 'collection';
+  const isCollectionsView = state.route.view === 'collections';
   const isPlaylistsView = state.route.view === 'playlists';
   const isFavoritesView = state.route.view === 'favorites';
   const isWishlistView = state.route.view === 'wishlist';
   const isSettingsView = state.route.view === 'settings';
   const isAdminView = state.route.view === 'admin';
   const isFullscreenView = state.route.view === 'fullscreen';
-  const isLibraryView = state.route.view === 'library' && !isLoginView && !isAlbumView && !isArtistView && !isCollectionView;
+  const isLibraryView = (state.route.view === 'library' || isCollectionsView)
+    && !isLoginView && !isAlbumView && !isArtistView && !isCollectionView;
   const isHomeView = state.route.view === 'home' && !isLoginView && !isAlbumView && !isArtistView && !isCollectionView;
   const activePrimaryView = isLoginView
     ? 'login'
@@ -3665,6 +3778,7 @@ function getRouteRenderContext() {
     isAlbumView,
     isArtistView,
     isCollectionView,
+    isCollectionsView,
     isPlaylistsView,
     isFavoritesView,
     isWishlistView,
@@ -3792,6 +3906,11 @@ function getLibraryTabPageOffset(tab) {
 }
 
 function renderLibraryView(filteredTracks, filteredAlbums) {
+  if (state.route.view === 'collections') {
+    state.libraryTab = 'collections';
+  } else if (state.libraryTab === 'collections') {
+    state.libraryTab = 'albums';
+  }
   renderLibraryIntro();
   renderLibraryTabs();
   if (state.libraryTab === 'folders' && !state.settings.showFolderBrowser) {
@@ -3867,7 +3986,7 @@ function renderLibraryCollectionsPanel() {
     selectedFolder: null,
     loading: state.collectionFoldersLoading,
     errorMessage: state.collectionFoldersError,
-    filterProps: getLibraryFilterBarProps({ mediaType: false }),
+    filterProps: null,
     pagerProps: buildLibraryPagerSnapshot({
       page,
       total: page.total ?? state.collectionFolders.length,
@@ -4130,7 +4249,27 @@ async function openPlaylistDialog(trackId = '') {
   if (!state.currentUser || state.currentUser.role === 'guest') return;
   if (!state.playlistsLoaded && !state.playlistsLoading) await loadPlaylists();
   state.playlistDialogMode = trackId ? 'add' : 'create';
-  state.playlistDialogTrackId = trackId;
+  state.playlistDialogTrackIds = trackId ? [trackId] : [];
+  state.playlistDialogTargetTitle = state.trackMap.get(trackId)?.title || '';
+  state.playlistDialogBusy = false;
+  state.playlistDialogStatus = '';
+  state.playlistDialogRenderKey += 1;
+  renderPlaylistDialog();
+  playlistDialogModal.hidden = false;
+  playlistDialogOverlay.hidden = false;
+}
+
+async function openAlbumPlaylistDialog(albumId) {
+  if (!isPlaylistUser()) return;
+  const album = state.albumMap.get(albumId);
+  if (!album) return;
+  const tracks = await ensureAlbumTracks(album);
+  const trackIds = tracks.map((track) => track.id).filter(Boolean);
+  if (trackIds.length === 0) return;
+  if (!state.playlistsLoaded && !state.playlistsLoading) await loadPlaylists();
+  state.playlistDialogMode = 'add';
+  state.playlistDialogTrackIds = trackIds;
+  state.playlistDialogTargetTitle = album.title;
   state.playlistDialogBusy = false;
   state.playlistDialogStatus = '';
   state.playlistDialogRenderKey += 1;
@@ -4140,7 +4279,8 @@ async function openPlaylistDialog(trackId = '') {
 }
 
 function closePlaylistDialog() {
-  state.playlistDialogTrackId = '';
+  state.playlistDialogTrackIds = [];
+  state.playlistDialogTargetTitle = '';
   state.playlistDialogBusy = false;
   state.playlistDialogStatus = '';
   playlistDialogModal.hidden = true;
@@ -4149,12 +4289,12 @@ function closePlaylistDialog() {
 }
 
 function renderPlaylistDialog() {
-  const track = state.trackMap.get(state.playlistDialogTrackId);
   renderReact('renderPlaylistDialog', playlistDialogModal, {
     renderKey: state.playlistDialogRenderKey,
     mode: state.playlistDialogMode,
     playlists: state.playlists,
-    trackTitle: track?.title || '',
+    targetTitle: state.playlistDialogTargetTitle,
+    trackCount: state.playlistDialogTrackIds.length,
     busy: state.playlistDialogBusy,
     status: state.playlistDialogStatus,
     onClose: closePlaylistDialog,
@@ -4175,7 +4315,7 @@ async function createPlaylistFromDialog(name) {
     });
     updatePlaylistSummary(payload.playlist);
     state.playlistsLoaded = true;
-    if (state.playlistDialogTrackId) {
+    if (state.playlistDialogTrackIds.length > 0) {
       await addTrackToPlaylistFromDialog(payload.playlist.id);
       return;
     }
@@ -4190,7 +4330,7 @@ async function createPlaylistFromDialog(name) {
 }
 
 async function addTrackToPlaylistFromDialog(playlistId) {
-  if (!state.playlistDialogTrackId) return;
+  if (state.playlistDialogTrackIds.length === 0) return;
   state.playlistDialogBusy = true;
   state.playlistDialogStatus = '';
   renderPlaylistDialog();
@@ -4198,13 +4338,15 @@ async function addTrackToPlaylistFromDialog(playlistId) {
     const payload = await fetchJson(`/api/playlists/${encodeURIComponent(playlistId)}/tracks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ trackId: state.playlistDialogTrackId }),
+      body: JSON.stringify({ trackIds: state.playlistDialogTrackIds }),
     });
     updatePlaylistSummary(payload.playlist);
     if (state.selectedPlaylistId === playlistId) state.selectedPlaylist = payload.playlist;
     if (!payload.added) {
       state.playlistDialogBusy = false;
-      state.playlistDialogStatus = 'That track is already in this playlist.';
+      state.playlistDialogStatus = state.playlistDialogTrackIds.length > 1
+        ? 'All tracks from this album are already in this playlist.'
+        : 'That track is already in this playlist.';
       renderPlaylistDialog();
       if (state.route.view === 'playlists') renderPlaylistsBrowser();
       return;
@@ -4448,16 +4590,13 @@ function getLibraryFilterBarProps({ mediaType = true } = {}) {
   };
 }
 
-function handleAlbumCollectionPage(type, direction) {
+function handleAlbumCollectionPage(type, target) {
   const page = type === 'wishlist'
     ? state.wishlistPage
     : type === 'collections'
       ? state.collectionPage
       : state.libraryPage;
-  const limit = page.limit || state.settings.libraryPageSize || 50;
-  const offset = direction === 'next'
-    ? page.offset + limit
-    : Math.max(0, page.offset - limit);
+  const offset = getPaginationOffset(page, target, state.settings.libraryPageSize || 50);
   if (type === 'wishlist') {
     loadWishlistAlbumsPage(offset).catch((error) => console.error(error));
     return;
@@ -4469,12 +4608,9 @@ function handleAlbumCollectionPage(type, direction) {
   loadLibraryPage(offset, { scrollTop: true }).catch((error) => console.error(error));
 }
 
-function handleCollectionFolderPage(direction) {
+function handleCollectionFolderPage(target) {
   const page = state.collectionFoldersPage || {};
-  const limit = page.limit || state.settings.libraryPageSize || 50;
-  const offset = direction === 'next'
-    ? (page.offset || 0) + limit
-    : Math.max(0, (page.offset || 0) - limit);
+  const offset = getPaginationOffset(page, target, state.settings.libraryPageSize || 50);
   loadCollectionFolders(offset).catch((error) => console.error(error));
 }
 
@@ -4542,11 +4678,12 @@ function getArtistPagerProps() {
       total: page.total ?? state.artistGroups.length,
       itemLabel: 'artist',
     }),
-    onPage: (direction) => {
-      const limit = state.artistPage.limit || state.settings.libraryPageSize || 50;
-      const offset = direction === 'next'
-        ? state.artistPage.offset + limit
-        : Math.max(0, state.artistPage.offset - limit);
+    onPage: (target) => {
+      const offset = getPaginationOffset(
+        state.artistPage,
+        target,
+        state.settings.libraryPageSize || 50,
+      );
       loadArtistPage(offset, { scrollTop: true }).catch((error) => console.error(error));
     },
   };
@@ -4560,11 +4697,12 @@ function getTrackPagerProps() {
       total: page.total ?? state.libraryTrackResults.length,
       itemLabel: 'track',
     }),
-    onPage: (direction) => {
-      const limit = state.trackPage.limit || state.settings.libraryPageSize || 50;
-      const offset = direction === 'next'
-        ? state.trackPage.offset + limit
-        : Math.max(0, state.trackPage.offset - limit);
+    onPage: (target) => {
+      const offset = getPaginationOffset(
+        state.trackPage,
+        target,
+        state.settings.libraryPageSize || 50,
+      );
       loadTrackPage(offset).catch((error) => console.error(error));
     },
   };
@@ -4676,6 +4814,9 @@ function renderAlbumDetail(album) {
       const selectedAlbum = state.albumMap.get(albumId);
       if (selectedAlbum) queueAlbumFromCard(selectedAlbum).catch((error) => console.error(error));
     },
+    onAddAlbumPlaylist: isPlaylistUser() ? (albumId) => {
+      openAlbumPlaylistDialog(albumId).catch((error) => console.error(error));
+    } : null,
     onDownloadAlbum: (albumId) => {
       downloadAlbumTracks(albumId).catch((error) => console.error(error));
     },
@@ -4801,19 +4942,32 @@ async function openTagEditor(album) {
   tagEditorOverlay.hidden = false;
 }
 
-async function openAddAlbumEditor() {
+async function openAddAlbumEditor({ target = 'wishlist' } = {}) {
   if (!isCurrentUserAdmin()) return;
+  const isCollectionTarget = target === 'collection';
   state.tagEditorAlbumId = null;
   state.tagEditorMode = 'add';
   state.tagEditorMusicBrainzId = '';
   state.tagEditorSuggestions = [];
 
   const collectionOptions = await loadCollectionNameOptions();
-  const bodySnapshot = buildAddAlbumBodySnapshot();
+  const bodySnapshot = {
+    ...buildAddAlbumBodySnapshot(),
+    status: isCollectionTarget ? 'Collection' : 'Wishlist',
+    scraperStatus: isCollectionTarget
+      ? 'Search MusicBrainz to add the first album to this collection.'
+      : 'Search MusicBrainz to fill this wishlist album automatically.',
+  };
   const { title: albumTitleValue, ...tagBodyProps } = bodySnapshot;
   renderAlbumTagEditorModal({
     renderKey: `add-album-${Date.now()}`,
     ...buildAddAlbumModalSnapshot(),
+    ...(isCollectionTarget ? {
+      eyebrow: 'Album Collection',
+      title: 'Add Collection',
+      caption: 'Create a collection by adding its first album. Enter the new Collection name below.',
+      saveLabel: 'Add collection',
+    } : {}),
     ...tagBodyProps,
     albumTitleValue,
     mode: 'add',
@@ -4822,12 +4976,22 @@ async function openAddAlbumEditor() {
     onClose: closeTagEditor,
     onSearch: searchTagSuggestions,
     onLoadSuggestionDetail: fetchTagSuggestionDetail,
-    onSave: saveTagEditor,
+    onSave: isCollectionTarget ? saveNewCollectionAlbum : saveTagEditor,
     onReset: resetTagEditor,
   });
 
   tagEditorModal.hidden = false;
   tagEditorOverlay.hidden = false;
+}
+
+async function saveNewCollectionAlbum(formData = {}) {
+  if (!String(formData.collectionName || '').trim()) {
+    throw new Error('Collection name is required.');
+  }
+  await saveTagEditor({
+    ...formData,
+    status: 'Collection',
+  });
 }
 
 async function ensureAlbumTracks(album) {
@@ -4901,7 +5065,7 @@ async function saveTagEditor(formData = {}) {
     } else {
       await loadCollectionAlbumsPage(0);
     }
-  } else if (state.route.view === 'library' && state.libraryTab === 'collections') {
+  } else if (isCollectionBrowserRoute()) {
     await loadCollectionFolders(0, { preferCache: false });
   }
   if (state.tagEditorMode === 'add' || result.manual) {
@@ -4934,7 +5098,7 @@ async function resetTagEditor() {
     } else {
       await loadCollectionAlbumsPage(0);
     }
-  } else if (state.route.view === 'library' && state.libraryTab === 'collections') {
+  } else if (isCollectionBrowserRoute()) {
     await loadCollectionFolders(0, { preferCache: false });
   }
   sanitizeStoredFavorites();
@@ -4976,7 +5140,7 @@ async function deleteTagEditorAlbum() {
     } else {
       await loadCollectionAlbumsPage(0);
     }
-  } else if (state.route.view === 'library' && state.libraryTab === 'collections') {
+  } else if (isCollectionBrowserRoute()) {
     await loadCollectionFolders(0, { preferCache: false });
   } else if (state.route.view === 'wishlist') {
     await loadWishlistAlbumsPage(0);

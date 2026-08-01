@@ -38,6 +38,11 @@ test('parseRouteFromHash supports login and stable browse return hashes', () => 
     artistNameToLoad: null,
     collectionNameToLoad: null,
   });
+  assert.deepEqual(parseRouteFromHash('#collections'), {
+    route: createBrowseRoute('collections'),
+    artistNameToLoad: null,
+    collectionNameToLoad: null,
+  });
   assert.deepEqual(parseRouteFromHash('#playlists'), {
     route: createBrowseRoute('playlists'),
     artistNameToLoad: null,
@@ -108,6 +113,7 @@ test('route helpers encode hashes and browse routes', () => {
   assert.equal(getLoginHash(), 'login');
   assert.equal(getRouteHash(createBrowseRoute('home')), '');
   assert.equal(getRouteHash(createBrowseRoute('library')), 'library');
+  assert.equal(getRouteHash(createBrowseRoute('collections')), 'collections');
   assert.equal(getRouteHash({ view: 'album', albumId: 'album 1' }), 'album/album%201');
   assert.equal(getRouteHash({ view: 'artist', artistName: 'A/B' }), 'artist/A%2FB');
   assert.equal(getRouteHash({ view: 'collection', collectionName: 'A/B' }), 'collection/A%2FB');
@@ -134,6 +140,7 @@ test('fullscreen return hash ignores current and legacy playing hashes', () => {
 
 test('isValidBrowseView accepts sidebar views only', () => {
   assert.equal(isValidBrowseView('home'), true);
+  assert.equal(isValidBrowseView('collections'), true);
   assert.equal(isValidBrowseView('playlists'), true);
   assert.equal(isValidBrowseView('wishlist'), true);
   assert.equal(isValidBrowseView('album'), false);

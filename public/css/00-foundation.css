@@ -84,6 +84,106 @@ body::before {
   opacity: 0.7;
 }
 
+body:not([data-app-ready="true"]) #react-root {
+  visibility: hidden;
+}
+
+.app-boot-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 32%),
+    linear-gradient(180deg, var(--body-top), var(--body-bottom));
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 180ms ease, visibility 0s linear 180ms;
+}
+
+body[data-app-ready="true"] .app-boot-screen {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.app-boot-card {
+  width: min(420px, 100%);
+  display: grid;
+  justify-items: center;
+  padding: 34px 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-large);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  box-shadow: var(--shadow);
+  text-align: center;
+  backdrop-filter: blur(20px);
+}
+
+.app-boot-disc {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, var(--background) 0 9%, transparent 10%),
+    radial-gradient(circle, var(--accent) 0 27%, transparent 28%),
+    repeating-radial-gradient(circle, var(--line-strong) 0 2px, var(--surface-2) 3px 7px);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--accent) 24%, transparent);
+  animation: app-boot-spin 1.8s linear infinite;
+}
+
+.app-boot-disc span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text);
+}
+
+.app-boot-brand {
+  margin: 20px 0 5px;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.app-boot-card h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 4vw, 2rem);
+  letter-spacing: -0.035em;
+}
+
+.app-boot-card [data-app-boot-detail] {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.app-boot-screen[data-state="error"] .app-boot-disc {
+  animation: none;
+  filter: grayscale(1);
+  opacity: 0.72;
+}
+
+@keyframes app-boot-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-boot-disc {
+    animation: none;
+  }
+}
+
 .app-react-shell {
   position: relative;
   min-height: 100vh;

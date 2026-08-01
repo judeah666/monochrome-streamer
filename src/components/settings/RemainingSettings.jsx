@@ -165,6 +165,7 @@ export function InstanceSettings({ settings, instanceUrl, instancePlaceholder, c
 export function SystemSettings({ settings, folders, scan, selectedLabel, stats }) {
   const selectedFolders = new Set(folders.selected || []);
   const folderRows = folders.available || [];
+  const scanFolderRows = folderRows.filter((folder) => selectedFolders.has(folder));
   const statusText = `${scan.statusLabel} · ${scan.percent}%`;
   const scanDetail = `${scan.currentFolder ? `Scanning ${scan.currentFolder}` : selectedLabel} · ${scan.processed}/${scan.total} files · ${scan.reused} cached · ${scan.parsed} parsed · ${stats.tracks} tracks · ${stats.albums} albums`;
 
@@ -193,11 +194,22 @@ export function SystemSettings({ settings, folders, scan, selectedLabel, stats }
             </label>
           )) : <p className={settingsHelpClassName}>No top-level folders were found in the mounted music folder.</p>}
         </div>
-        <div className={settingsActionsClassName}>
-          <button type="button" className="secondary-button" data-settings-action="save-library-folders">Save Selected Folders</button>
-          <button type="button" className="primary-button" data-settings-action="save-and-scan-library-folders">Save & Scan</button>
+        <div className={settingsFieldClassName}>
+          <span>Scan one folder</span>
+          <div className={settingsActionsClassName}>
+            <select data-library-scan-folder defaultValue={scanFolderRows[0] || ''} aria-label="Folder to scan">
+              {scanFolderRows.length ? scanFolderRows.map((folder) => (
+                <option key={folder} value={folder}>{folder}</option>
+              )) : <option value="">No selected folders</option>}
+            </select>
+            <button type="button" className="secondary-button" data-settings-action="scan-library-folder" disabled={!scanFolderRows.length}>Scan Folder</button>
+          </div>
         </div>
-        <p className={settingsHelpClassName}>Tip: start with one artist folder, scan, then add more folders after the app is stable.</p>
+        <div className={settingsActionsClassName}>
+          <button type="button" className="secondary-button" data-settings-action="save-library-folders">Save Folders</button>
+          <button type="button" className="primary-button" data-settings-action="save-and-scan-library-folders">Scan Changes</button>
+        </div>
+        <p className={settingsHelpClassName}>Scan Changes reuses unchanged tags. Scan Folder fully rereads one selected folder.</p>
       </SettingsGroup>
 
       <SettingsGroup title="Library System" description="Maintenance for your local index and browser data.">
@@ -212,10 +224,10 @@ export function SystemSettings({ settings, folders, scan, selectedLabel, stats }
         <SettingToggle settingKey="autoUpdate" title="Auto-Update App" description="Reserved for a future service worker reload flow." checked={settings.autoUpdate} />
         <div className={settingRowClassName}>
           <div>
-            <strong>Rescan Library</strong>
-            <span>Ask the server to index your music folder again.</span>
+            <strong>Full Rescan</strong>
+            <span>Reread metadata from every file in every selected folder.</span>
           </div>
-          <button type="button" className="secondary-button" data-settings-action="rescan-library">Rescan</button>
+          <button type="button" className="secondary-button" data-settings-action="rescan-library">Full Rescan</button>
         </div>
       </SettingsGroup>
 

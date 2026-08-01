@@ -630,9 +630,9 @@ export function AlbumTagEditorModal({
 
   const handleReset = async () => {
     if (mode === 'add') {
-      setForm(createEmptyAlbumForm());
+      setForm(createEmptyAlbumForm({ status }));
       setSuggestions([]);
-      setStatusMessage('Search MusicBrainz to fill this wishlist album automatically.');
+      setStatusMessage(scraperStatus);
       return;
     }
     if (!onReset) return;
@@ -1069,7 +1069,7 @@ function createEmptyTrack({ index = 0, discNumber = '1', trackNumber = '1', arti
   };
 }
 
-function createEmptyAlbumForm() {
+function createEmptyAlbumForm({ status = 'Wishlist' } = {}) {
   return {
     title: '',
     albumArtist: '',
@@ -1077,7 +1077,7 @@ function createEmptyAlbumForm() {
     genre: '',
     collectionName: '',
     mediaTypes: [],
-    status: 'Wishlist',
+    status,
     coverUrl: '',
     coverDataUrl: '',
     coverFilename: '',

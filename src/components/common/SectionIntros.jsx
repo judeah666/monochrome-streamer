@@ -3,6 +3,8 @@ import React from 'react';
 export function LibraryIntro({
   title = 'Browse Library',
   caption = '',
+  actionLabel = '',
+  onAction,
 }) {
   return (
     <div className="section-heading">
@@ -10,6 +12,12 @@ export function LibraryIntro({
         <h3>{title}</h3>
         {caption ? <p>{caption}</p> : null}
       </div>
+      {actionLabel && onAction ? (
+        <button className="primary-button" type="button" onClick={() => onAction()}>
+          <i className="fa-solid fa-plus" aria-hidden="true"></i>
+          <span>{actionLabel}</span>
+        </button>
+      ) : null}
     </div>
   );
 }

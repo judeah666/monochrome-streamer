@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   addPlaylistTrack,
+  addPlaylistTracks,
   createPlaylist,
   deletePlaylist,
   deletePlaylistsForOwner,
@@ -79,6 +80,36 @@ test('playlist validation permits empty playlists and rejects invalid names and 
       () => addPlaylistTrack(databasePath, 'admin', empty.id, 'missing-track'),
       (error) => error.code === 'TRACK_NOT_FOUND',
     );
+  } finally {
+    rmSync(databasePath, { force: true });
+  }
+});
+
+test('adding an album track list appends tracks once and preserves album order', async () => {
+  const databasePath = path.join(tmpdir(), `monochrome-playlist-album-${Date.now()}.sqlite`);
+  const owner = 'user:album-listener';
+  try {
+    await writeLibraryDatabase(databasePath, createLibrary(['track-1', 'track-2', 'track-3']));
+    const playlist = await createPlaylist(databasePath, owner, 'playlist-album', 'Full Album');
+
+    const first = await addPlaylistTracks(
+      databasePath,
+      owner,
+      playlist.id,
+      ['track-2', 'track-1', 'track-3', 'track-1'],
+    );
+    assert.equal(first.addedCount, 3);
+    assert.equal(first.skippedCount, 0);
+    assert.deepEqual(first.playlist.tracks.map((track) => track.id), ['track-2', 'track-1', 'track-3']);
+
+    const repeated = await addPlaylistTracks(
+      databasePath,
+      owner,
+      playlist.id,
+      ['track-2', 'track-1', 'track-3'],
+    );
+    assert.equal(repeated.addedCount, 0);
+    assert.equal(repeated.skippedCount, 3);
   } finally {
     rmSync(databasePath, { force: true });
   }

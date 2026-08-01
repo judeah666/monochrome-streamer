@@ -913,33 +913,7 @@
   }
 
   .track-action-row {
-    position: relative;
     justify-content: flex-end;
-    gap: 0;
-  }
-
-  .track-action-row .track-action-menu-toggle {
-    display: inline-flex;
-  }
-
-  .track-action-row .track-action-menu {
-    position: absolute;
-    z-index: 12;
-    top: 50%;
-    right: calc(100% + 6px);
-    display: none;
-    align-items: center;
-    gap: 4px;
-    padding: 4px;
-    border: 1px solid var(--line-strong);
-    border-radius: 999px;
-    background: var(--surface-2);
-    box-shadow: var(--shadow);
-    transform: translateY(-50%);
-  }
-
-  .track-action-row.is-expanded .track-action-menu {
-    display: flex;
   }
 
   .track-row .track-action-button {

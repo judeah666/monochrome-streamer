@@ -19,6 +19,14 @@
     <link rel="stylesheet" href="/tailwind.css" />
   </head>
   <body>
+    <div id="app-boot-screen" class="app-boot-screen" role="status" aria-live="polite">
+      <div class="app-boot-card">
+        <span class="app-boot-disc" aria-hidden="true"><span></span></span>
+        <p class="app-boot-brand">Monochrome-Streamer</p>
+        <h1 data-app-boot-message>Starting your music library</h1>
+        <p data-app-boot-detail>Loading settings and preparing this view...</p>
+      </div>
+    </div>
     <div id="react-root"></div>
     <audio id="audio-player" preload="metadata" playsinline></audio>
     <script type="module" src="/react/app.js"></script>

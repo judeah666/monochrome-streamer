@@ -36,7 +36,7 @@ test('sidebar nav items render both icon wrappers and compact-mode labels', asyn
     currentUser: { username: 'admin', role: 'admin' },
   }));
 
-  const navItems = ['Home', 'Library', 'Playlists', 'Favorites', 'Wishlist', 'Settings', 'Admin'];
+  const navItems = ['Home', 'Library', 'Collections', 'Playlists', 'Favorites', 'Wishlist', 'Settings', 'Admin'];
   for (const label of navItems) {
     const buttonPattern = new RegExp(
       `<button[^>]*>[\\s\\S]*?<span class="sidebar-nav-icon"[^>]*>[\\s\\S]*?</span>[\\s\\S]*?<span class="sidebar-nav-label">${label}</span>[\\s\\S]*?</button>`,

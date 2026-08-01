@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CoverImage, FontAwesomeIcon, PlayerIcon } from '../common/VisualBits.jsx';
 import addToPlaylistIconUrl from '../../assets/icons/actions/add-to-playlist.svg';
 
@@ -191,15 +192,140 @@ function AlbumInlineButton({ album, className = '', onAlbumClick }) {
 
 function TrackActions({ track, onFavorite, onAddQueue, onAddPlaylist, onDownload, onRemove }) {
   const [expanded, setExpanded] = useState(false);
+  const [menuPosition, setMenuPosition] = useState(null);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
   const runAction = (event, action) => {
     event.stopPropagation();
     setExpanded(false);
     action?.();
   };
 
+  useLayoutEffect(() => {
+    if (!expanded || !triggerRef.current || !menuRef.current) return;
+
+    const triggerRect = triggerRef.current.getBoundingClientRect();
+    const menuRect = menuRef.current.getBoundingClientRect();
+    const viewportMargin = 8;
+    const triggerGap = 8;
+    const left = Math.min(
+      window.innerWidth - menuRect.width - viewportMargin,
+      Math.max(viewportMargin, triggerRect.right - menuRect.width),
+    );
+    let top = triggerRect.bottom + triggerGap;
+    if (top + menuRect.height > window.innerHeight - viewportMargin) {
+      top = triggerRect.top - menuRect.height - triggerGap;
+    }
+
+    setMenuPosition({
+      left: Math.max(viewportMargin, left),
+      top: Math.max(viewportMargin, top),
+    });
+  }, [expanded]);
+
+  useEffect(() => {
+    if (!expanded) return undefined;
+
+    const closeMenu = (event) => {
+      if (triggerRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
+      setExpanded(false);
+    };
+    const closeForViewportChange = () => setExpanded(false);
+    const closeForEscape = (event) => {
+      if (event.key !== 'Escape') return;
+      setExpanded(false);
+      triggerRef.current?.focus();
+    };
+
+    document.addEventListener('pointerdown', closeMenu);
+    document.addEventListener('keydown', closeForEscape);
+    window.addEventListener('resize', closeForViewportChange);
+    window.addEventListener('scroll', closeForViewportChange, true);
+    return () => {
+      document.removeEventListener('pointerdown', closeMenu);
+      document.removeEventListener('keydown', closeForEscape);
+      window.removeEventListener('resize', closeForViewportChange);
+      window.removeEventListener('scroll', closeForViewportChange, true);
+    };
+  }, [expanded]);
+
+  const menu = (
+    <div
+      ref={menuRef}
+      className="track-action-menu"
+      role="menu"
+      aria-label={`Actions for ${track.title}`}
+      style={menuPosition ? { left: menuPosition.left, top: menuPosition.top } : undefined}
+      data-positioned={menuPosition ? 'true' : 'false'}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        className={`track-action-menu-item favorite-toggle-button${track.favorite ? ' active' : ''}`}
+        aria-label={`${track.favorite ? 'Unfavorite' : 'Favorite'} ${track.title}`}
+        onClick={(event) => runAction(event, onFavorite)}
+      >
+        <FontAwesomeIcon name="favorite" />
+        <span>{track.favorite ? 'Remove from favorites' : 'Add to favorites'}</span>
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className="track-action-menu-item queue-track-button"
+        aria-label={`Add ${track.title} to queue`}
+        onClick={(event) => runAction(event, onAddQueue)}
+      >
+        <FontAwesomeIcon name="addQueue" />
+        <span>Add to queue</span>
+      </button>
+      {onAddPlaylist ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="track-action-menu-item playlist-track-button"
+          aria-label={`Add ${track.title} to a playlist`}
+          onClick={(event) => runAction(event, onAddPlaylist)}
+        >
+          <span
+            className="add-to-playlist-icon"
+            style={{ '--add-to-playlist-icon': `url("${addToPlaylistIconUrl}")` }}
+            aria-hidden="true"
+          />
+          <span>Add to playlist</span>
+        </button>
+      ) : null}
+      {onDownload ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="track-action-menu-item download-track-button"
+          aria-label={`Download ${track.title}`}
+          onClick={(event) => runAction(event, onDownload)}
+        >
+          <PlayerIcon name="download" />
+          <span>Download</span>
+        </button>
+      ) : null}
+      {onRemove ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="track-action-menu-item playlist-remove-track-button is-destructive"
+          aria-label={`Remove ${track.title} from playlist`}
+          onClick={(event) => runAction(event, onRemove)}
+        >
+          <FontAwesomeIcon name="remove" />
+          <span>Remove from playlist</span>
+        </button>
+      ) : null}
+    </div>
+  );
+
   return (
     <div className={`${rowActionsClassName}${expanded ? ' is-expanded' : ''}`}>
       <button
+        ref={triggerRef}
         type="button"
         className={`track-action-menu-toggle ${rowIconButtonClassName}`}
         aria-label={`${expanded ? 'Close' : 'Show'} actions for ${track.title}`}
@@ -207,63 +333,15 @@ function TrackActions({ track, onFavorite, onAddQueue, onAddPlaylist, onDownload
         aria-haspopup="true"
         onClick={(event) => {
           event.stopPropagation();
+          setMenuPosition(null);
           setExpanded((current) => !current);
         }}
       >
-        <FontAwesomeIcon name={expanded ? 'close' : 'fa-ellipsis'} />
+        <FontAwesomeIcon name={expanded ? 'close' : 'fa-ellipsis-vertical'} />
       </button>
-      <div className="track-action-menu" role="group" aria-label={`Actions for ${track.title}`}>
-        <button
-          type="button"
-          className={`favorite-toggle-button ${rowIconButtonClassName}${track.favorite ? ' active' : ''}`}
-          aria-label={`${track.favorite ? 'Unfavorite' : 'Favorite'} ${track.title}`}
-          onClick={(event) => runAction(event, onFavorite)}
-        >
-          <FontAwesomeIcon name="favorite" />
-        </button>
-        <button
-          type="button"
-          className={`queue-track-button ${rowIconButtonClassName}`}
-          aria-label={`Add ${track.title} to queue`}
-          onClick={(event) => runAction(event, onAddQueue)}
-        >
-          <FontAwesomeIcon name="addQueue" />
-        </button>
-        {onAddPlaylist ? (
-          <button
-            type="button"
-            className={`playlist-track-button ${rowIconButtonClassName}`}
-            aria-label={`Add ${track.title} to a playlist`}
-            onClick={(event) => runAction(event, onAddPlaylist)}
-          >
-            <span
-              className="add-to-playlist-icon"
-              style={{ '--add-to-playlist-icon': `url("${addToPlaylistIconUrl}")` }}
-              aria-hidden="true"
-            />
-          </button>
-        ) : null}
-        {onDownload ? (
-          <button
-            type="button"
-            className={`download-track-button ${rowIconButtonClassName}`}
-            aria-label={`Download ${track.title}`}
-            onClick={(event) => runAction(event, onDownload)}
-          >
-            <PlayerIcon name="download" />
-          </button>
-        ) : null}
-        {onRemove ? (
-          <button
-            type="button"
-            className={`playlist-remove-track-button ${rowIconButtonClassName}`}
-            aria-label={`Remove ${track.title} from playlist`}
-            onClick={(event) => runAction(event, onRemove)}
-          >
-            <FontAwesomeIcon name="remove" />
-          </button>
-        ) : null}
-      </div>
+      {expanded
+        ? (typeof document === 'undefined' ? menu : createPortal(menu, document.body))
+        : null}
     </div>
   );
 }
