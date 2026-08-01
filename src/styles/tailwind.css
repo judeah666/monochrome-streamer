@@ -555,3 +555,74 @@
     border-radius: var(--radius-small);
   }
 }
+
+/* Keep the established glass surfaces while using a tighter corner scale. */
+body:not([data-view='login']):not([data-view='fullscreen']) :is(
+  .sidebar,
+  .search-bar,
+  .folder-filter-row,
+  .library-filter-bar,
+  .collection-browser-header,
+  .album-card-shell,
+  .track-row-shell,
+  .queue-panel,
+  .now-playing-bar,
+  .sidebar-account,
+  .setting-row,
+  .settings-field,
+  .settings-code,
+  .album-card-size-preview,
+  .playlist-card,
+  .admin-table-wrap,
+  .mobile-filter-sheet,
+  .settings-group,
+  .library-pager
+) {
+  box-shadow: none;
+}
+
+body:not([data-view='login']):not([data-view='fullscreen']) .nav-link {
+  border-radius: var(--radius-small);
+}
+
+body:not([data-view='login']):not([data-view='fullscreen']) .nav-link.is-active {
+  border-color: transparent;
+}
+
+body:not([data-view='login']):not([data-view='fullscreen']) .album-card-shell,
+body:not([data-view='login']):not([data-view='fullscreen']) .album-card-shell.compact,
+body:not([data-view='login']):not([data-view='fullscreen']) .library-album-grid .album-card-shell {
+  border-radius: var(--radius-card);
+}
+
+body:not([data-view='login']):not([data-view='fullscreen']) .album-card-shell:hover {
+  transform: none;
+  border-color: var(--line-strong);
+}
+
+body:not([data-view='login']):not([data-view='fullscreen']).player-layout-floating .now-playing-bar {
+  border-radius: var(--radius);
+}
+
+body:not([data-view='login']):not([data-view='fullscreen']) .queue-panel {
+  border-radius: var(--radius);
+}
+
+body:not([data-view='login']):not([data-view='fullscreen']) :is(
+  .sidebar-theme-knob,
+  .sidebar-toggle-button,
+  .nav-link.is-active,
+  .primary-button,
+  .library-filter-button.is-active,
+  .folder-filter-chip.is-active,
+  .icon-button,
+  .icon-link,
+  .favorite-toggle-button,
+  .queue-item-favorite,
+  .queue-item-remove,
+  .queue-drag-handle,
+  .album-edit-button,
+  .album-favorite-button
+) {
+  box-shadow: none;
+}
