@@ -76,6 +76,7 @@ import {
 } from './fullscreenLyricsState.js';
 import {
   readLibraryFilterState,
+  retainSelectedFolderFilters,
   writeLibraryFilterState,
 } from './libraryFilterPersistence.js';
 import {
@@ -394,9 +395,10 @@ async function init() {
     refreshWidgetSettings().catch(() => null),
   ]);
   applyServerConfig(config);
+  state.libraryFolders = libraryFolders;
+  reconcileFolderFiltersWithSelection();
   const library = await fetchLibraryPagePayload(0);
 
-  state.libraryFolders = libraryFolders;
   hydrateLibrary(config, library);
   state.favoriteTrackIds = readStoredIdSet(STORAGE_KEYS.favoriteTracks);
   state.favoriteAlbumIds = readStoredIdSet(STORAGE_KEYS.favoriteAlbums);
@@ -1447,6 +1449,7 @@ async function loadLibraryPage(offset = 0, { scrollTop = false, fetchId = 0 } = 
   try {
     const library = await fetchLibraryPagePayload(offset);
     if (fetchId && fetchId !== state.searchFetchId) return;
+    if (requestedQueryKey !== getLibraryPageQueryKey(offset)) return;
     hydrateLibrary({ title: state.title }, library);
     state.libraryPageQueryKey = requestedQueryKey;
     state.unsearchedLibraryStale = Boolean(requestedSearch);
@@ -2824,6 +2827,21 @@ function renderAdminView() {
   });
 }
 
+function reconcileFolderFiltersWithSelection() {
+  const selectedFolders = normalizeFolderFilterOptions(state.libraryFolders?.selected)
+    .map((folder) => folder.value);
+  const retainedFolders = retainSelectedFolderFilters([...state.folderFilters], selectedFolders);
+  if (
+    retainedFolders.length === state.folderFilters.size
+    && retainedFolders.every((folder) => state.folderFilters.has(folder))
+  ) {
+    return false;
+  }
+  state.folderFilters = new Set(retainedFolders);
+  persistLibraryFilters();
+  return true;
+}
+
 function unmountSettingsReactPanel() {
   if (!settingsReactPanelContainer) return;
   unmountReact(settingsReactPanelContainer);
@@ -3040,6 +3058,7 @@ async function refreshLibraryFolders() {
       body: JSON.stringify({ folders: resolved.merged, known: resolved.knownNext }),
     });
   }
+  reconcileFolderFiltersWithSelection();
   state.pendingLibraryFolders = null;
   updateSidebarScanStatus();
   renderSettingsView();
@@ -3055,6 +3074,7 @@ async function saveLibraryFolders(scanMode = null, scanFolders = []) {
     method: 'POST',
     body: JSON.stringify({ folders }),
   });
+  reconcileFolderFiltersWithSelection();
   state.pendingLibraryFolders = null;
   updateSidebarScanStatus();
   showSettingsStatus(`Saved ${folders.length} selected folder${folders.length === 1 ? '' : 's'}.`);

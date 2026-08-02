@@ -351,7 +351,7 @@ test('library database migrations install stable paging indexes once', async () 
         SELECT COUNT(*) AS count FROM tracks_fts WHERE tracks_fts MATCH ?
       `).get('title : "indexed"').count;
 
-      assert.equal(userVersion, 5);
+      assert.equal(userVersion, 6);
       assert.ok(trackColumns.has('replay_gain_json'));
       assert.ok(indexes.has('idx_albums_library_order'));
       assert.ok(indexes.has('idx_albums_collection_order'));
@@ -368,6 +368,146 @@ test('library database migrations install stable paging indexes once', async () 
     } finally {
       db.close();
     }
+  } finally {
+    rmSync(databasePath, { force: true });
+  }
+});
+
+test('version 5 databases repair the missing ReplayGain column before a scan rewrite', async () => {
+  const databasePath = path.join(tmpdir(), `monochrome-replaygain-migration-${Date.now()}.sqlite`);
+  try {
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: '2026-08-01T00:00:00.000Z',
+      tracks: [createDatabaseTrack({
+        id: 'legacy-track',
+        title: 'Legacy Song',
+        artist: 'Legacy Artist',
+        album: 'Legacy Album',
+        relativePath: 'Legacy Artist/Legacy Album/01 - Legacy Song.flac',
+      })],
+      albums: [createDatabaseAlbum({
+        id: 'legacy-album',
+        title: 'Legacy Album',
+        trackIds: ['legacy-track'],
+      })],
+    });
+
+    const legacyDb = new DatabaseSync(databasePath);
+    try {
+      legacyDb.exec('ALTER TABLE tracks DROP COLUMN replay_gain_json');
+      legacyDb.exec('PRAGMA user_version = 5');
+    } finally {
+      legacyDb.close();
+    }
+
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: '2026-08-02T00:00:00.000Z',
+      tracks: [],
+      albums: [],
+    });
+
+    const repairedDb = new DatabaseSync(databasePath);
+    try {
+      const trackColumns = new Set(repairedDb.prepare('PRAGMA table_info(tracks)').all().map((row) => row.name));
+      const userVersion = Object.values(repairedDb.prepare('PRAGMA user_version').get())[0];
+      assert.ok(trackColumns.has('replay_gain_json'));
+      assert.equal(userVersion, 6);
+      assert.equal(repairedDb.prepare('SELECT COUNT(*) AS count FROM tracks').get().count, 0);
+      assert.equal(repairedDb.prepare('SELECT COUNT(*) AS count FROM tracks_fts').get().count, 0);
+    } finally {
+      repairedDb.close();
+    }
+  } finally {
+    rmSync(databasePath, { force: true });
+  }
+});
+
+test('library scan rewrites rebuild search indexes once and restore FTS triggers', async () => {
+  const databasePath = path.join(tmpdir(), `monochrome-scan-rewrite-${Date.now()}.sqlite`);
+  try {
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: '2026-08-01T00:00:00.000Z',
+      tracks: [createDatabaseTrack({
+        id: 'old-track',
+        title: 'Retired Search Song',
+        artist: 'Old Artist',
+        album: 'Retired Search Album',
+        relativePath: 'Old Artist/Retired Search Album/01 - Retired Search Song.flac',
+      })],
+      albums: [createDatabaseAlbum({
+        id: 'old-album',
+        title: 'Retired Search Album',
+        trackIds: ['old-track'],
+      })],
+    });
+
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: '2026-08-02T00:00:00.000Z',
+      tracks: [createDatabaseTrack({
+        id: 'new-track',
+        title: 'Current Search Song',
+        artist: 'New Artist',
+        album: 'Current Search Album',
+        relativePath: 'New Artist/Current Search Album/01 - Current Search Song.flac',
+      })],
+      albums: [createDatabaseAlbum({
+        id: 'new-album',
+        title: 'Current Search Album',
+        trackIds: ['new-track'],
+      })],
+    });
+
+    const db = new DatabaseSync(databasePath);
+    try {
+      const triggerNames = new Set(db.prepare(`
+        SELECT name FROM sqlite_master
+        WHERE type = 'trigger' AND name LIKE '%_fts_%'
+      `).all().map((row) => row.name));
+      const counts = db.prepare(`
+        SELECT
+          (SELECT COUNT(*) FROM albums) AS albums,
+          (SELECT COUNT(*) FROM albums_fts) AS albumSearchRows,
+          (SELECT COUNT(*) FROM tracks) AS tracks,
+          (SELECT COUNT(*) FROM tracks_fts) AS trackSearchRows
+      `).get();
+
+      assert.deepEqual(triggerNames, new Set([
+        'albums_fts_insert',
+        'albums_fts_delete',
+        'albums_fts_update',
+        'tracks_fts_insert',
+        'tracks_fts_delete',
+        'tracks_fts_update',
+      ]));
+      assert.equal(counts.albums, 1);
+      assert.equal(counts.albumSearchRows, 1);
+      assert.equal(counts.tracks, 1);
+      assert.equal(counts.trackSearchRows, 1);
+    } finally {
+      db.close();
+    }
+
+    const currentAlbums = await readLibraryAlbumPage(databasePath, {
+      search: 'current search',
+      limit: 10,
+      offset: 0,
+      includeTracks: false,
+    });
+    const retiredAlbums = await readLibraryAlbumPage(databasePath, {
+      search: 'retired search',
+      limit: 10,
+      offset: 0,
+      includeTracks: false,
+    });
+    const currentTracks = await readTrackPage(databasePath, {
+      search: 'current search',
+      limit: 10,
+      offset: 0,
+    });
+
+    assert.deepEqual(currentAlbums.albums.map((album) => album.id), ['new-album']);
+    assert.equal(retiredAlbums.albums.length, 0);
+    assert.deepEqual(currentTracks.tracks.map((track) => track.id), ['new-track']);
   } finally {
     rmSync(databasePath, { force: true });
   }
@@ -721,6 +861,77 @@ test('random and recently added album card pages can stay lightweight', async ()
     assert.equal(randomPage.tracks.length, 0);
     assert.equal(recentPage.tracks.length, 0);
     assert.deepEqual(recentPage.albums.map((album) => album.trackCount), [1, 1]);
+  } finally {
+    rmSync(databasePath, { force: true });
+  }
+});
+
+test('library folder filtering returns every direct and nested album without wildcard leakage', async () => {
+  const databasePath = path.join(tmpdir(), `monochrome-folder-filter-${Date.now()}.sqlite`);
+  const selectedFolder = 'Selected %_ Folder';
+  try {
+    const tracks = [
+      createDatabaseTrack({
+        id: 'direct-track',
+        title: 'Direct Track',
+        artist: 'Search Artist',
+        album: 'Direct Album',
+        relativePath: `${selectedFolder}/01 - Direct Track.flac`,
+      }),
+      createDatabaseTrack({
+        id: 'nested-track',
+        title: 'Nested Track',
+        artist: 'Search Artist',
+        album: 'Nested Album',
+        relativePath: `${selectedFolder}/Artist/Nested Album/01 - Nested Track.flac`,
+      }),
+      createDatabaseTrack({
+        id: 'lookalike-track',
+        title: 'Lookalike Track',
+        artist: 'Search Artist',
+        album: 'Lookalike Album',
+        relativePath: 'Selected XX Folder/Artist/Lookalike Album/01 - Lookalike Track.flac',
+      }),
+      createDatabaseTrack({
+        id: 'other-track',
+        title: 'Other Track',
+        artist: 'Search Artist',
+        album: 'Other Album',
+        relativePath: 'Other Folder/Artist/Other Album/01 - Other Track.flac',
+      }),
+    ];
+    await writeLibraryDatabase(databasePath, {
+      generatedAt: new Date().toISOString(),
+      trackCount: tracks.length,
+      albumCount: tracks.length,
+      tracks,
+      albums: [
+        createDatabaseAlbum({ id: 'direct-album', title: 'Direct Album', trackIds: ['direct-track'] }),
+        createDatabaseAlbum({ id: 'nested-album', title: 'Nested Album', trackIds: ['nested-track'] }),
+        createDatabaseAlbum({ id: 'lookalike-album', title: 'Lookalike Album', trackIds: ['lookalike-track'] }),
+        createDatabaseAlbum({ id: 'other-album', title: 'Other Album', trackIds: ['other-track'] }),
+      ],
+    });
+
+    const selectedPage = await readLibraryAlbumPage(databasePath, {
+      folders: [selectedFolder],
+      limit: 50,
+      includeTracks: false,
+    });
+    const combinedPage = await readLibraryAlbumPage(databasePath, {
+      folders: [selectedFolder, 'Other Folder'],
+      limit: 50,
+      includeTracks: false,
+    });
+
+    assert.deepEqual(selectedPage.albums.map((album) => album.id).sort(), ['direct-album', 'nested-album']);
+    assert.equal(selectedPage.page.total, 2);
+    assert.deepEqual(combinedPage.albums.map((album) => album.id).sort(), [
+      'direct-album',
+      'nested-album',
+      'other-album',
+    ]);
+    assert.equal(combinedPage.page.total, 3);
   } finally {
     rmSync(databasePath, { force: true });
   }

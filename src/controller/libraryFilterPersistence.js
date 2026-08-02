@@ -33,3 +33,8 @@ export function writeLibraryFilterState(storage, key, value, options = {}) {
   storage?.setItem?.(key, JSON.stringify(normalized));
   return normalized;
 }
+
+export function retainSelectedFolderFilters(activeFolders = [], selectedFolders = []) {
+  const selected = new Set(normalizeStringList(selectedFolders));
+  return normalizeStringList(activeFolders).filter((folder) => selected.has(folder));
+}

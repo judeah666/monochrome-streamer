@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   normalizeLibraryFilterState,
   readLibraryFilterState,
+  retainSelectedFolderFilters,
   writeLibraryFilterState,
 } from '../src/controller/libraryFilterPersistence.js';
 
@@ -47,4 +48,15 @@ test('falls back safely when persisted filter JSON is malformed', () => {
     mediaTypes: [],
     folders: [],
   });
+});
+
+test('folder filters retain only folders that remain selected for indexing', () => {
+  assert.deepEqual(
+    retainSelectedFolderFilters(
+      ['Asian Music', 'Removed Music', 'Asian Music'],
+      ['Asian Music', 'Pinoy Music'],
+    ),
+    ['Asian Music'],
+  );
+  assert.deepEqual(retainSelectedFolderFilters(['Asian Music'], []), []);
 });
