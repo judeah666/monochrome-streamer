@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { normalizeDownloadQuality } from '../shared/downloadQuality.js';
 
 export const DOWNLOAD_HISTORY_DAYS = 30;
 
@@ -25,7 +26,7 @@ export async function recordDownloadHistory(databasePath, entry = {}) {
       cleanHistoryText(entry.title, 300),
       cleanHistoryText(entry.artist, 300),
       cleanHistoryText(entry.album, 300),
-      entry.quality === 'mp3' ? 'mp3' : 'original',
+      normalizeDownloadQuality(entry.quality),
       Math.max(1, Number.parseInt(entry.trackCount, 10) || 1),
       createdAt,
     );
@@ -102,7 +103,7 @@ function rowToDownloadHistory(row) {
     title: row.title || '',
     artist: row.artist || '',
     album: row.album || '',
-    quality: row.quality === 'mp3' ? 'mp3' : 'original',
+    quality: normalizeDownloadQuality(row.quality),
     trackCount: Number(row.track_count) || 1,
     createdAt: new Date(Number(row.created_at) || 0).toISOString(),
   };

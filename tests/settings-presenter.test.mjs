@@ -75,6 +75,23 @@ test('interface settings keep recently added visible by default', () => {
   assert.equal(normalizeSettings({ showRecentlyAdded: 'false' }).showRecentlyAdded, false);
 });
 
+test('download settings expose CD and three MP3 conversion profiles', () => {
+  const snapshot = buildSettingsPanelSnapshot({
+    tab: 'downloads',
+    settings: DEFAULT_SETTINGS,
+  });
+
+  assert.deepEqual(snapshot.downloadQualityOptions.map(([value]) => value), [
+    'original',
+    'cd',
+    'mp3',
+    'mp3-256',
+    'mp3-128',
+  ]);
+  assert.equal(normalizeSettings({ downloadQuality: 'mp3-128' }).downloadQuality, 'mp3-128');
+  assert.equal(normalizeSettings({ downloadQuality: 'unknown' }).downloadQuality, 'original');
+});
+
 test('system settings snapshot normalizes scan status and selected folders', () => {
   const snapshot = buildSettingsPanelSnapshot({
     tab: 'system',

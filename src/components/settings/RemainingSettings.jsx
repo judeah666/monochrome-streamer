@@ -85,7 +85,7 @@ export function AudioSettings({
 
 export function DownloadSettings({ settings, downloadQualityOptions = [], bulkDownloadOptions = [] }) {
   return (
-    <SettingsGroup title="Downloads" description="Download originals or convert to MP3 before the file leaves the server.">
+    <SettingsGroup title="Downloads" description="Keep original files or convert them to a selected download profile.">
       <label className={settingsFieldClassName}>
         <span>Download Quality</span>
         <select data-setting="downloadQuality" defaultValue={settings.downloadQuality}>
@@ -94,7 +94,7 @@ export function DownloadSettings({ settings, downloadQualityOptions = [], bulkDo
           ))}
         </select>
       </label>
-      <p className={settingsHelpClassName}>MP3 downloads are converted server-side with ffmpeg at 320 kbps. Playback still uses your original local file.</p>
+      <p className={settingsHelpClassName}>CD Quality converts only audio above 16-bit to 16-bit / 44.1 KHz FLAC. Existing 16-bit and lossy files stay original. MP3 profiles are converted server-side with ffmpeg. Playback is unchanged.</p>
       <label className={settingsFieldClassName}>
         <span>Bulk Download Method</span>
         <select data-setting="bulkDownloadMethod" defaultValue={settings.bulkDownloadMethod}>

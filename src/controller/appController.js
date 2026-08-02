@@ -151,6 +151,10 @@ import {
   normalizePlaybackQuality,
 } from '../shared/playbackQuality.js';
 import {
+  getDownloadFileExtension,
+  normalizeDownloadQuality,
+} from '../shared/downloadQuality.js';
+import {
   buildAlbumDetailSnapshot,
   createAlbumCardView,
   createTrackRowView,
@@ -6011,7 +6015,7 @@ async function triggerTrackBrowserDownload(track, { target = 'player' } = {}) {
 async function downloadSingleTrackFile(track, downloadingDetail = 'Downloading file...') {
   const filename = getTrackBrowserDownloadFilename(track);
   const response = await postBlob(getTrackDownloadEndpoint(track), {
-    quality: state.settings.downloadQuality === 'mp3' ? 'mp3' : 'original',
+    quality: normalizeDownloadQuality(state.settings.downloadQuality),
     filename,
   });
   setDownloadPhase('downloading', downloadingDetail);
@@ -6033,7 +6037,7 @@ async function submitBulkDownload(tracks, filename) {
   });
 
   const response = await postBlob('/api/downloads/bulk', {
-    quality: state.settings.downloadQuality === 'mp3' ? 'mp3' : 'original',
+    quality: normalizeDownloadQuality(state.settings.downloadQuality),
     filename,
     tracks: selectedTracks.map((track) => ({
       id: track.id,
@@ -6256,9 +6260,11 @@ function formatDownloadName(track) {
 function getTrackBrowserDownloadFilename(track) {
   const album = findAlbumByTrack(track);
   const trackFilenameTemplate = state.settings.filenameTemplate || DEFAULT_SETTINGS.filenameTemplate;
-  const extension = state.settings.downloadQuality === 'mp3'
-    ? '.mp3'
-    : getFileExtension(track.relativePath);
+  const extension = getDownloadFileExtension(
+    track.audioQuality,
+    state.settings.downloadQuality,
+    getFileExtension(track.relativePath),
+  );
   const filename = applyTemplate(trackFilenameTemplate, {
     discNumber: track.discNumber || '',
     trackNumber: track.trackNumber || '',

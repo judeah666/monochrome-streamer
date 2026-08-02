@@ -36,9 +36,19 @@ test('download history stores metadata and keeps only the latest 30 days', async
     assert.equal(history[0].quality, 'mp3');
     assert.equal(history[0].trackCount, 12);
 
+    await recordDownloadHistory(databasePath, {
+      username: 'listener',
+      downloadKind: 'track',
+      itemLabel: 'compact.mp3',
+      quality: 'mp3-128',
+      createdAt: now + 1,
+    });
+    const updatedHistory = await readDownloadHistory(databasePath, 'listener');
+    assert.equal(updatedHistory[0].quality, 'mp3-128');
+
     const db = new DatabaseSync(databasePath);
     try {
-      assert.equal(db.prepare('SELECT COUNT(*) AS count FROM download_history').get().count, 1);
+      assert.equal(db.prepare('SELECT COUNT(*) AS count FROM download_history').get().count, 2);
     } finally {
       db.close();
     }

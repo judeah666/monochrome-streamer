@@ -10,6 +10,7 @@ import {
   normalizeReplayGainMode,
   normalizeReplayGainPreamp,
 } from './replayGain.js';
+import { normalizeDownloadQuality } from '../shared/downloadQuality.js';
 
 export function clampAlbumCardSize(value) {
   const parsed = Number.parseInt(value, 10);
@@ -88,6 +89,9 @@ export function normalizeSettings(settings) {
   }
   if (normalized.bulkDownloadMethod && !['browser', 'zip'].includes(normalized.bulkDownloadMethod)) {
     normalized.bulkDownloadMethod = DEFAULT_SETTINGS.bulkDownloadMethod;
+  }
+  if (normalized.downloadQuality != null) {
+    normalized.downloadQuality = normalizeDownloadQuality(normalized.downloadQuality);
   }
   if (normalized.playbackQuality && !['original', 'cd', 'mp3'].includes(normalized.playbackQuality)) {
     normalized.playbackQuality = DEFAULT_SETTINGS.playbackQuality;

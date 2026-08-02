@@ -98,6 +98,13 @@ import { normalizeSettings } from './src/controller/settingsStore.js';
 import { getThemeBase, resolveThemePreset } from './src/controller/themeResolver.js';
 import { normalizePlaybackQuality } from './src/shared/playbackQuality.js';
 import {
+  normalizeDownloadQuality,
+} from './src/shared/downloadQuality.js';
+import {
+  getDownloadTranscodeProfile,
+  shouldUseDownloadTranscode,
+} from './src/server/downloadTranscoding.js';
+import {
   getCoverOptimizationFailureKey,
   getEmbeddedCoverFreshness,
   getFileFreshness,
@@ -221,7 +228,7 @@ const firstRequestTimingLabels = new Set();
 let coverOptimizationFailureWritePromise = null;
 let coverOptimizationFailureWriteQueued = false;
 let coverCacheJobPromise = null;
-let activeMp3DownloadRequests = 0;
+let activeDownloadConversionRequests = 0;
 
 await loadCoverOptimizationFailures();
 await initializeScanStateFromStore();
@@ -1312,16 +1319,16 @@ function enforceDownloadRateLimit(request, user) {
   }
 }
 
-function acquireMp3DownloadSlot() {
-  if (activeMp3DownloadRequests >= config.maxConcurrentMp3Downloads) {
-    throw new HttpError(429, 'Too many MP3 conversions are already running. Please try again soon.');
+function acquireDownloadConversionSlot() {
+  if (activeDownloadConversionRequests >= config.maxConcurrentMp3Downloads) {
+    throw new HttpError(429, 'Too many audio conversions are already running. Please try again soon.');
   }
-  activeMp3DownloadRequests += 1;
+  activeDownloadConversionRequests += 1;
   let released = false;
   return () => {
     if (released) return;
     released = true;
-    activeMp3DownloadRequests = Math.max(0, activeMp3DownloadRequests - 1);
+    activeDownloadConversionRequests = Math.max(0, activeDownloadConversionRequests - 1);
   };
 }
 
@@ -2015,7 +2022,7 @@ function getDefaultDownloadSettings() {
 
 function normalizeDownloadSettings(settings = {}) {
   const defaults = getDefaultDownloadSettings();
-  const downloadQuality = String(settings.downloadQuality || defaults.downloadQuality) === 'mp3' ? 'mp3' : 'original';
+  const downloadQuality = normalizeDownloadQuality(settings.downloadQuality || defaults.downloadQuality);
   const bulkDownloadMethod = String(settings.bulkDownloadMethod || defaults.bulkDownloadMethod) === 'zip' ? 'zip' : 'browser';
     return {
       ...defaults,
@@ -3825,13 +3832,18 @@ async function downloadTrack(response, request, trackId, authUser) {
   const quality = normalizeDownloadQuality(payload.quality);
   const requestedName = sanitizeDownloadFilename(payload.filename);
 
-  if (quality === 'mp3') {
-    const releaseSlot = acquireMp3DownloadSlot();
+  if (shouldUseDownloadTranscode(track, quality)) {
+    if (!await isFfmpegAvailable()) {
+      return respondJson(response, 503, {
+        error: 'Download conversion requires ffmpeg. Rebuild the Docker image or install ffmpeg on the server.',
+      });
+    }
+    const releaseSlot = acquireDownloadConversionSlot();
     response.on('close', releaseSlot);
-    return downloadTrackAsMp3(response, track, requestedName, releaseSlot, authUser);
+    return downloadTrackAsTranscode(response, track, quality, requestedName, releaseSlot, authUser);
   }
 
-  return downloadOriginalTrack(response, track, requestedName, authUser);
+  return downloadOriginalTrack(response, track, requestedName, authUser, quality);
 }
 
 async function downloadBulkTracks(response, request, authUser) {
@@ -3847,18 +3859,6 @@ async function downloadBulkTracks(response, request, authUser) {
       error: `Bulk downloads are limited to ${MAX_BULK_DOWNLOAD_TRACKS} tracks per request.`,
     });
   }
-  if (quality === 'mp3' && !await isFfmpegAvailable()) {
-    return respondJson(response, 503, {
-      error: 'MP3 conversion requires ffmpeg. Rebuild the Docker image or install ffmpeg on the server.',
-    });
-  }
-
-  let releaseSlot = null;
-  if (quality === 'mp3') {
-    releaseSlot = acquireMp3DownloadSlot();
-    response.on('close', releaseSlot);
-  }
-
   const tracks = [];
   const usedEntryNames = new Set();
   for (const trackRequest of trackRequests) {
@@ -3872,6 +3872,19 @@ async function downloadBulkTracks(response, request, authUser) {
 
   if (tracks.length === 0) {
     return respondJson(response, 404, { error: 'Selected tracks were not found.' });
+  }
+
+  const needsConversion = tracks.some(({ track }) => shouldUseDownloadTranscode(track, quality));
+  if (needsConversion && !await isFfmpegAvailable()) {
+    return respondJson(response, 503, {
+      error: 'Download conversion requires ffmpeg. Rebuild the Docker image or install ffmpeg on the server.',
+    });
+  }
+
+  let releaseSlot = null;
+  if (needsConversion) {
+    releaseSlot = acquireDownloadConversionSlot();
+    response.on('close', releaseSlot);
   }
 
   const zipName = sanitizeDownloadFilename(payload.filename) || 'download.zip';
@@ -3906,9 +3919,9 @@ async function downloadBulkTracks(response, request, authUser) {
   });
 
   for (const { track, entryName } of tracks) {
-    if (quality === 'mp3') {
+    if (shouldUseDownloadTranscode(track, quality)) {
       zip.addReadStreamLazy(entryName, { compress: false }, (callback) => {
-        const { stream, ffmpeg } = createMp3ConversionStream(track);
+        const { stream, ffmpeg } = createDownloadConversionStream(track, quality);
         activeConversions.add(ffmpeg);
         ffmpeg.on('close', () => activeConversions.delete(ffmpeg));
         callback(null, stream);
@@ -3926,7 +3939,7 @@ async function downloadBulkTracks(response, request, authUser) {
   zip.outputStream.pipe(response);
 }
 
-async function downloadOriginalTrack(response, track, requestedName, authUser) {
+async function downloadOriginalTrack(response, track, requestedName, authUser, requestedQuality = 'original') {
   const stats = await fs.stat(track.path);
   const filename = requestedName || sanitizeDownloadFilename(path.basename(track.relativePath || track.path));
 
@@ -3937,7 +3950,7 @@ async function downloadOriginalTrack(response, track, requestedName, authUser) {
     title: track.title,
     artist: track.artist,
     album: track.album,
-    quality: 'original',
+    quality: requestedQuality,
     trackCount: 1,
   });
 
@@ -3951,17 +3964,13 @@ async function downloadOriginalTrack(response, track, requestedName, authUser) {
   createReadStream(track.path).pipe(response);
 }
 
-async function downloadTrackAsMp3(response, track, requestedName, releaseSlot = null, authUser = null) {
-  if (!await isFfmpegAvailable()) {
-    return respondJson(response, 503, {
-      error: 'MP3 conversion requires ffmpeg. Rebuild the Docker image or install ffmpeg on the server.',
-    });
-  }
-
+async function downloadTrackAsTranscode(response, track, quality, requestedName, releaseSlot = null, authUser = null) {
+  const profile = getDownloadTranscodeProfile(quality);
+  if (!profile) return downloadOriginalTrack(response, track, requestedName, authUser, quality);
   const baseName = requestedName
     ? requestedName.replace(/\.[^.]+$/u, '')
     : path.basename(track.relativePath || track.title || 'track', path.extname(track.relativePath || ''));
-  const filename = `${sanitizeDownloadFilename(baseName) || 'track'}.mp3`;
+  const filename = `${sanitizeDownloadFilename(baseName) || 'track'}${profile.extension}`;
 
   await recordUserDownload(authUser, {
     downloadKind: 'track',
@@ -3970,36 +3979,18 @@ async function downloadTrackAsMp3(response, track, requestedName, releaseSlot = 
     title: track.title,
     artist: track.artist,
     album: track.album,
-    quality: 'mp3',
+    quality: profile.quality,
     trackCount: 1,
   });
 
   response.writeHead(200, {
-    'Content-Type': 'audio/mpeg',
+    'Content-Type': profile.contentType,
     'Content-Disposition': createContentDisposition(filename),
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
   });
 
-  const ffmpeg = spawn('ffmpeg', [
-    '-hide_banner',
-    '-loglevel',
-    'error',
-    '-i',
-    track.path,
-    '-map',
-    '0:a:0',
-    '-vn',
-    '-codec:a',
-    'libmp3lame',
-    '-b:a',
-    '320k',
-    '-f',
-    'mp3',
-    'pipe:1',
-  ], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  const ffmpeg = spawnDownloadConversion(track, profile);
 
   let stderr = '';
   ffmpeg.stderr.on('data', (chunk) => {
@@ -4012,7 +4003,7 @@ async function downloadTrackAsMp3(response, track, requestedName, releaseSlot = 
   ffmpeg.on('close', (code) => {
     if (code && !response.destroyed) {
       console.error(`ffmpeg exited with code ${code}: ${stderr.trim()}`);
-      response.destroy(new Error('MP3 conversion failed'));
+      response.destroy(new Error('Download conversion failed'));
     }
     releaseSlot?.();
   });
@@ -4024,27 +4015,10 @@ async function downloadTrackAsMp3(response, track, requestedName, releaseSlot = 
   ffmpeg.stdout.pipe(response);
 }
 
-function createMp3ConversionStream(track) {
+function createDownloadConversionStream(track, quality) {
+  const profile = getDownloadTranscodeProfile(quality);
   const stream = new PassThrough();
-  const ffmpeg = spawn('ffmpeg', [
-    '-hide_banner',
-    '-loglevel',
-    'error',
-    '-i',
-    track.path,
-    '-map',
-    '0:a:0',
-    '-vn',
-    '-codec:a',
-    'libmp3lame',
-    '-b:a',
-    '320k',
-    '-f',
-    'mp3',
-    'pipe:1',
-  ], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  const ffmpeg = spawnDownloadConversion(track, profile);
 
   let stderr = '';
   ffmpeg.stderr.on('data', (chunk) => {
@@ -4055,7 +4029,7 @@ function createMp3ConversionStream(track) {
   });
   ffmpeg.on('close', (code) => {
     if (code) {
-      stream.destroy(new Error(`MP3 conversion failed for ${track.title}: ${stderr.trim()}`));
+      stream.destroy(new Error(`Download conversion failed for ${track.title}: ${stderr.trim()}`));
     }
   });
   stream.on('close', () => {
@@ -4066,8 +4040,23 @@ function createMp3ConversionStream(track) {
   return { stream, ffmpeg };
 }
 
-function normalizeDownloadQuality(value) {
-  return String(value || '').toLowerCase() === 'mp3' ? 'mp3' : 'original';
+function spawnDownloadConversion(track, profile) {
+  return spawn('ffmpeg', [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-i',
+    track.path,
+    '-map',
+    '0:a:0',
+    '-vn',
+    '-sn',
+    '-dn',
+    ...profile.ffmpegArgs,
+    'pipe:1',
+  ], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 }
 
 function normalizeBulkTrackRequests(value) {
@@ -4094,9 +4083,12 @@ function normalizeBulkTrackRequests(value) {
 }
 
 function createZipEntryName(track, trackRequest, quality) {
-  const extension = quality === 'mp3'
-    ? '.mp3'
-    : path.extname(track.relativePath || track.path) || '.audio';
+  const profile = shouldUseDownloadTranscode(track, quality)
+    ? getDownloadTranscodeProfile(quality)
+    : null;
+  const extension = profile?.extension
+    || path.extname(track.relativePath || track.path)
+    || '.audio';
   const requestedBase = trackRequest.filename
     ? trackRequest.filename.replace(/\.[^.]+$/u, '')
     : path.basename(track.relativePath || track.title || 'track', path.extname(track.relativePath || ''));
@@ -6186,7 +6178,7 @@ function renderAdminPage({ title = 'Monochrome-Streamer', admin }) {
     <p>These defaults are applied to the webapp for every logged-in user. Per-user download access is controlled in Users.</p>
     <form id="download-settings-form">
       <div class="grid">
-        <label>Download Quality <select name="downloadQuality"><option value="original">Original Local File</option><option value="mp3">MP3 320 kbps</option></select></label>
+        <label>Download Quality <select name="downloadQuality"><option value="original">Original Local File</option><option value="cd">CD Quality FLAC 16-bit / 44.1 KHz (convert hi-res only)</option><option value="mp3">MP3 320 kbps</option><option value="mp3-256">MP3 256 kbps</option><option value="mp3-128">MP3 128 kbps</option></select></label>
         <label>Bulk Download Method <select name="bulkDownloadMethod"><option value="browser">One-by-one browser downloads</option><option value="zip">ZIP archive before downloading</option></select></label>
         <label>Filename Template <input name="filenameTemplate"></label>
       </div>

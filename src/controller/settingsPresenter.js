@@ -5,6 +5,7 @@ import {
 } from './constants.js';
 import { getThemePreview as resolveThemePreview } from './themeResolver.js';
 import { createPlaybackQualityOptions } from '../shared/playbackQuality.js';
+import { DOWNLOAD_QUALITY_OPTIONS } from '../shared/downloadQuality.js';
 
 export function toTitleCase(value) {
   return String(value).replace(/(^|\s|-)\w/gu, (match) => match.toUpperCase());
@@ -128,10 +129,7 @@ export function buildSettingsPanelSnapshot({
   if (tab === 'downloads') {
     return {
       ...base,
-      downloadQualityOptions: [
-        ['original', 'Original Local File'],
-        ['mp3', 'MP3 320 kbps (convert on download)'],
-      ],
+      downloadQualityOptions: DOWNLOAD_QUALITY_OPTIONS,
       bulkDownloadOptions: [
         ['browser', 'One-by-one browser downloads'],
         ['zip', 'ZIP archive before downloading'],

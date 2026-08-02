@@ -5,6 +5,10 @@ import { isLightTheme, resolveThemePreset } from '../controller/themeResolver.js
 import { getCsrfToken } from '../controller/utils.js';
 import { mergeDiscoveredLibraryFolders } from '../shared/libraryFolders.js';
 import { canPollInDocument, getAdminPollingDelay } from '../shared/pollingPolicy.js';
+import {
+  DOWNLOAD_QUALITY_OPTIONS,
+  getDownloadQualityLabel,
+} from '../shared/downloadQuality.js';
 
 const ADMIN_TABS = [
   ['users', 'Users', 'fa-users'],
@@ -542,7 +546,7 @@ function DownloadHistoryTable({ downloads, loading }) {
                 </span>
               </td>
               <td>{download.downloadKind === 'bulk' ? 'ZIP' : 'Track'}</td>
-              <td>{download.quality === 'mp3' ? 'MP3 320' : 'Original'}</td>
+              <td>{getDownloadQualityLabel(download.quality)}</td>
               <td>{download.trackCount}</td>
             </tr>
           ))}
@@ -580,16 +584,17 @@ function DownloadsPanel({ settings, onSaved, setStatus }) {
   }
 
   return (
-    <PanelGroup title="Downloads" description="Download originals or convert to MP3 before the file leaves the server.">
+    <PanelGroup title="Downloads" description="Keep original files or convert them to a selected download profile.">
       <form className="admin-form" onSubmit={onSubmit}>
         <label className={settingsFieldClassName}>
           <span>Download Quality</span>
           <select name="downloadQuality" defaultValue={settings.downloadQuality}>
-            <option value="original">Original Local File</option>
-            <option value="mp3">MP3 320 kbps</option>
+            {DOWNLOAD_QUALITY_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
           </select>
         </label>
-        <p className={settingsHelpClassName}>MP3 downloads are converted server-side with ffmpeg at 320 kbps. Playback still uses the original local file.</p>
+        <p className={settingsHelpClassName}>CD Quality converts only audio above 16-bit to 16-bit / 44.1 KHz FLAC. Existing 16-bit and lossy files stay original. MP3 profiles use ffmpeg. Playback is unchanged.</p>
         <label className={settingsFieldClassName}>
           <span>Bulk Download Method</span>
           <select name="bulkDownloadMethod" defaultValue={settings.bulkDownloadMethod}>
