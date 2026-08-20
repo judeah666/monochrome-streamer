@@ -12,9 +12,9 @@
 
 ## Secure-By-Default Behavior In `0.3.5`
 
-- Guest browsing is enabled by default with `NOAUTH=true`.
+- Guest browsing is enabled by default and controlled from Admin access settings.
 - Guest downloads are disabled by default with `DOWNLOADS=false`.
-- All downloads require a signed-in non-guest account.
+- Guest downloads are disabled by default and can be enabled from Admin access settings.
 - Admin and download mutations use same-origin validation plus per-session CSRF protection.
 - Widget API access should only be enabled with a real API key and a specific allowed origin.
 
@@ -41,13 +41,12 @@ Example `.env`:
 MUSIC_DIR=/path/to/your/music
 APP_DATA_DIR=/opt/monochrome-streamer/data
 APP_TITLE=Monochrome-Streamer
-NOAUTH=true
 DOWNLOADS=false
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=change-this-admin-password
 ```
 
-Open `http://localhost:8888` after startup. Visit `/login` when you want to sign in as admin or as a managed user.
+Open `http://localhost:8888` after startup. Visit `/#login` when you want to sign in as admin or as a managed user.
 
 ## Volumes
 
@@ -58,9 +57,8 @@ Keep `/data` when updating the image so the library index and edits persist acro
 
 ## Useful Environment Variables
 
-- `NOAUTH=true`: allow anonymous browsing without a login wall
-- `DOWNLOADS=false`: disable guest downloads
-- `ADMIN_USERNAME` and `ADMIN_PASSWORD`: admin login when auth is enabled
+- `DOWNLOADS=false`: set the initial guest-download default
+- `ADMIN_USERNAME` and `ADMIN_PASSWORD`: admin login for access and library management
 - `SCAN_METADATA=tags|filename`: choose safer or richer scan mode
 - `AUTO_SCAN_ON_START=false`: avoid large automatic scans on container boot
 - `WIDGET_API_KEY` and `WIDGET_CORS_ORIGIN`: enable the widget stats API safely
@@ -69,7 +67,7 @@ Keep `/data` when updating the image so the library index and edits persist acro
 
 1. Start the container.
 2. Open the app in your browser.
-3. Visit `/login` and sign in as admin if you want to manage the library.
+3. Visit `/#login` and sign in as admin if you want to manage the library.
 4. Open the `Admin` sidebar tab.
 5. Refresh folders, select the top-level music folders you want, then save and scan.
 

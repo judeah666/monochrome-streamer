@@ -62,7 +62,6 @@ APP_DATA_DIR=D:\Monochrome-Streamer\data
 APP_TITLE=Monochrome-Streamer
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=change-this-admin-password
-NOAUTH=true
 DOWNLOADS=false
 PUID=1000
 PGID=1000
@@ -78,7 +77,7 @@ docker compose up -d
 
 4. Open `http://localhost:8888`.
 
-Guest browsing is enabled by default, but guest downloads are disabled. Open `/login` to sign in as an admin or managed user.
+Guest browsing is enabled by default, but guest downloads are disabled. Open `/#login` to sign in as an admin or managed user. Both guest options can be changed from Admin access settings.
 
 ### Dockge Or Linux Server
 
@@ -101,7 +100,7 @@ Use Linux host paths such as `/mnt/music` or `/home/user/Music`. The music mount
 
 ## First Run
 
-1. Open `/login` and sign in as admin.
+1. Open `/#login` and sign in as admin.
 2. Open `Admin`, then select `System`.
 3. Click `Refresh Folders`.
 4. Select the top-level music folders to index and click `Save Folders`.
@@ -153,12 +152,7 @@ The Admin database export is useful for a consistent SQLite snapshot, but it doe
 
 ## Authentication And Security
 
-The built-in defaults allow guest browsing while keeping downloads private:
-
-```env
-NOAUTH=true
-DOWNLOADS=false
-```
+The built-in defaults allow guest browsing while keeping downloads private. Sign in as admin and use the Access panel to require login, enable guest browsing, or change guest download permission.
 
 - Guests can browse and play music but cannot download files.
 - Downloads require a signed-in non-guest account with download permission.
@@ -166,7 +160,7 @@ DOWNLOADS=false
 - Login attempts are rate-limited and logout uses a protected POST request.
 - Widget access requires a real API key and a specific `http://` or `https://` CORS origin.
 
-To require login before browsing, set `NOAUTH=false` and provide `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
+To require login before browsing, open Admin access settings and disable Guest access.
 
 For an HTTPS reverse proxy such as Caddy, Traefik, Nginx Proxy Manager, or Cloudflare Tunnel, forward the original host/protocol and set:
 
@@ -188,8 +182,7 @@ Common host and access variables:
 | `APP_TITLE` | `Monochrome-Streamer` | Browser and application title |
 | `ADMIN_USERNAME` | `admin` | Environment admin username |
 | `ADMIN_PASSWORD` | unset | Environment admin password |
-| `NOAUTH` | `true` | Allow guest browsing without a login wall |
-| `DOWNLOADS` | `false` | Allow anonymous guest downloads |
+| `DOWNLOADS` | `false` | Initial anonymous guest-download default; Admin access settings take over after they are saved |
 | `PUID` / `PGID` | `1000` | Linux owner for container-created files |
 | `UMASK` | `022` | File permission mask |
 | `CHOWN_DATA` | `auto` | Check data write access; `true` forces recursive ownership repair |

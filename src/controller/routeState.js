@@ -19,7 +19,7 @@ export function parseRouteFromHash(hashValue, {
     };
   }
 
-  if (hash === 'login') {
+  if (/^login(?:\?|$)/u.test(hash)) {
     return {
       route: { view: 'login', albumId: null, artistName: null },
       artistNameToLoad: null,

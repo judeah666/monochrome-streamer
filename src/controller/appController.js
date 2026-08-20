@@ -389,11 +389,27 @@ async function init() {
     return;
   }
 
-  const [config, libraryFolders] = await Promise.all([
-    fetchJson('/api/config'),
-    fetchJson('/api/library/folders').catch(() => ({ available: [], selected: [], scan: null })),
-    refreshWidgetSettings().catch(() => null),
-  ]);
+  let config;
+  let libraryFolders;
+  try {
+    [config, libraryFolders] = await Promise.all([
+      fetchJson('/api/config'),
+      fetchJson('/api/library/folders').catch(() => ({ available: [], selected: [], scan: null })),
+      refreshWidgetSettings().catch(() => null),
+    ]);
+  } catch (error) {
+    if (error?.message === 'Login required.') {
+      const currentUrl = new URL(window.location.href);
+      const nextPath = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+      window.history.replaceState(null, '', getLoginRoutePath(nextPath));
+      const loginRouteResult = resolveRouteFromLocation({
+        browseView: state.browseView,
+      });
+      await initLoginRoute(loginRouteResult.route);
+      return;
+    }
+    throw error;
+  }
   applyServerConfig(config);
   state.libraryFolders = libraryFolders;
   reconcileFolderFiltersWithSelection();
@@ -2355,7 +2371,7 @@ async function logoutCurrentSession() {
     credentials: 'same-origin',
     headers,
   });
-  window.location.assign('/login');
+  window.location.assign('/#login');
 }
 
 function navigateToView(view, { preserveResultSearch = false } = {}) {
@@ -3617,9 +3633,7 @@ function getLoginOverlayReturnPath() {
 
 function isLoginOnlyLocation() {
   const url = new URL(window.location.href);
-  const pathname = String(url.pathname || '').replace(/\/+$/u, '') || '/';
-  return pathname === '/login'
-    || ((pathname === '/' || pathname === '/index.html') && url.searchParams.get('login') === '1');
+  return /^#\/?login(?:\?|$)/u.test(url.hash);
 }
 
 function resolveRouteFromLocation({ browseView }) {
@@ -3715,7 +3729,6 @@ function isPlaylistUser() {
 function canCurrentUserDownloadTracks() {
   return Boolean(
     state.currentUser
-    && state.currentUser.role !== 'guest'
     && state.canDownload !== false
   );
 }
@@ -3863,16 +3876,18 @@ function renderActiveRouteView(viewContext) {
 
 function getLoginRouteState() {
   const url = new URL(window.location.href);
+  const hashQuery = String(url.hash || '').split('?').slice(1).join('?');
+  const params = new URLSearchParams(hashQuery);
   return {
-    nextPath: sanitizeLoginNext(url.searchParams.get('next')),
-    errorCode: String(url.searchParams.get('error') || '').trim().toLowerCase(),
+    nextPath: sanitizeLoginNext(params.get('next')),
+    errorCode: String(params.get('error') || '').trim().toLowerCase(),
   };
 }
 
 function sanitizeLoginNext(value) {
   const nextPath = String(value || '/').trim();
   if (!nextPath.startsWith('/') || nextPath.startsWith('//')) return '/';
-  if (nextPath.startsWith('/login')) return '/';
+  if (nextPath.startsWith('/login') || nextPath.startsWith('/#login')) return '/';
   if (nextPath === '/admin' || nextPath.startsWith('/admin/')) return '/';
   return nextPath;
 }
@@ -3883,17 +3898,13 @@ function getLoginRoutePath(nextPath = '/', errorCode = '') {
   if (errorCode) {
     params.set('error', errorCode);
   }
-  return `/login?${params.toString()}`;
+  return `/#login?${params.toString()}`;
 }
 
 function clearLoginRouteSearchParams() {
   const url = new URL(window.location.href);
-  if (!url.searchParams.has('next') && !url.searchParams.has('error')) return;
-  url.searchParams.delete('next');
-  url.searchParams.delete('error');
-  const nextSearch = url.searchParams.toString();
-  const nextUrl = `${url.pathname}${nextSearch ? `?${nextSearch}` : ''}${url.hash}`;
-  window.history.replaceState(null, '', nextUrl);
+  if (!/^#\/?login(?:\?|$)/u.test(url.hash)) return;
+  window.history.replaceState(null, '', `${url.pathname}${url.search}#login`);
 }
 
 function setLibraryTab(tab) {

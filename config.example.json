@@ -11,7 +11,7 @@
   "scanMetadata": "tags",
   "scanDurations": false,
   "autoScanOnStart": false,
-  "noAuth": true,
+  "guestAccessEnabled": true,
   "anonymousDownloadsEnabled": false,
   "adminUsername": "change-me-admin",
   "adminPassword": "change-this-password-123",

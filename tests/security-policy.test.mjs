@@ -54,10 +54,13 @@ test('server source locks down admin exports, download posts, and admin-only edi
   const adminSource = await readFile(new URL('../src/react/admin.jsx', import.meta.url), 'utf8');
   const configExample = await readFile(new URL('../config.example.json', import.meta.url), 'utf8');
 
-  assert.match(source, /noAuth:\s*true/u);
+  assert.match(source, /guestAccessEnabled:\s*true/u);
   assert.match(source, /anonymousDownloadsEnabled:\s*false/u);
-  assert.match(configExample, /"noAuth":\s*true/u);
+  assert.match(configExample, /"guestAccessEnabled":\s*true/u);
   assert.match(configExample, /"anonymousDownloadsEnabled":\s*false/u);
+  assert.match(source, /url\.pathname === '\/api\/admin\/access-settings'/u);
+  assert.match(source, /return `\/#login\?\$\{params\.toString\(\)\}`/u);
+  assert.match(adminSource, /name="guestAccessEnabled"/u);
 
   assert.match(source, /url\.pathname === '\/api\/admin\/database\/export'[\s\S]*request\.method === 'POST'/u);
   assert.doesNotMatch(source, /url\.pathname === '\/api\/admin\/database\/export' && request\.method === 'GET'/u);

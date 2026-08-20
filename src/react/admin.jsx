@@ -54,6 +54,7 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
   const [status, setStatus] = useState('');
   const [config, setConfig] = useState(null);
   const [users, setUsers] = useState({ admin: null, users: [] });
+  const [accessSettings, setAccessSettings] = useState(null);
   const [downloadSettings, setDownloadSettings] = useState(null);
   const [widget, setWidget] = useState(null);
   const [folders, setFolders] = useState({ available: [], selected: [], scan: {} });
@@ -120,6 +121,7 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
     const [configData] = await Promise.all([
       api('/api/config').catch(() => null),
       loadUsers(),
+      loadAccessSettings(),
       loadDownloadSettings(),
       loadWidget(),
       loadFolders({ quiet: true, syncSelection: true }),
@@ -130,6 +132,11 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
   async function loadUsers() {
     const data = await api('/api/admin/users');
     setUsers(data);
+  }
+
+  async function loadAccessSettings() {
+    const data = await api('/api/admin/access-settings');
+    setAccessSettings(data);
   }
 
   async function loadDownloadSettings() {
@@ -180,7 +187,7 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
       credentials: 'same-origin',
       headers,
     });
-    window.location.assign('/login');
+    window.location.assign('/#login');
   }
 
   async function saveSelectedFolders({ scanMode = null, scanFolders = [] } = {}) {
@@ -241,7 +248,10 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
         {status ? <p className="settings-status admin-status">{status}</p> : null}
 
         {activeTab === 'users' ? (
-          <UsersPanel users={users} onUsersChanged={setUsers} setStatus={setStatus} />
+          <>
+            <AccessPanel settings={accessSettings} onSaved={setAccessSettings} setStatus={setStatus} />
+            <UsersPanel users={users} onUsersChanged={setUsers} setStatus={setStatus} />
+          </>
         ) : null}
         {activeTab === 'downloads' ? (
           <DownloadsPanel settings={downloadSettings} onSaved={loadDownloadSettings} setStatus={setStatus} />
@@ -329,7 +339,10 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
         </section>
 
         {activeTab === 'users' ? (
-          <UsersPanel users={users} onUsersChanged={setUsers} setStatus={setStatus} />
+          <>
+            <AccessPanel settings={accessSettings} onSaved={setAccessSettings} setStatus={setStatus} />
+            <UsersPanel users={users} onUsersChanged={setUsers} setStatus={setStatus} />
+          </>
         ) : null}
         {activeTab === 'downloads' ? (
           <DownloadsPanel settings={downloadSettings} onSaved={loadDownloadSettings} setStatus={setStatus} />
@@ -355,6 +368,49 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
         ) : null}
       </main>
     </div>
+  );
+}
+
+function AccessPanel({ settings, onSaved, setStatus }) {
+  if (!settings) return <LoadingPanel />;
+
+  async function onSubmit(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const savedSettings = await api('/api/admin/access-settings', {
+      method: 'POST',
+      body: JSON.stringify({
+        guestAccessEnabled: form.get('guestAccessEnabled') === 'true',
+        anonymousDownloadsEnabled: form.get('anonymousDownloadsEnabled') === 'true',
+      }),
+    });
+    onSaved(savedSettings);
+    setStatus('Access settings saved.');
+  }
+
+  return (
+    <PanelGroup title="Access" description="Control whether visitors can use the app without signing in.">
+      <form className="admin-form" onSubmit={onSubmit}>
+        <label className={settingsFieldClassName}>
+          <span>Guest access</span>
+          <select name="guestAccessEnabled" defaultValue={String(settings.guestAccessEnabled)}>
+            <option value="true">Enabled</option>
+            <option value="false">Login required</option>
+          </select>
+        </label>
+        <label className={settingsFieldClassName}>
+          <span>Guest downloads</span>
+          <select name="anonymousDownloadsEnabled" defaultValue={String(settings.anonymousDownloadsEnabled)}>
+            <option value="false">Disabled</option>
+            <option value="true">Enabled</option>
+          </select>
+        </label>
+        <p className={settingsHelpClassName}>Guest download permission only applies while guest access is enabled.</p>
+        <div className={settingsActionsClassName}>
+          <button className="primary-button" type="submit">Save Access</button>
+        </div>
+      </form>
+    </PanelGroup>
   );
 }
 

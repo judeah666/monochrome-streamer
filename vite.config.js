@@ -12,6 +12,7 @@ export default defineConfig({
       input: {
         app: 'src/react/main.jsx',
         admin: 'src/react/admin.jsx',
+        share: 'src/react/share.jsx',
       },
       output: {
         entryFileNames: '[name].js',

@@ -140,7 +140,7 @@ const defaultConfig = {
   scanMetadata: 'tags',
   scanDurations: false,
   autoScanOnStart: false,
-  noAuth: true,
+  guestAccessEnabled: true,
   anonymousDownloadsEnabled: false,
   adminUsername: 'admin',
   adminPassword: 'admin',
@@ -231,6 +231,7 @@ let coverCacheJobPromise = null;
 let activeDownloadConversionRequests = 0;
 
 await loadCoverOptimizationFailures();
+await initializeAccessSettings();
 await initializeScanStateFromStore();
 logStartupTiming('server bootstrap initialized', serverBootStartedAt);
 
@@ -306,35 +307,29 @@ const server = http.createServer(async (request, response) => {
       return respondJson(response, 200, await getPublicBootstrapPayload());
     }
 
-    const isPublicLoginShellRequest = isLoginShellRequest(url);
-    const authUser = await getAuthenticatedUser(request);
-
-    if (url.pathname === '/login' || url.pathname === '/login/') {
-      if (request.method === 'POST') {
-        return handleLogin(request, response, url);
-      }
-      return serveStaticAsset('/', response);
-    }
-
-    if (url.pathname === '/logout' || url.pathname === '/logout/') {
-      if (request.method !== 'POST') {
+    const sharedAlbumStreamMatch = /^\/share\/album\/([^/]+)\/track\/([^/]+)\/stream$/u.exec(url.pathname);
+    if (sharedAlbumStreamMatch) {
+      if (request.method !== 'GET') {
         return respondJson(response, 405, { error: 'Method Not Allowed' });
       }
-      assertPrivilegedMutation(request, authUser);
-      const token = getSessionToken(request);
-      if (token) sessions.delete(token);
-      response.writeHead(303, {
-        Location: config.noAuth ? '/' : getLoginAppRedirectPath('/'),
-        'Set-Cookie': createSessionCookie('', request, { maxAge: 0 }),
-        'Cache-Control': 'no-store',
-        ...getSecurityHeaders(),
-      });
-      response.end();
-      return;
+      return streamSharedAlbumTrack(
+        response,
+        decodeURIComponent(sharedAlbumStreamMatch[1]),
+        decodeURIComponent(sharedAlbumStreamMatch[2]),
+        request.headers.range,
+      );
     }
 
-    if (!authUser && !isPublicLoginShellRequest) {
-      return requireLogin(request, response, url);
+    const sharedAlbumCoverMatch = /^\/share\/album\/([^/]+)\/cover$/u.exec(url.pathname);
+    if (sharedAlbumCoverMatch) {
+      if (request.method !== 'GET') {
+        return respondJson(response, 405, { error: 'Method Not Allowed' });
+      }
+      return streamSharedAlbumCover(
+        response,
+        decodeURIComponent(sharedAlbumCoverMatch[1]),
+        url,
+      );
     }
 
     const albumShareMatch = /^\/share\/album\/([^/]+)$/u.exec(url.pathname);
@@ -345,6 +340,40 @@ const server = http.createServer(async (request, response) => {
       return serveAlbumSharePage(request, response, decodeURIComponent(albumShareMatch[1]), {
         headOnly: request.method === 'HEAD',
       });
+    }
+
+    const authUser = await getAuthenticatedUser(request);
+
+    if (url.pathname === '/login' || url.pathname === '/login/') {
+      if (request.method === 'POST') {
+        return handleLogin(request, response, url);
+      }
+      return redirect(response, getLoginAppRedirectPath(url.searchParams.get('next') || '/'));
+    }
+
+    if (url.pathname === '/logout' || url.pathname === '/logout/') {
+      if (request.method !== 'POST') {
+        return respondJson(response, 405, { error: 'Method Not Allowed' });
+      }
+      assertPrivilegedMutation(request, authUser);
+      const token = getSessionToken(request);
+      if (token) sessions.delete(token);
+      response.writeHead(303, {
+        Location: config.guestAccessEnabled ? '/' : getLoginAppRedirectPath('/'),
+        'Set-Cookie': createSessionCookie('', request, { maxAge: 0 }),
+        'Cache-Control': 'no-store',
+        ...getSecurityHeaders(),
+      });
+      response.end();
+      return;
+    }
+
+    if (!authUser && isPublicAppShellOrAssetRequest(request, url)) {
+      return serveStaticAsset(url.pathname, response);
+    }
+
+    if (!authUser) {
+      return requireLogin(request, response, url);
     }
 
     if (url.pathname === '/api/auth/me') {
@@ -957,7 +986,7 @@ async function loadConfig() {
     scanMetadata: normalizeScanMetadata(process.env.SCAN_METADATA || fileConfig.scanMetadata || defaultConfig.scanMetadata),
     scanDurations: parseBoolean(process.env.SCAN_DURATIONS ?? fileConfig.scanDurations ?? defaultConfig.scanDurations),
     autoScanOnStart: parseBoolean(process.env.AUTO_SCAN_ON_START ?? fileConfig.autoScanOnStart ?? defaultConfig.autoScanOnStart),
-    noAuth: parseBoolean(process.env.NOAUTH ?? fileConfig.noAuth ?? defaultConfig.noAuth),
+    guestAccessEnabled: parseBoolean(fileConfig.guestAccessEnabled ?? defaultConfig.guestAccessEnabled),
     anonymousDownloadsEnabled: parseBoolean(process.env.DOWNLOADS ?? fileConfig.anonymousDownloadsEnabled ?? defaultConfig.anonymousDownloadsEnabled),
     adminUsername: process.env.ADMIN_USERNAME || fileConfig.adminUsername || defaultConfig.adminUsername,
     adminPassword: process.env.ADMIN_PASSWORD || fileConfig.adminPassword || defaultConfig.adminPassword,
@@ -1029,7 +1058,7 @@ function createGuestUser() {
   return {
     username: 'Guest',
     role: 'guest',
-    downloadsEnabled: false,
+    downloadsEnabled: config.anonymousDownloadsEnabled,
     authDisabled: true,
     csrfToken: '',
   };
@@ -1109,7 +1138,7 @@ async function getSessionUser(request) {
 async function getAuthenticatedUser(request) {
   const sessionUser = await getSessionUser(request);
   if (sessionUser) return sessionUser;
-  if (config.noAuth) return createGuestUser();
+  if (config.guestAccessEnabled) return createGuestUser();
   return null;
 }
 
@@ -1198,7 +1227,6 @@ function isAdminUser(user) {
 }
 
 function canUserDownload(user) {
-  if (user?.role === 'guest') return false;
   return isAdminUser(user) || user?.downloadsEnabled !== false;
 }
 
@@ -1300,7 +1328,7 @@ function isStateChangingMethod(method) {
 }
 
 function enforceDownloadRateLimit(request, user) {
-  if (!user || user.role === 'guest') {
+  if (!user || !canUserDownload(user)) {
     throw new HttpError(403, 'Downloads are disabled for this account.');
   }
   const key = `${user.role}:${user.username}:${getSessionToken(request)}`;
@@ -1333,6 +1361,16 @@ function acquireDownloadConversionSlot() {
 }
 
 async function handleAdminApi(request, response, url) {
+  if (url.pathname === '/api/admin/access-settings') {
+    if (request.method === 'GET') {
+      return respondJson(response, 200, getAccessSettings());
+    }
+    if (request.method === 'POST') {
+      return respondJson(response, 200, await updateAccessSettings(request));
+    }
+    return respondJson(response, 405, { error: 'Method Not Allowed' });
+  }
+
   if (url.pathname === '/api/admin/users') {
     if (request.method === 'GET') {
       return respondJson(response, 200, await getAdminUsersPayload());
@@ -1647,6 +1685,36 @@ function mapPlaylistDatabaseError(error) {
 async function getDownloadSettings() {
   const store = await readAuthStore();
   return normalizeDownloadSettings(store.downloadSettings);
+}
+
+function getAccessSettings() {
+  return {
+    guestAccessEnabled: config.guestAccessEnabled === true,
+    anonymousDownloadsEnabled: config.anonymousDownloadsEnabled === true,
+  };
+}
+
+async function initializeAccessSettings() {
+  const store = await readAuthStore();
+  if (typeof store.accessSettings?.guestAccessEnabled === 'boolean') {
+    config.guestAccessEnabled = store.accessSettings.guestAccessEnabled;
+  }
+  if (typeof store.accessSettings?.anonymousDownloadsEnabled === 'boolean') {
+    config.anonymousDownloadsEnabled = store.accessSettings.anonymousDownloadsEnabled;
+  }
+}
+
+async function updateAccessSettings(request) {
+  const payload = await readRequestJson(request, 16 * 1024);
+  const store = await readAuthStore();
+  const settings = {
+    guestAccessEnabled: payload.guestAccessEnabled === true,
+    anonymousDownloadsEnabled: payload.anonymousDownloadsEnabled === true,
+  };
+  store.accessSettings = settings;
+  await writeAuthStore(store);
+  Object.assign(config, settings);
+  return getAccessSettings();
 }
 
 async function updateDownloadSettings(request) {
@@ -1976,6 +2044,7 @@ async function readAuthStore() {
   const fallback = {
     users: [],
     downloadSettings: getDefaultDownloadSettings(),
+    accessSettings: null,
   };
   if (!authUsersPath || !existsSync(authUsersPath)) {
     authStoreCache = fallback;
@@ -1988,6 +2057,7 @@ async function readAuthStore() {
     authStoreCache = {
       users: Array.isArray(raw.users) ? raw.users : [],
       downloadSettings: normalizeDownloadSettings(raw.downloadSettings),
+      accessSettings: normalizeStoredAccessSettings(raw.accessSettings),
     };
     if (legacyDownloadSettingsMigrated) {
       await fs.writeFile(authUsersPath, `${JSON.stringify(authStoreCache, null, 2)}\n`, 'utf8');
@@ -2006,6 +2076,7 @@ async function writeAuthStore(store) {
   authStoreCache = {
     users: Array.isArray(store.users) ? store.users : [],
     downloadSettings: normalizeDownloadSettings(store.downloadSettings),
+    accessSettings: normalizeStoredAccessSettings(store.accessSettings),
   };
   await fs.writeFile(authUsersPath, `${JSON.stringify(authStoreCache, null, 2)}\n`, 'utf8');
 }
@@ -2017,6 +2088,14 @@ function getDefaultDownloadSettings() {
     filenameTemplate: '{artist} - {title}',
     archiveFilenameTemplate: '{name}',
     zipEntryFolderTemplate: '{albumArtist}/{year} - {albumTitle}',
+  };
+}
+
+function normalizeStoredAccessSettings(settings) {
+  if (!settings || typeof settings !== 'object') return null;
+  return {
+    guestAccessEnabled: settings.guestAccessEnabled === true,
+    anonymousDownloadsEnabled: settings.anonymousDownloadsEnabled === true,
   };
 }
 
@@ -2105,7 +2184,7 @@ function createSessionCookie(token, request, options = {}) {
 function cleanRedirectPath(value) {
   const redirectPath = String(value || '/').trim();
   if (!redirectPath.startsWith('/') || redirectPath.startsWith('//')) return '/';
-  if (redirectPath.startsWith('/login')) return '/';
+  if (redirectPath.startsWith('/login') || redirectPath.startsWith('/#login')) return '/';
   if (redirectPath === '/admin' || redirectPath.startsWith('/admin/')) return '/';
   return redirectPath;
 }
@@ -2117,13 +2196,15 @@ function requireLogin(request, response, url) {
   return redirect(response, getLoginAppRedirectPath(`${url.pathname}${url.search}` || '/'));
 }
 
-function isLoginShellRequest(url) {
-  return url.pathname === '/login'
-    || url.pathname === '/login/'
-    || (
-      (url.pathname === '/' || url.pathname === '/index.html')
-      && url.searchParams.get('login') === '1'
-    );
+function isPublicAppShellOrAssetRequest(request, url) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return false;
+  if (url.pathname === '/' || url.pathname === '/index.html') return true;
+  if (url.pathname.startsWith('/api/')) return false;
+  const isSourceAsset = url.pathname.startsWith('/assets/');
+  const staticRoot = isSourceAsset ? assetsDir : publicDir;
+  const staticPath = isSourceAsset ? url.pathname.replace(/^\/assets\/?/u, '') : url.pathname;
+  const resolvedPath = path.normalize(path.join(staticRoot, staticPath));
+  return resolvedPath.startsWith(staticRoot) && existsSync(resolvedPath);
 }
 
 function getLoginAppRedirectPath(next = '/', extraParams = {}) {
@@ -2132,7 +2213,7 @@ function getLoginAppRedirectPath(next = '/', extraParams = {}) {
     if (value == null || value === '') continue;
     params.set(key, String(value));
   }
-  return `/login?${params.toString()}`;
+  return `/#login?${params.toString()}`;
 }
 
 async function initializeScanStateFromStore() {
@@ -3176,11 +3257,7 @@ async function createLibraryPayload(library) {
 }
 
 async function serveAlbumSharePage(request, response, albumId, { headOnly = false } = {}) {
-  const library = await readLibraryAlbumPage(libraryDatabasePath, await applyDeletedAlbumExclusions({
-    albumIds: [albumId],
-    includeTracks: false,
-    includeCoverTracks: true,
-  }));
+  const library = await readSharedAlbumLibrary(albumId, { includeTracks: true });
   const payload = await createLibraryPayload(library);
   const album = payload.albums.find((candidate) => candidate.id === albumId);
   if (!album) {
@@ -3189,17 +3266,82 @@ async function serveAlbumSharePage(request, response, albumId, { headOnly = fals
 
   const origin = getPublicRequestOrigin(request);
   const canonicalUrl = new URL(getAlbumSharePath(albumId), origin).toString();
-  const appUrl = new URL(`/#album/${encodeURIComponent(albumId)}`, origin).toString();
-  const coverPath = album.fullCoverUrl || album.coverUrl || '';
+  const shareBasePath = getAlbumSharePath(albumId);
+  const coverPath = `${shareBasePath}/cover?size=${COVER_CACHE_MAX_SIZE}`;
   const imageUrl = coverPath ? new URL(coverPath, origin).toString() : '';
+  const sharedTracks = payload.tracks
+    .filter((track) => track.albumId === albumId)
+    .map((track) => ({
+      id: track.id,
+      title: track.title,
+      artist: track.artist,
+      trackNumber: track.trackNumber,
+      discNumber: track.discNumber,
+      duration: track.duration,
+      streamUrl: `${shareBasePath}/track/${encodeURIComponent(track.id)}/stream`,
+    }))
+    .sort((left, right) => (
+      (Number(left.discNumber) || 1) - (Number(right.discNumber) || 1)
+      || (Number(left.trackNumber) || 0) - (Number(right.trackNumber) || 0)
+      || NATURAL_SORTER.compare(left.title, right.title)
+    ));
   const html = createAlbumSharePage({
     siteTitle: config.title,
     album,
     canonicalUrl,
-    appUrl,
     imageUrl,
+    sharePayload: {
+      siteTitle: config.title,
+      album: {
+        id: album.id,
+        title: album.title,
+        artist: album.artist,
+        albumArtist: album.albumArtist,
+        year: album.year,
+        genre: album.genre,
+        coverUrl: coverPath,
+      },
+      tracks: sharedTracks,
+      guest: true,
+      downloadsEnabled: false,
+    },
   });
   return respondHtml(response, 200, html, { headOnly });
+}
+
+async function readSharedAlbumLibrary(albumId, { includeTracks = false } = {}) {
+  return readLibraryAlbumPage(libraryDatabasePath, await applyDeletedAlbumExclusions({
+    albumIds: [albumId],
+    includeTracks,
+    includeCoverTracks: true,
+  }));
+}
+
+async function streamSharedAlbumCover(response, albumId, url) {
+  const library = await readSharedAlbumLibrary(albumId);
+  if (!library.albums?.some((album) => album.id === albumId)) {
+    return respondJson(response, 404, { error: 'Shared album not found' });
+  }
+  const overrides = await getAlbumOverrides();
+  const customCoverUrl = cleanText(overrides.albums?.[albumId]?.coverUrl);
+  const uploadedCoverMatch = /^\/api\/uploaded-covers\/([^/]+)$/u.exec(customCoverUrl);
+  if (uploadedCoverMatch) {
+    return streamUploadedCover(response, decodeURIComponent(uploadedCoverMatch[1]));
+  }
+  if (/^https?:\/\//iu.test(customCoverUrl)) {
+    return redirect(response, customCoverUrl, 302);
+  }
+  return streamAlbumCover(response, albumId, url);
+}
+
+async function streamSharedAlbumTrack(response, albumId, trackId, rangeHeader) {
+  const library = await readSharedAlbumLibrary(albumId, { includeTracks: true });
+  const albumExists = library.albums?.some((album) => album.id === albumId);
+  const trackBelongsToAlbum = library.tracks?.some((track) => track.id === trackId);
+  if (!albumExists || !trackBelongsToAlbum) {
+    return respondJson(response, 404, { error: 'Shared track not found' });
+  }
+  return streamTrack(response, trackId, rangeHeader, 'original');
 }
 
 function getPublicRequestOrigin(request) {
@@ -5815,7 +5957,7 @@ async function renderVersionedStylesheet(stylesheetPath) {
   return stylesheet;
 }
 
-function renderLoginPage({ next = '/', title = 'Monochrome-Streamer', error = '', currentUser = null, noAuth = false, themeSettings = DEFAULT_SETTINGS } = {}) {
+function renderLoginPage({ next = '/', title = 'Monochrome-Streamer', error = '', currentUser = null, guestAccessEnabled = false, themeSettings = DEFAULT_SETTINGS } = {}) {
   const loginTheme = resolveLoginTheme(themeSettings);
   const loginThemeScript = renderLoginThemeScript();
   return `<!doctype html>
@@ -5868,7 +6010,7 @@ function renderLoginPage({ next = '/', title = 'Monochrome-Streamer', error = ''
   <main>
     <h1>${escapeHtml(title)}</h1>
     <p>Sign in to open your local streamer.</p>
-    ${noAuth ? '<p class="session">Anonymous browsing is enabled. Sign in here only if you need a user or admin session.</p>' : ''}
+    ${guestAccessEnabled ? '<p class="session">Anonymous browsing is enabled. Sign in here only if you need a user or admin session.</p>' : ''}
     ${error ? `<p class="error">${escapeHtml(error)}</p>` : ''}
     ${currentUser ? `<p class="session">Currently signed in as <strong>${escapeHtml(currentUser.username)}</strong>. Use this form to switch accounts, or <a href="/logout">logout</a>.</p>` : ''}
     <form method="post" action="/login">

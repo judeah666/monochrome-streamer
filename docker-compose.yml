@@ -8,7 +8,6 @@ services:
     env_file:
       - .env
     environment:
-      NOAUTH: ${NOAUTH:-false}
       DOWNLOADS: ${DOWNLOADS:-true}
     volumes:
       - ${MUSIC_DIR:-./sample-library}:/music

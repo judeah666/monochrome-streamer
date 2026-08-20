@@ -33,6 +33,11 @@ test('parseRouteFromHash supports login and stable browse return hashes', () => 
     artistNameToLoad: null,
     collectionNameToLoad: null,
   });
+  assert.deepEqual(parseRouteFromHash('#login?next=%2Flibrary'), {
+    route: { view: 'login', albumId: null, artistName: null },
+    artistNameToLoad: null,
+    collectionNameToLoad: null,
+  });
   assert.deepEqual(parseRouteFromHash('#library'), {
     route: createBrowseRoute('library'),
     artistNameToLoad: null,

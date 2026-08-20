@@ -63,6 +63,7 @@ test('controller distinguishes hash overlay from restricted login shell', async 
   const source = await readFile(new URL('../src/controller/appController.js', import.meta.url), 'utf8');
 
   assert.match(source, /const shouldBootstrapLoginRoute = isLoginOnlyLocation\(\)/u);
+  assert.match(source, /error\?\.message === 'Login required\.'[\s\S]*window\.history\.replaceState\(null, '', getLoginRoutePath\(nextPath\)\)[\s\S]*await initLoginRoute\(loginRouteResult\.route\)/u);
   assert.match(source, /function openLoginView\(\)[\s\S]*state\.loginReturnHash[\s\S]*getLoginHash\(\)/u);
   assert.match(source, /function closeLoginView\(\)[\s\S]*state\.loginRouteOnly[\s\S]*state\.loginReturnHash/u);
   assert.match(source, /Accept: 'application\/json'/u);

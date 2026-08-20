@@ -61,10 +61,11 @@ test('track rows render the bundled download action only when a callback is prov
   assert.doesNotMatch(guestHtml, /row-play-button/u);
 });
 
-test('track download callbacks are gated to non-guest users and reuse the secure download helper', async () => {
+test('track download callbacks follow the server-provided permission and reuse the secure download helper', async () => {
   const controllerSource = await readFile(new URL('../src/controller/appController.js', import.meta.url), 'utf8');
 
-  assert.match(controllerSource, /function canCurrentUserDownloadTracks\(\)[\s\S]*state\.currentUser\.role !== 'guest'[\s\S]*state\.canDownload !== false/u);
+  assert.match(controllerSource, /function canCurrentUserDownloadTracks\(\)[\s\S]*state\.currentUser[\s\S]*state\.canDownload !== false/u);
+  assert.doesNotMatch(controllerSource, /function canCurrentUserDownloadTracks\(\)[\s\S]{0,120}role !== 'guest'/u);
   assert.match(controllerSource, /function downloadTrackFromRow\(trackOrId\)[\s\S]*triggerTrackBrowserDownload\(track, \{ target: `track:\$\{track\.id\}` \}\)/u);
   assert.match(controllerSource, /onDownloadTrack: canCurrentUserDownloadTracks\(\) \? downloadTrackFromRow : null/u);
 });
