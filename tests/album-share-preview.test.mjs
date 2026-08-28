@@ -92,11 +92,12 @@ test('admin album share dialog accepts custom hours and preserves manual-copy fa
     readFile(new URL('../src/controller/appController.js', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(dialogSource, /useState\(24\)/u);
+  assert.match(dialogSource, /useState\('24'\)/u);
   assert.match(dialogSource, /type="number"/u);
   assert.match(dialogSource, /min="1"/u);
   assert.match(dialogSource, /max="720"/u);
   assert.match(dialogSource, /Enter any whole number from 1 to 720 hours\./u);
+  assert.match(dialogSource, /onChange=\{\(event\) => setHoursInput\(event\.target\.value\)\}/u);
   assert.match(dialogSource, /Copy it manually below/u);
   assert.match(dialogSource, /readOnly value=\{shareLink\}/u);
   assert.match(controllerSource, /onShareAlbum: isCurrentUserAdmin\(\) \? openAlbumShareDialog : null/u);

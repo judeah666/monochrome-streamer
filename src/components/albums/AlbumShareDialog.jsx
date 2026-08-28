@@ -4,7 +4,7 @@ export function AlbumShareDialog({ albumTitle = '', onClose, onGenerate }) {
   const selectId = useId();
   const linkId = useId();
   const linkInputRef = useRef(null);
-  const [hours, setHours] = useState(24);
+  const [hoursInput, setHoursInput] = useState('24');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [shareLink, setShareLink] = useState('');
@@ -12,6 +12,8 @@ export function AlbumShareDialog({ albumTitle = '', onClose, onGenerate }) {
 
   async function generate(event) {
     event.preventDefault();
+    const hours = Number(hoursInput);
+    if (!Number.isInteger(hours) || hours < 1 || hours > 720) return;
     setBusy(true);
     setStatus('');
     try {
@@ -64,11 +66,11 @@ export function AlbumShareDialog({ albumTitle = '', onClose, onGenerate }) {
             min="1"
             max="720"
             step="1"
-            value={hours}
+            value={hoursInput}
             disabled={busy}
             autoFocus
             required
-            onChange={(event) => setHours(Number(event.target.value))}
+            onChange={(event) => setHoursInput(event.target.value)}
           />
           <small>Enter any whole number from 1 to 720 hours.</small>
         </label>
@@ -85,7 +87,11 @@ export function AlbumShareDialog({ albumTitle = '', onClose, onGenerate }) {
         {status ? <p className="playlist-dialog-status" role="status">{status}</p> : null}
         <footer className="playlist-dialog-actions">
           <button type="button" className="secondary-button" onClick={onClose} disabled={busy}>Close</button>
-          <button type="submit" className="primary-button" disabled={busy || !Number.isInteger(hours) || hours < 1 || hours > 720}>
+          <button
+            type="submit"
+            className="primary-button"
+            disabled={busy || !/^\d+$/u.test(hoursInput) || Number(hoursInput) < 1 || Number(hoursInput) > 720}
+          >
             {busy ? 'Creating...' : shareLink ? 'Create another link' : 'Create and copy link'}
           </button>
         </footer>
