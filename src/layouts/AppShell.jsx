@@ -527,6 +527,22 @@ function PlaylistDialogShell() {
   );
 }
 
+function AlbumShareDialogShell() {
+  return (
+    <>
+      <div id="album-share-dialog-overlay" className="modal-overlay" hidden />
+      <section
+        id="album-share-dialog-modal"
+        className="playlist-dialog-modal album-share-dialog-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create album share link"
+        hidden
+      />
+    </>
+  );
+}
+
 export function AppShell() {
   return (
     <div className="app-react-shell">
@@ -543,6 +559,7 @@ export function AppShell() {
       <LyricsEditorShell />
       <CollectionCoverEditorShell />
       <PlaylistDialogShell />
+      <AlbumShareDialogShell />
     </div>
   );
 }

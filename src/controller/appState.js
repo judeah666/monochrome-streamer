@@ -89,6 +89,8 @@ export function createInitialState() {
     favoriteTrackIds: new Set(),
     favoriteAlbumIds: new Set(),
     albumShareCopiedAlbumId: '',
+    albumShareDialogAlbumId: '',
+    albumShareDialogRenderKey: 0,
     downloadActivity: {
       phase: 'idle',
       target: '',

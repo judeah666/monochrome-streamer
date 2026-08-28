@@ -21,7 +21,7 @@ test('album card endpoints request lightweight payloads and cache recent albums'
 test('lightweight library payloads omit album track id lists', async () => {
   const source = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
   const payloadStart = source.indexOf('async function createLibraryPayload');
-  const payloadEnd = source.indexOf('function getDeletedAlbumIdSet', payloadStart);
+  const payloadEnd = source.indexOf('let albumShareStoreWrite', payloadStart);
   const payloadSource = source.slice(payloadStart, payloadEnd);
 
   assert.match(payloadSource, /const isLightweight = Boolean\(library\.lightweight\)/u);

@@ -92,6 +92,17 @@ test('download settings expose CD and three MP3 conversion profiles', () => {
   assert.equal(normalizeSettings({ downloadQuality: 'unknown' }).downloadQuality, 'original');
 });
 
+test('download settings expose an administrator-controlled quality lock', () => {
+  const snapshot = buildSettingsPanelSnapshot({
+    tab: 'downloads',
+    settings: { ...DEFAULT_SETTINGS, downloadQuality: 'mp3-128' },
+    downloadQualityLocked: true,
+  });
+
+  assert.equal(snapshot.downloadQualityLocked, true);
+  assert.equal(snapshot.settings.downloadQuality, 'mp3-128');
+});
+
 test('system settings snapshot normalizes scan status and selected folders', () => {
   const snapshot = buildSettingsPanelSnapshot({
     tab: 'system',

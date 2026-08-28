@@ -46,6 +46,17 @@ test('signed-in login view uses POST logout control instead of stale GET link', 
   assert.doesNotMatch(source, /href="\/logout"/u);
 });
 
+test('logout clears SPA state and reloads the hash login route immediately', async () => {
+  const controllerSource = await readFile(new URL('../src/controller/appController.js', import.meta.url), 'utf8');
+  const adminSource = await readFile(new URL('../src/react/admin.jsx', import.meta.url), 'utf8');
+  const serverSource = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
+
+  assert.match(controllerSource, /headers\.set\('Accept', 'application\/json'\)/u);
+  assert.match(controllerSource, /window\.history\.replaceState\(null, '', getLoginRoutePath\('\/'\)\);[\s\S]*window\.location\.reload\(\)/u);
+  assert.match(adminSource, /window\.history\.replaceState\(null, '', '\/#login\?next=%2F'\);[\s\S]*window\.location\.reload\(\)/u);
+  assert.match(serverSource, /request\.headers\.accept[\s\S]*respondJson\(response, 200,[\s\S]*redirectTo: logoutRedirect/u);
+});
+
 test('guest login entry points are buttons controlled by the app router', async () => {
   const { Sidebar } = await componentsPromise;
   const sidebar = renderToStaticMarkup(React.createElement(Sidebar, {

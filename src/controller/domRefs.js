@@ -101,5 +101,7 @@ export function getDomRefs() {
     collectionCoverModal: query('#collection-cover-modal'),
     playlistDialogOverlay: query('#playlist-dialog-overlay'),
     playlistDialogModal: query('#playlist-dialog-modal'),
+    albumShareDialogOverlay: query('#album-share-dialog-overlay'),
+    albumShareDialogModal: query('#album-share-dialog-modal'),
   };
 }

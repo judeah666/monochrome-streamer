@@ -232,12 +232,19 @@ function SharedAlbumPage() {
 
   const album = share.album;
   const albumMeta = [album.year, album.genre, `${tracks.length} track${tracks.length === 1 ? '' : 's'}`].filter(Boolean);
+  const expiresAtLabel = formatExpiry(share.expiresAt);
 
   return (
     <main className="share-page">
       <header className="share-header">
         <div className="share-brand"><span className="share-brand-disc" />{share.siteTitle || 'Monochrome-Streamer'}</div>
-        <div className="share-guest-badge"><span />Guest listening · Downloads off</div>
+        <div className="share-guest-badge">
+          <span />
+          <div className="share-guest-copy">
+            <strong>Guest listening · Downloads off</strong>
+            {expiresAtLabel ? <small>Expires {expiresAtLabel}</small> : null}
+          </div>
+        </div>
       </header>
 
       <section className="share-album-card">
@@ -302,6 +309,15 @@ function formatTime(value) {
   const seconds = Math.max(0, Number(value) || 0);
   const minutes = Math.floor(seconds / 60);
   return `${minutes}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+}
+
+function formatExpiry(value) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
 }
 
 function getShuffledIndex(currentIndex) {

@@ -77,6 +77,12 @@ test('album detail share action calls the supplied handler with the album id', a
   assert.equal(sharedAlbumId, 'album-1');
 });
 
+test('album detail hides the share action when no admin handler is supplied', async () => {
+  const { AlbumDetail } = await albumDetailModulePromise;
+  const html = renderToStaticMarkup(React.createElement(AlbumDetail, { album }));
+  assert.doesNotMatch(html, /aria-label="Share album link"/u);
+});
+
 test('album detail offers signed-in users one action for adding every track to a playlist', async () => {
   const { AlbumDetail } = await albumDetailModulePromise;
   let selectedAlbumId = '';

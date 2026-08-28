@@ -66,6 +66,7 @@ export function buildSettingsPanelSnapshot({
   libraryFolders = null,
   pendingLibraryFolders = null,
   libraryTotals = {},
+  downloadQualityLocked = false,
 } = {}) {
   const base = {
     tab,
@@ -129,6 +130,7 @@ export function buildSettingsPanelSnapshot({
   if (tab === 'downloads') {
     return {
       ...base,
+      downloadQualityLocked,
       downloadQualityOptions: DOWNLOAD_QUALITY_OPTIONS,
       bulkDownloadOptions: [
         ['browser', 'One-by-one browser downloads'],

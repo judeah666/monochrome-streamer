@@ -369,6 +369,15 @@
   .playlist-name-field { display: grid; gap: 8px; font-weight: 800; }
   .playlist-name-field input { width: 100%; border: 1px solid var(--line); border-radius: 16px; padding: 13px 15px; background: var(--surface-2); color: var(--text); }
   .playlist-dialog-status { margin: 0; color: var(--accent); font-weight: 700; }
+  .album-share-result { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; }
+  .album-share-result .playlist-name-field { min-width: 0; }
+  .album-share-result input { text-overflow: ellipsis; }
+  .album-share-result small { grid-column: 1 / -1; color: var(--muted); font-weight: 600; }
+
+  @media (max-width: 560px) {
+    .album-share-result { grid-template-columns: 1fr; }
+    .album-share-result small { grid-column: auto; }
+  }
 }
 
 /* Keep the app's corner language consistent without changing pill or round controls. */
@@ -383,6 +392,7 @@
     .playlist-detail-hero,
     .tag-editor-modal,
     .playlist-dialog-modal,
+    .album-share-dialog-modal,
     .collection-cover-editor-modal,
     .artist-editor-modal,
     .lyrics-editor-modal,

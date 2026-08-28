@@ -15,7 +15,7 @@ Inspired by [Monochrome](https://github.com/monochrome-music/monochrome), this p
 - Edit album metadata without rewriting source audio files.
 - Search MusicBrainz and Cover Art Archive, upload covers, and save synced `.lrc` lyrics.
 - Download original files, CD-quality FLAC, or MP3 at 320/256/128 kbps with configurable names, disc folders, permissions, and visible status feedback.
-- Manage users, online activity, download history, scans, backups, exports, and widget access from the Admin view.
+- Manage users, per-user download permission and quality, online activity, download history, scans, backups, exports, and widget access from the Admin view.
 - Cache optimized WebP artwork and lightweight album-card payloads for large libraries.
 - Run with Docker, Dockge, or Node.js on Windows and Linux.
 

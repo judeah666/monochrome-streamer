@@ -63,7 +63,18 @@ import {
 import { getStaticAssetCacheControl } from './src/server/staticCachePolicy.js';
 import { resolveLibraryScanRequest } from './src/server/libraryScanPolicy.js';
 import { parseCollectionNames, replaceCollectionName } from './src/shared/collectionNames.js';
-import { createAlbumSharePage, getAlbumSharePath } from './src/shared/albumShare.js';
+import {
+  createAlbumSharePage,
+  createAlbumShareUnavailablePage,
+  getAlbumSharePath,
+} from './src/shared/albumShare.js';
+import {
+  hashAlbumShareToken,
+  normalizeAlbumShareStore,
+  parseAlbumShareDurationHours,
+  removeExpiredAlbumShares,
+  resolveAlbumShare,
+} from './src/server/albumSharePolicy.js';
 import {
   DEFAULT_MAX_CONCURRENT_MP3_DOWNLOADS,
   DOWNLOAD_MAX_REQUESTS,
@@ -105,6 +116,12 @@ import {
   shouldUseDownloadTranscode,
 } from './src/server/downloadTranscoding.js';
 import {
+  getEffectiveManagedUserDownloadQuality,
+  getManagedUserDownloadQualityOverride,
+  parseManagedUserDownloadQuality as parseManagedUserDownloadQualityValue,
+  resolveRequestedDownloadQuality,
+} from './src/server/userDownloadPolicy.js';
+import {
   getCoverOptimizationFailureKey,
   getEmbeddedCoverFreshness,
   getFileFreshness,
@@ -136,6 +153,7 @@ const defaultConfig = {
   playbackTranscodeCachePath: 'transcodes',
   widgetSettingsPath: 'widget-settings.json',
   authUsersPath: 'users.json',
+  albumSharesPath: 'album-shares.json',
   userActivityDatabasePath: 'user-activity.sqlite',
   scanMetadata: 'tags',
   scanDurations: false,
@@ -169,6 +187,7 @@ const coverCachePath = config.coverCachePath ? path.resolve(__dirname, config.co
 const playbackTranscodeCachePath = config.playbackTranscodeCachePath ? path.resolve(__dirname, config.playbackTranscodeCachePath) : '';
 const widgetSettingsPath = config.widgetSettingsPath ? path.resolve(__dirname, config.widgetSettingsPath) : '';
 const authUsersPath = config.authUsersPath ? path.resolve(__dirname, config.authUsersPath) : '';
+const albumSharesPath = config.albumSharesPath ? path.resolve(__dirname, config.albumSharesPath) : '';
 const userActivityDatabasePath = config.userActivityDatabasePath
   ? path.resolve(__dirname, config.userActivityDatabasePath)
   : '';
@@ -358,10 +377,20 @@ const server = http.createServer(async (request, response) => {
       assertPrivilegedMutation(request, authUser);
       const token = getSessionToken(request);
       if (token) sessions.delete(token);
-      response.writeHead(303, {
-        Location: config.guestAccessEnabled ? '/' : getLoginAppRedirectPath('/'),
+      const logoutRedirect = config.guestAccessEnabled ? '/' : getLoginAppRedirectPath('/');
+      const logoutHeaders = {
         'Set-Cookie': createSessionCookie('', request, { maxAge: 0 }),
         'Cache-Control': 'no-store',
+      };
+      if (String(request.headers.accept || '').toLowerCase().includes('application/json')) {
+        return respondJson(response, 200, {
+          ok: true,
+          redirectTo: logoutRedirect,
+        }, logoutHeaders);
+      }
+      response.writeHead(303, {
+        Location: logoutRedirect,
+        ...logoutHeaders,
         ...getSecurityHeaders(),
       });
       response.end();
@@ -461,6 +490,7 @@ const server = http.createServer(async (request, response) => {
     if (url.pathname === '/api/config') {
       const startedAt = performance.now();
       const librarySummary = await getLibrarySummary();
+      const downloadSettings = await getDownloadSettings();
       const payload = {
         title: config.title,
         generatedAt: librarySummary.generatedAt,
@@ -469,7 +499,9 @@ const server = http.createServer(async (request, response) => {
         scan: scanState,
         user: createPublicUser(authUser),
         csrfToken: getCsrfTokenForUser(authUser),
-        downloadSettings: await getDownloadSettings(),
+        downloadSettings: authUser.role === 'user'
+          ? { ...downloadSettings, downloadQuality: normalizeDownloadQuality(authUser.downloadQuality) }
+          : downloadSettings,
         playbackTranscoding: await getPlaybackTranscodingInfo(),
       };
       logFirstRequestTiming('/api/config', startedAt);
@@ -813,6 +845,23 @@ const server = http.createServer(async (request, response) => {
       });
     }
 
+    const albumShareCreateMatch = /^\/api\/albums\/([^/]+)\/share$/u.exec(url.pathname);
+    if (albumShareCreateMatch) {
+      if (request.method !== 'POST') {
+        return respondJson(response, 405, { error: 'Method Not Allowed' });
+      }
+      if (!isAdminUser(authUser)) {
+        return respondJson(response, 403, { error: 'Admin access required.' });
+      }
+      assertPrivilegedMutation(request, authUser, { requireAdmin: true });
+      return createAlbumShareLink(
+        request,
+        response,
+        decodeURIComponent(albumShareCreateMatch[1]),
+        authUser,
+      );
+    }
+
     const albumTagsMatch = /^\/api\/albums\/([^/]+)\/tags$/u.exec(url.pathname);
     if (albumTagsMatch && request.method === 'POST') {
       if (!isAdminUser(authUser)) {
@@ -980,6 +1029,7 @@ async function loadConfig() {
     playbackTranscodeCachePath: process.env.PLAYBACK_TRANSCODE_CACHE_PATH || fileConfig.playbackTranscodeCachePath || dataPath(defaultConfig.playbackTranscodeCachePath),
     widgetSettingsPath: process.env.WIDGET_SETTINGS_PATH || fileConfig.widgetSettingsPath || dataPath(defaultConfig.widgetSettingsPath),
     authUsersPath: process.env.AUTH_USERS_PATH || fileConfig.authUsersPath || dataPath(defaultConfig.authUsersPath),
+    albumSharesPath: fileConfig.albumSharesPath || dataPath(defaultConfig.albumSharesPath),
     userActivityDatabasePath: process.env.USER_ACTIVITY_DATABASE_PATH
       || fileConfig.userActivityDatabasePath
       || dataPath(defaultConfig.userActivityDatabasePath),
@@ -1131,6 +1181,11 @@ async function getSessionUser(request) {
     username: user.username,
     role: 'user',
     downloadsEnabled: user.downloadsEnabled !== false,
+    downloadQuality: getEffectiveManagedUserDownloadQuality(
+      user,
+      normalizeDownloadSettings(store.downloadSettings).downloadQuality,
+    ),
+    downloadQualityLocked: true,
     csrfToken: activeSession.csrfToken,
   };
 }
@@ -1161,6 +1216,7 @@ async function handleLogin(request, response, url) {
         code: 'invalid',
       }, { Vary: 'Accept' });
     }
+
     return redirect(response, getLoginAppRedirectPath(next, { error: 'invalid' }), 303);
   }
 
@@ -1218,6 +1274,8 @@ function createPublicUser(user) {
     username: user.username,
     role: user.role,
     canDownload: canUserDownload(user),
+    downloadQuality: user.role === 'user' ? normalizeDownloadQuality(user.downloadQuality) : null,
+    downloadQualityLocked: user.downloadQualityLocked === true,
     authDisabled: user.authDisabled === true,
   };
 }
@@ -1436,6 +1494,7 @@ async function handleAdminApi(request, response, url) {
 
 async function getAdminUsersPayload() {
   const store = await readAuthStore();
+  const globalDownloadQuality = normalizeDownloadSettings(store.downloadSettings).downloadQuality;
   const presence = buildUserPresenceMap(sessions);
   const withPresence = (user) => ({
     ...user,
@@ -1446,12 +1505,16 @@ async function getAdminUsersPayload() {
       username: config.adminUsername,
       role: 'admin',
       downloadsEnabled: true,
+      downloadQuality: null,
+      effectiveDownloadQuality: globalDownloadQuality,
       source: 'environment',
     }),
     users: store.users.map((user) => withPresence({
       username: user.username,
       role: 'user',
       downloadsEnabled: user.downloadsEnabled !== false,
+      downloadQuality: getManagedUserDownloadQualityOverride(user),
+      effectiveDownloadQuality: getEffectiveManagedUserDownloadQuality(user, globalDownloadQuality),
       createdAt: user.createdAt || '',
     })),
   };
@@ -1504,6 +1567,10 @@ async function createManagedUser(request) {
   if (!username) throw new HttpError(400, 'Username is required.');
   if (username === config.adminUsername) throw new HttpError(400, 'That username is reserved for the environment admin.');
   if (password.length < 6) throw new HttpError(400, 'Password must be at least 6 characters.');
+  const hasDownloadQuality = Object.hasOwn(payload, 'downloadQuality');
+  const downloadQuality = hasDownloadQuality
+    ? parseManagedUserDownloadQuality(payload.downloadQuality)
+    : undefined;
 
   const store = await readAuthStore();
   const existing = store.users.find((user) => user.username === username);
@@ -1513,6 +1580,9 @@ async function createManagedUser(request) {
   };
   user.passwordHash = hashPassword(password);
   user.downloadsEnabled = payload.downloadsEnabled !== false;
+  if (hasDownloadQuality) {
+    setManagedUserDownloadQuality(user, downloadQuality);
+  }
   if (!existing) store.users.push(user);
   await writeAuthStore(store);
   return getAdminUsersPayload();
@@ -1521,6 +1591,14 @@ async function createManagedUser(request) {
 async function updateManagedUser(username, request) {
   const normalizedUsername = normalizeUsername(username);
   const payload = await readRequestJson(request, 64 * 1024);
+  const password = payload.password ? String(payload.password) : '';
+  if (password && password.length < 6) {
+    throw new HttpError(400, 'Password must be at least 6 characters.');
+  }
+  const hasDownloadQuality = Object.hasOwn(payload, 'downloadQuality');
+  const downloadQuality = hasDownloadQuality
+    ? parseManagedUserDownloadQuality(payload.downloadQuality)
+    : undefined;
   const store = await readAuthStore();
   const user = store.users.find((candidate) => candidate.username === normalizedUsername);
   if (!user) throw new HttpError(404, 'User not found.');
@@ -1528,9 +1606,10 @@ async function updateManagedUser(username, request) {
   if (typeof payload.downloadsEnabled === 'boolean') {
     user.downloadsEnabled = payload.downloadsEnabled;
   }
-  if (payload.password) {
-    const password = String(payload.password || '');
-    if (password.length < 6) throw new HttpError(400, 'Password must be at least 6 characters.');
+  if (hasDownloadQuality) {
+    setManagedUserDownloadQuality(user, downloadQuality);
+  }
+  if (password) {
     user.passwordHash = hashPassword(password);
   }
   await writeAuthStore(store);
@@ -1685,6 +1764,19 @@ function mapPlaylistDatabaseError(error) {
 async function getDownloadSettings() {
   const store = await readAuthStore();
   return normalizeDownloadSettings(store.downloadSettings);
+}
+
+function parseManagedUserDownloadQuality(value) {
+  try {
+    return parseManagedUserDownloadQualityValue(value);
+  } catch {
+    throw new HttpError(400, 'Invalid download quality.');
+  }
+}
+
+function setManagedUserDownloadQuality(user, value) {
+  if (value == null) delete user.downloadQuality;
+  else user.downloadQuality = value;
 }
 
 function getAccessSettings() {
@@ -3256,17 +3348,70 @@ async function createLibraryPayload(library) {
   };
 }
 
-async function serveAlbumSharePage(request, response, albumId, { headOnly = false } = {}) {
+let albumShareStoreWrite = Promise.resolve();
+
+async function createAlbumShareLink(request, response, albumId, authUser) {
+  const body = await readRequestJson(request, 16 * 1024);
+  const expiresInHours = parseAlbumShareDurationHours(body?.expiresInHours);
+  if (!expiresInHours) {
+    throw new HttpError(400, 'Album share duration must be a whole number from 1 to 720 hours.');
+  }
+
+  const library = await readSharedAlbumLibrary(albumId);
+  if (!library.albums?.some((album) => album.id === albumId)) {
+    throw new HttpError(404, 'Album not found.');
+  }
+
+  const token = randomBytes(32).toString('base64url');
+  const createdAt = Date.now();
+  const expiresAt = createdAt + (expiresInHours * 60 * 60 * 1000);
+  await appendAlbumShareRecord({
+    tokenHash: hashAlbumShareToken(token),
+    albumId,
+    createdBy: authUser.username,
+    createdAt,
+    expiresAt,
+  });
+
+  const shareUrl = new URL(getAlbumSharePath(token), getPublicRequestOrigin(request));
+  return respondJson(response, 201, {
+    url: shareUrl.toString(),
+    expiresAt: new Date(expiresAt).toISOString(),
+  });
+}
+
+async function serveAlbumSharePage(request, response, token, { headOnly = false } = {}) {
+  const resolution = await resolveStoredAlbumShare(token);
+  if (resolution.status === 'expired') {
+    return respondHtml(response, 410, createAlbumShareUnavailablePage({
+      siteTitle: config.title,
+      title: 'Album link expired',
+      message: 'This album link has expired. Ask the sender to create a new one.',
+    }), { headOnly });
+  }
+  if (resolution.status !== 'active') {
+    return respondHtml(response, 404, createAlbumShareUnavailablePage({
+      siteTitle: config.title,
+      title: 'Album unavailable',
+      message: 'This shared album link is invalid or no longer available.',
+    }), { headOnly });
+  }
+
+  const { albumId, expiresAt } = resolution.share;
   const library = await readSharedAlbumLibrary(albumId, { includeTracks: true });
   const payload = await createLibraryPayload(library);
   const album = payload.albums.find((candidate) => candidate.id === albumId);
   if (!album) {
-    return respondHtml(response, 404, createSimplePage('Album not found', 'This album is no longer available.'));
+    return respondHtml(response, 404, createAlbumShareUnavailablePage({
+      siteTitle: config.title,
+      title: 'Album unavailable',
+      message: 'This shared album is no longer available.',
+    }), { headOnly });
   }
 
   const origin = getPublicRequestOrigin(request);
-  const canonicalUrl = new URL(getAlbumSharePath(albumId), origin).toString();
-  const shareBasePath = getAlbumSharePath(albumId);
+  const canonicalUrl = new URL(getAlbumSharePath(token), origin).toString();
+  const shareBasePath = getAlbumSharePath(token);
   const coverPath = `${shareBasePath}/cover?size=${COVER_CACHE_MAX_SIZE}`;
   const imageUrl = coverPath ? new URL(coverPath, origin).toString() : '';
   const sharedTracks = payload.tracks
@@ -3304,6 +3449,7 @@ async function serveAlbumSharePage(request, response, albumId, { headOnly = fals
       tracks: sharedTracks,
       guest: true,
       downloadsEnabled: false,
+      expiresAt: new Date(expiresAt).toISOString(),
     },
   });
   return respondHtml(response, 200, html, { headOnly });
@@ -3317,7 +3463,15 @@ async function readSharedAlbumLibrary(albumId, { includeTracks = false } = {}) {
   }));
 }
 
-async function streamSharedAlbumCover(response, albumId, url) {
+async function streamSharedAlbumCover(response, token, url) {
+  const resolution = await resolveStoredAlbumShare(token);
+  if (resolution.status === 'expired') {
+    return respondJson(response, 410, { error: 'Album share link expired' });
+  }
+  if (resolution.status !== 'active') {
+    return respondJson(response, 404, { error: 'Shared album not found' });
+  }
+  const { albumId } = resolution.share;
   const library = await readSharedAlbumLibrary(albumId);
   if (!library.albums?.some((album) => album.id === albumId)) {
     return respondJson(response, 404, { error: 'Shared album not found' });
@@ -3334,7 +3488,15 @@ async function streamSharedAlbumCover(response, albumId, url) {
   return streamAlbumCover(response, albumId, url);
 }
 
-async function streamSharedAlbumTrack(response, albumId, trackId, rangeHeader) {
+async function streamSharedAlbumTrack(response, token, trackId, rangeHeader) {
+  const resolution = await resolveStoredAlbumShare(token);
+  if (resolution.status === 'expired') {
+    return respondJson(response, 410, { error: 'Album share link expired' });
+  }
+  if (resolution.status !== 'active') {
+    return respondJson(response, 404, { error: 'Shared track not found' });
+  }
+  const { albumId } = resolution.share;
   const library = await readSharedAlbumLibrary(albumId, { includeTracks: true });
   const albumExists = library.albums?.some((album) => album.id === albumId);
   const trackBelongsToAlbum = library.tracks?.some((track) => track.id === trackId);
@@ -3342,6 +3504,54 @@ async function streamSharedAlbumTrack(response, albumId, trackId, rangeHeader) {
     return respondJson(response, 404, { error: 'Shared track not found' });
   }
   return streamTrack(response, trackId, rangeHeader, 'original');
+}
+
+async function readAlbumShareStore() {
+  if (!albumSharesPath || !existsSync(albumSharesPath)) return normalizeAlbumShareStore({});
+  try {
+    return normalizeAlbumShareStore(JSON.parse(await fs.readFile(albumSharesPath, 'utf8')));
+  } catch (error) {
+    console.warn(`Unable to read album shares from ${albumSharesPath}:`, error.message);
+    return normalizeAlbumShareStore({});
+  }
+}
+
+async function writeAlbumShareStore(store) {
+  if (!albumSharesPath) return;
+  await fs.mkdir(path.dirname(albumSharesPath), { recursive: true });
+  const temporaryPath = `${albumSharesPath}.${randomBytes(6).toString('hex')}.tmp`;
+  await fs.writeFile(temporaryPath, `${JSON.stringify(normalizeAlbumShareStore(store), null, 2)}\n`, 'utf8');
+  await fs.rename(temporaryPath, albumSharesPath);
+}
+
+function queueAlbumShareStoreWrite(operation) {
+  const pending = albumShareStoreWrite.then(operation, operation);
+  albumShareStoreWrite = pending.catch(() => {});
+  return pending;
+}
+
+async function appendAlbumShareRecord(record) {
+  return queueAlbumShareStoreWrite(async () => {
+    const { store } = removeExpiredAlbumShares(await readAlbumShareStore());
+    store.shares.push(record);
+    await writeAlbumShareStore(store);
+  });
+}
+
+async function resolveStoredAlbumShare(token) {
+  await albumShareStoreWrite;
+  const store = await readAlbumShareStore();
+  const resolution = resolveAlbumShare(store, token);
+  const { changed } = removeExpiredAlbumShares(store);
+  if (changed) {
+    await queueAlbumShareStoreWrite(async () => {
+      const { store: latestPrunedStore, changed: latestChanged } = removeExpiredAlbumShares(
+        await readAlbumShareStore(),
+      );
+      if (latestChanged) await writeAlbumShareStore(latestPrunedStore);
+    });
+  }
+  return resolution;
 }
 
 function getPublicRequestOrigin(request) {
@@ -3971,8 +4181,12 @@ async function downloadTrack(response, request, trackId, authUser) {
   }
 
   const payload = await readRequestPayload(request, 64 * 1024);
-  const quality = normalizeDownloadQuality(payload.quality);
-  const requestedName = sanitizeDownloadFilename(payload.filename);
+  const quality = resolveRequestedDownloadQuality(authUser, payload.quality);
+  const requestedName = enforceTrackDownloadFilenameExtension(
+    track,
+    sanitizeDownloadFilename(payload.filename),
+    quality,
+  );
 
   if (shouldUseDownloadTranscode(track, quality)) {
     if (!await isFfmpegAvailable()) {
@@ -3990,7 +4204,7 @@ async function downloadTrack(response, request, trackId, authUser) {
 
 async function downloadBulkTracks(response, request, authUser) {
   const payload = await readRequestPayload(request, 2_000_000);
-  const quality = normalizeDownloadQuality(payload.quality);
+  const quality = resolveRequestedDownloadQuality(authUser, payload.quality);
   const trackRequests = normalizeBulkTrackRequests(payload.tracks || payload.trackIds);
 
   if (trackRequests.length === 0) {
@@ -6501,6 +6715,18 @@ function respondHtml(response, statusCode, html, { headOnly = false } = {}) {
     'Cache-Control': 'no-store',
   });
   response.end(headOnly ? undefined : html);
+}
+
+function enforceTrackDownloadFilenameExtension(track, requestedName, quality) {
+  if (!requestedName) return '';
+  const profile = shouldUseDownloadTranscode(track, quality)
+    ? getDownloadTranscodeProfile(quality)
+    : null;
+  const extension = profile?.extension
+    || path.extname(track.relativePath || track.path)
+    || '.audio';
+  const requestedBase = requestedName.replace(/\.[^.]+$/u, '');
+  return `${sanitizeDownloadFilename(requestedBase) || 'track'}${extension}`;
 }
 
 function redirect(response, location) {

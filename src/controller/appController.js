@@ -92,7 +92,6 @@ import * as librarySelectors from './librarySelectors.js';
 import {
   createBrowseRoute,
   getAlbumHash,
-  getAlbumShareUrl,
   getArtistHash,
   getCollectionHash,
   getFullscreenReturnHash,
@@ -280,6 +279,8 @@ const {
   collectionCoverModal,
   playlistDialogOverlay,
   playlistDialogModal,
+  albumShareDialogOverlay,
+  albumShareDialogModal,
 } = getDomRefs();
 
 let audioPlayer = initialAudioPlayer;
@@ -292,7 +293,6 @@ const PLAYBACK_PRESENCE_INTERVAL_MS = 20 * 1000;
 let queuePanelStore = null;
 let playerStore = null;
 let settingsPanelStore = null;
-let albumShareCopiedTimer = 0;
 let downloadStatusRoot = null;
 let downloadStatusTimer = 0;
 const albumTrackHydrationRequests = new Map();
@@ -769,6 +769,7 @@ function bindEvents() {
   artistEditorOverlay.addEventListener('click', closeArtistEditor);
   collectionCoverOverlay.addEventListener('click', closeCollectionCoverEditor);
   playlistDialogOverlay.addEventListener('click', closePlaylistDialog);
+  albumShareDialogOverlay.addEventListener('click', closeAlbumShareDialog);
   queueDownloadButton.addEventListener('click', () => {
     downloadQueueTracks().catch((error) => console.error(error));
   });
@@ -784,6 +785,10 @@ function bindEvents() {
   queueClearButton.addEventListener('click', clearQueue);
 
   window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && state.albumShareDialogAlbumId) {
+      closeAlbumShareDialog();
+      return;
+    }
     if (event.key === 'Escape' && state.artistEditorName) {
       closeArtistEditor();
       return;
@@ -2390,14 +2395,24 @@ function applyServerConfig(config = {}) {
 
 async function logoutCurrentSession() {
   const headers = new Headers();
+  headers.set('Accept', 'application/json');
   if (state.csrfToken) headers.set('X-CSRF-Token', state.csrfToken);
-  await fetch('/logout', {
+  const response = await fetch('/logout', {
     method: 'POST',
     cache: 'no-store',
     credentials: 'same-origin',
     headers,
   });
-  window.location.assign('/#login');
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || 'Unable to log out.');
+  }
+  state.currentUser = null;
+  state.canDownload = false;
+  state.csrfToken = '';
+  setCsrfToken('');
+  window.history.replaceState(null, '', getLoginRoutePath('/'));
+  window.location.reload();
 }
 
 function navigateToView(view, { preserveResultSearch = false } = {}) {
@@ -2452,21 +2467,47 @@ function returnToBrowseView() {
   navigateToView(state.browseView, { preserveResultSearch: true });
 }
 
-async function shareAlbumLink(albumId) {
-  if (!state.albumMap.has(albumId)) return;
-  const url = getAlbumShareUrl(albumId, window.location);
-  await copyTextToClipboard(url);
+function openAlbumShareDialog(albumId) {
+  if (!isCurrentUserAdmin() || !state.albumMap.has(albumId)) return;
+  state.albumShareDialogAlbumId = albumId;
+  state.albumShareDialogRenderKey += 1;
+  renderAlbumShareDialog();
+  albumShareDialogModal.hidden = false;
+  albumShareDialogOverlay.hidden = false;
+}
 
-  state.albumShareCopiedAlbumId = albumId;
-  render();
-  if (albumShareCopiedTimer) window.clearTimeout(albumShareCopiedTimer);
-  albumShareCopiedTimer = window.setTimeout(() => {
-    if (state.albumShareCopiedAlbumId === albumId) {
-      state.albumShareCopiedAlbumId = '';
-      render();
-    }
-    albumShareCopiedTimer = 0;
-  }, 2000);
+function closeAlbumShareDialog() {
+  state.albumShareDialogAlbumId = '';
+  albumShareDialogModal.hidden = true;
+  albumShareDialogOverlay.hidden = true;
+  unmountReact(albumShareDialogModal);
+}
+
+function renderAlbumShareDialog() {
+  const album = state.albumMap.get(state.albumShareDialogAlbumId);
+  if (!album) return;
+  renderReact('renderAlbumShareDialog', albumShareDialogModal, {
+    renderKey: state.albumShareDialogRenderKey,
+    albumTitle: album.title,
+    onClose: closeAlbumShareDialog,
+    onGenerate: createTimedAlbumShareLink,
+  });
+}
+
+async function createTimedAlbumShareLink(expiresInHours) {
+  const albumId = state.albumShareDialogAlbumId;
+  if (!isCurrentUserAdmin() || !albumId) throw new Error('Admin access required.');
+  const result = await fetchJson(`/api/albums/${encodeURIComponent(albumId)}/share`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expiresInHours }),
+  });
+  try {
+    await copyTextToClipboard(result.url);
+    return { ...result, copied: true };
+  } catch {
+    return { ...result, copied: false };
+  }
 }
 
 async function copyTextToClipboard(text) {
@@ -2930,6 +2971,7 @@ function publishSettingsSnapshot(tab = state.settingsTab) {
       libraryFolders: state.libraryFolders,
       pendingLibraryFolders: state.pendingLibraryFolders,
       libraryTotals: state.libraryTotals,
+      downloadQualityLocked: state.currentUser?.downloadQualityLocked === true,
     }),
   });
 }
@@ -3211,8 +3253,12 @@ async function refreshScanStatus() {
   try {
     const config = await fetchJson('/api/config');
     const previousGeneratedAt = state.generatedAt;
+    const previousDownloadQuality = state.settings.downloadQuality;
+    const previousDownloadQualityLocked = state.currentUser?.downloadQualityLocked === true;
     const scan = config.scan || {};
-    state.title = config.title || state.title;
+    applyServerConfig(config);
+    const downloadPolicyChanged = previousDownloadQuality !== state.settings.downloadQuality
+      || previousDownloadQualityLocked !== (state.currentUser?.downloadQualityLocked === true);
     state.libraryFolders = {
       ...(state.libraryFolders || {}),
       scan,
@@ -3234,7 +3280,7 @@ async function refreshScanStatus() {
       sanitizeStoredFavorites();
       render();
       updatePlayerUi();
-    } else if (state.settingsTab === 'system') {
+    } else if (state.settingsTab === 'system' || (state.settingsTab === 'downloads' && downloadPolicyChanged)) {
       renderSettingsView();
     }
 
@@ -4894,9 +4940,7 @@ function renderAlbumDetail(album) {
     onDownloadAlbum: (albumId) => {
       downloadAlbumTracks(albumId).catch((error) => console.error(error));
     },
-    onShareAlbum: (albumId) => {
-      shareAlbumLink(albumId).catch((error) => console.error(error));
-    },
+    onShareAlbum: isCurrentUserAdmin() ? openAlbumShareDialog : null,
     onEditAlbum: isCurrentUserAdmin() ? (albumId) => {
       const selectedAlbum = state.albumMap.get(albumId);
       if (selectedAlbum) openTagEditor(selectedAlbum).catch((error) => console.error(error));

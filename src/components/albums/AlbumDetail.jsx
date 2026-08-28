@@ -148,16 +148,18 @@ export function AlbumDetail({
                 )}
                 <span className="album-action-label">{downloadBusy ? 'Downloading' : 'Download'}</span>
               </button>
-              <button
-                className={`secondary-button ${albumActionButtonClassName}`}
-                type="button"
-                aria-label={shareCopied ? 'Album link copied' : 'Share album link'}
-                title={shareCopied ? 'Album link copied' : 'Share album link'}
-                onClick={() => onShareAlbum?.(album.id)}
-              >
-                <i className={`fa-solid fa-link ${albumActionIconClassName}`} aria-hidden="true"></i>
-                <span className="album-action-label">{shareCopied ? 'Copied' : 'Share'}</span>
-              </button>
+              {onShareAlbum ? (
+                <button
+                  className={`secondary-button ${albumActionButtonClassName}`}
+                  type="button"
+                  aria-label={shareCopied ? 'Album link copied' : 'Share album link'}
+                  title={shareCopied ? 'Album link copied' : 'Share album link'}
+                  onClick={() => onShareAlbum(album.id)}
+                >
+                  <i className={`fa-solid fa-link ${albumActionIconClassName}`} aria-hidden="true"></i>
+                  <span className="album-action-label">{shareCopied ? 'Copied' : 'Share'}</span>
+                </button>
+              ) : null}
               {onEditAlbum ? (
                 <button
                   className="icon-button album-edit-button"

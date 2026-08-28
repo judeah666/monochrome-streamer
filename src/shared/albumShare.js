@@ -1,5 +1,5 @@
-export function getAlbumSharePath(albumId) {
-  return `/share/album/${encodeURIComponent(String(albumId || ''))}`;
+export function getAlbumSharePath(token) {
+  return `/share/album/${encodeURIComponent(String(token || ''))}`;
 }
 
 export function createAlbumSharePage({
@@ -48,6 +48,31 @@ export function createAlbumSharePage({
 <body>
   <div id="share-root"><p class="share-loading">Loading shared album…</p></div>
   <script type="module" src="/react/share.js"></script>
+</body>
+</html>`;
+}
+
+export function createAlbumShareUnavailablePage({
+  siteTitle = 'Monochrome-Streamer',
+  title = 'Album unavailable',
+  message = 'This shared album is no longer available.',
+} = {}) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(title)} | ${escapeHtml(siteTitle)}</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="/share.css">
+</head>
+<body>
+  <main class="share-empty share-unavailable">
+    <span class="share-brand-disc" aria-hidden="true"></span>
+    <p class="share-eyebrow">${escapeHtml(siteTitle)}</p>
+    <h1>${escapeHtml(title)}</h1>
+    <p>${escapeHtml(message)}</p>
+  </main>
 </body>
 </html>`;
 }

@@ -1,5 +1,3 @@
-import { getAlbumSharePath } from '../shared/albumShare.js';
-
 export const BROWSE_VIEWS = new Set(['home', 'library', 'collections', 'playlists', 'favorites', 'wishlist', 'settings', 'admin', 'login']);
 const PLAYING_HASHES = new Set(['playing', 'fullscreen']);
 
@@ -91,20 +89,6 @@ export function createBrowseRoute(view) {
 
 export function getAlbumHash(albumId) {
   return `album/${encodeURIComponent(albumId)}`;
-}
-
-export function getAlbumShareUrl(albumId, locationLike = globalThis.location) {
-  const sharePath = getAlbumSharePath(albumId);
-  try {
-    const url = new URL(String(locationLike?.href || '/'));
-    url.pathname = sharePath;
-    url.search = '';
-    url.hash = '';
-    return url.toString();
-  } catch {
-    const origin = String(locationLike?.origin || '').replace(/\/$/u, '');
-    return `${origin}${sharePath}`;
-  }
 }
 
 export function getArtistHash(artistName) {

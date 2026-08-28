@@ -56,3 +56,17 @@ test('admin users show presence, now playing, and on-demand download history', a
   assert.match(serverSource, /downloadTrack\(response, request, decodeURIComponent\(downloadMatch\[1\]\), authUser\)/u);
   assert.match(serverSource, /recordUserDownload\(authUser/u);
 });
+
+test('admin users expose inheritable per-user download quality', async () => {
+  const adminSource = await readFile(new URL('../src/react/admin.jsx', import.meta.url), 'utf8');
+  const serverSource = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
+  const userSettingsSource = await readFile(new URL('../src/components/settings/RemainingSettings.jsx', import.meta.url), 'utf8');
+
+  assert.match(adminSource, /name="downloadQuality"[\s\S]*Use global default/u);
+  assert.match(adminSource, /updateDownloadQuality[\s\S]*downloadQuality \|\| null/u);
+  assert.match(serverSource, /resolveRequestedDownloadQuality\(authUser, payload\.quality\)/u);
+  assert.match(serverSource, /enforceTrackDownloadFilenameExtension/u);
+  assert.match(serverSource, /downloadQualityLocked: true/u);
+  assert.match(userSettingsSource, /disabled=\{downloadQualityLocked\}/u);
+  assert.match(userSettingsSource, /controlled by your administrator/u);
+});

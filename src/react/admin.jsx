@@ -179,15 +179,21 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
 
   async function logout() {
     const headers = new Headers();
+    headers.set('Accept', 'application/json');
     const csrfToken = getCsrfToken();
     if (csrfToken) headers.set('X-CSRF-Token', csrfToken);
-    await fetch('/logout', {
+    const response = await fetch('/logout', {
       method: 'POST',
       cache: 'no-store',
       credentials: 'same-origin',
       headers,
     });
-    window.location.assign('/#login');
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error || 'Unable to log out.');
+    }
+    window.history.replaceState(null, '', '/#login?next=%2F');
+    window.location.reload();
   }
 
   async function saveSelectedFolders({ scanMode = null, scanFolders = [] } = {}) {
@@ -429,6 +435,7 @@ function UsersPanel({ users, onUsersChanged, setStatus }) {
         username: form.get('username'),
         password: form.get('password'),
         downloadsEnabled: form.get('downloadsEnabled') === 'true',
+        downloadQuality: form.get('downloadQuality') || null,
       }),
     });
     formElement.reset();
@@ -452,6 +459,15 @@ function UsersPanel({ users, onUsersChanged, setStatus }) {
     const updatedUsers = await api(`/api/admin/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
     onUsersChanged(updatedUsers);
     setStatus('User deleted.');
+  }
+
+  async function updateDownloadQuality(username, downloadQuality) {
+    const updatedUsers = await api(`/api/admin/users/${encodeURIComponent(username)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ downloadQuality: downloadQuality || null }),
+    });
+    onUsersChanged(updatedUsers);
+    setStatus('Download quality updated.');
   }
 
   async function toggleDownloadHistory(username) {
@@ -483,7 +499,7 @@ function UsersPanel({ users, onUsersChanged, setStatus }) {
   ];
 
   return (
-    <PanelGroup title="Users" description="Manage accounts, see who is online and playing, and review the last 30 days of downloads.">
+    <PanelGroup title="Users" description="Manage accounts, download permission and quality, online activity, and 30-day download history.">
       <form className="admin-form" onSubmit={onSubmit}>
         <label className={settingsFieldClassName}>
           <span>Username</span>
@@ -500,6 +516,15 @@ function UsersPanel({ users, onUsersChanged, setStatus }) {
             <option value="false">Disabled</option>
           </select>
         </label>
+        <label className={settingsFieldClassName}>
+          <span>Download Quality</span>
+          <select name="downloadQuality" defaultValue="">
+            <option value="">Use global default</option>
+            {DOWNLOAD_QUALITY_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </label>
         <div className={settingsActionsClassName}>
           <button className="primary-button" type="submit">Add / Update User</button>
         </div>
@@ -513,6 +538,7 @@ function UsersPanel({ users, onUsersChanged, setStatus }) {
               <th>Role</th>
               <th>Now playing</th>
               <th>Downloads</th>
+              <th>Download quality</th>
               <th>History</th>
               <th>Action</th>
             </tr>
@@ -552,6 +578,20 @@ function UsersPanel({ users, onUsersChanged, setStatus }) {
                     ) : 'Enabled'}
                   </td>
                   <td>
+                    {user.managed ? (
+                      <select
+                        aria-label={`Download quality for ${user.username}`}
+                        value={user.downloadQuality || ''}
+                        onChange={(event) => updateDownloadQuality(user.username, event.target.value)}
+                      >
+                        <option value="">Use global default ({getDownloadQualityLabel(user.effectiveDownloadQuality)})</option>
+                        {DOWNLOAD_QUALITY_OPTIONS.map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                    ) : getDownloadQualityLabel(user.effectiveDownloadQuality)}
+                  </td>
+                  <td>
                     <button className="secondary-button" type="button" onClick={() => toggleDownloadHistory(user.username)}>
                       {historyLoadingUser === user.username
                         ? 'Loading...'
@@ -566,7 +606,7 @@ function UsersPanel({ users, onUsersChanged, setStatus }) {
                 </tr>
                 {expandedHistoryUser === user.username ? (
                   <tr>
-                    <td colSpan="7">
+                    <td colSpan="8">
                       <DownloadHistoryTable
                         downloads={historyByUser[user.username] || []}
                         loading={historyLoadingUser === user.username}
@@ -640,7 +680,7 @@ function DownloadsPanel({ settings, onSaved, setStatus }) {
   }
 
   return (
-    <PanelGroup title="Downloads" description="Keep original files or convert them to a selected download profile.">
+    <PanelGroup title="Downloads" description="Set the global defaults inherited by managed users without an override.">
       <form className="admin-form" onSubmit={onSubmit}>
         <label className={settingsFieldClassName}>
           <span>Download Quality</span>

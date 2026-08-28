@@ -25,6 +25,7 @@ import { AdminSettingsPanel } from '../react/admin.jsx';
 import { FolderBrowser } from '../components/library/FolderBrowser.jsx';
 import { PlaylistBrowser } from '../components/library/PlaylistBrowser.jsx';
 import { PlaylistDialog } from '../components/playlists/PlaylistDialog.jsx';
+import { AlbumShareDialog } from '../components/albums/AlbumShareDialog.jsx';
 import { FullscreenLyrics } from '../pages/FullscreenLyrics.jsx';
 import { Sidebar } from '../components/navigation/Sidebar.jsx';
 import { Topbar } from '../components/navigation/Topbar.jsx';
@@ -106,6 +107,8 @@ export function installMonochromeReactBridge(targetWindow = window) {
     renderReactRoot(container, <FullscreenLyrics key={props.renderKey} {...props} />, { sync: true });
   bridge.renderPlaylistDialog = (container, props) =>
     renderReactRoot(container, <PlaylistDialog key={props.renderKey} {...props} />, { sync: true });
+  bridge.renderAlbumShareDialog = (container, props) =>
+    renderReactRoot(container, <AlbumShareDialog key={props.renderKey} {...props} />, { sync: true });
   bridge.renderDownloadStatusToast = (container, props) =>
     renderReactRoot(container, <DownloadStatusToast {...props} />, { sync: true });
   bridge.renderIconHtml = (container, props) =>

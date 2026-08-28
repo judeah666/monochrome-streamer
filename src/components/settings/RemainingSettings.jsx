@@ -83,18 +83,25 @@ export function AudioSettings({
   );
 }
 
-export function DownloadSettings({ settings, downloadQualityOptions = [], bulkDownloadOptions = [] }) {
+export function DownloadSettings({
+  settings,
+  downloadQualityOptions = [],
+  bulkDownloadOptions = [],
+  downloadQualityLocked = false,
+}) {
   return (
     <SettingsGroup title="Downloads" description="Keep original files or convert them to a selected download profile.">
       <label className={settingsFieldClassName}>
         <span>Download Quality</span>
-        <select data-setting="downloadQuality" defaultValue={settings.downloadQuality}>
+        <select data-setting="downloadQuality" defaultValue={settings.downloadQuality} disabled={downloadQualityLocked}>
           {downloadQualityOptions.map(([value, label]) => (
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
       </label>
-      <p className={settingsHelpClassName}>CD Quality converts only audio above 16-bit to 16-bit / 44.1 KHz FLAC. Existing 16-bit and lossy files stay original. MP3 profiles are converted server-side with ffmpeg. Playback is unchanged.</p>
+      <p className={settingsHelpClassName}>{downloadQualityLocked
+        ? 'Download quality is controlled by your administrator.'
+        : 'CD Quality converts only audio above 16-bit to 16-bit / 44.1 KHz FLAC. Existing 16-bit and lossy files stay original. MP3 profiles are converted server-side with ffmpeg. Playback is unchanged.'}</p>
       <label className={settingsFieldClassName}>
         <span>Bulk Download Method</span>
         <select data-setting="bulkDownloadMethod" defaultValue={settings.bulkDownloadMethod}>
