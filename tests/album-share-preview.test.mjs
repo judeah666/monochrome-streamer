@@ -47,6 +47,7 @@ test('isolated share UI exposes playback without download or app navigation cont
 
   assert.match(shareSource, /Guest listening · Downloads off/u);
   assert.match(shareSource, /controlsList="nodownload noplaybackrate"/u);
+  assert.match(shareSource, /prepareNextTrack[\s\S]*warmDecoder[\s\S]*promotePreparedTrack/u);
   assert.match(shareSource, /className="share-player"/u);
   assert.match(shareSource, /className="share-player-track"[\s\S]*className="share-player-controls"[\s\S]*className="share-progress"[\s\S]*className="share-transport"[\s\S]*className="share-player-actions"/u);
   assert.match(shareSource, /type="button" disabled aria-label="Downloads disabled"/u);

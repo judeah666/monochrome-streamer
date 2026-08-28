@@ -3,9 +3,10 @@ import { clamp } from './utils.js';
 export function configureBackgroundAudioPlayback({
   audioPlayer,
   navigatorRef = globalThis.navigator,
+  preload = 'metadata',
 } = {}) {
   if (audioPlayer) {
-    audioPlayer.preload = 'metadata';
+    audioPlayer.preload = preload;
     audioPlayer.playsInline = true;
     audioPlayer.setAttribute?.('playsinline', '');
   }
@@ -21,6 +22,7 @@ export function configureBackgroundAudioPlayback({
 
 export function setupMediaSessionActions({
   audioPlayer,
+  getAudioPlayer = () => audioPlayer,
   hasCurrentTrack,
   onPreviousTrack,
   onNextTrack,
@@ -32,9 +34,9 @@ export function setupMediaSessionActions({
 
   const actionHandlers = {
     play: () => {
-      if (hasCurrentTrack?.()) audioPlayer.play().catch(onError);
+      if (hasCurrentTrack?.()) getAudioPlayer()?.play().catch(onError);
     },
-    pause: () => audioPlayer.pause(),
+    pause: () => getAudioPlayer()?.pause(),
     previoustrack: () => onPreviousTrack?.(),
     nexttrack: () => onNextTrack?.(),
     seekbackward: (details) => {

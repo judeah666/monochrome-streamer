@@ -46,6 +46,7 @@ export function seekFromProgressBar({
 
 export function bindSeekControl(bar, {
   audioPlayer,
+  getAudioPlayer = () => audioPlayer,
   onProgress,
   onPersist,
 }) {
@@ -54,7 +55,7 @@ export function bindSeekControl(bar, {
   const updateFromPointer = (event, { persist = true } = {}) => {
     event.preventDefault?.();
     seekFromProgressBar({
-      audioPlayer,
+      audioPlayer: getAudioPlayer(),
       event,
       bar,
       onProgress,

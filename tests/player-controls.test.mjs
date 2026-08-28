@@ -99,6 +99,29 @@ test('bindSeekControl updates while dragging and persists once on release', () =
   assert.equal(persisted, 1);
 });
 
+test('bindSeekControl follows a replacement active audio player', () => {
+  const listeners = new Map();
+  const firstPlayer = { currentTime: 0, duration: 100 };
+  const replacementPlayer = { currentTime: 0, duration: 200 };
+  let activePlayer = firstPlayer;
+  const bar = {
+    getBoundingClientRect: () => ({ left: 0, width: 100 }),
+    setPointerCapture: () => {},
+    addEventListener: (eventName, handler) => listeners.set(eventName, handler),
+    removeEventListener: (eventName) => listeners.delete(eventName),
+  };
+
+  bindSeekControl(bar, {
+    audioPlayer: firstPlayer,
+    getAudioPlayer: () => activePlayer,
+  });
+  activePlayer = replacementPlayer;
+  listeners.get('click')({ clientX: 50, preventDefault: () => {} });
+
+  assert.equal(firstPlayer.currentTime, 0);
+  assert.equal(replacementPlayer.currentTime, 100);
+});
+
 test('volume state clamps values and preserves last non-zero volume', () => {
   assert.deepEqual(getNextVolumeState({ volume: 0.5, lastVolume: 0.5 }, 1.5), {
     volume: 1,

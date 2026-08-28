@@ -19,7 +19,9 @@ function Icon({ name }) {
 }
 
 function SharedAlbumPage() {
-  const audioRef = useRef(null);
+  const audioPlayersRef = useRef([null, null]);
+  const activeAudioSlotRef = useRef(0);
+  const preparedTrackRef = useRef(null);
   const [trackIndex, setTrackIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -30,15 +32,101 @@ function SharedAlbumPage() {
   const [repeatMode, setRepeatMode] = useState('off');
   const currentTrack = tracks[trackIndex] || null;
 
+  const getActiveAudio = () => audioPlayersRef.current[activeAudioSlotRef.current];
+
+  function clearPreparedTrack() {
+    const prepared = preparedTrackRef.current;
+    if (!prepared) return;
+    prepared.promoted = true;
+    prepared.audio.removeEventListener('canplay', prepared.warmDecoder);
+    prepared.audio.pause();
+    prepared.audio.muted = false;
+    prepared.audio.removeAttribute('src');
+    prepared.audio.load();
+    preparedTrackRef.current = null;
+  }
+
+  function getNextTrackIndex() {
+    if (repeatMode === 'one') return -1;
+    if (shuffle && tracks.length > 1) return getShuffledIndex(trackIndex);
+    if (trackIndex < tracks.length - 1) return trackIndex + 1;
+    return repeatMode === 'all' ? 0 : -1;
+  }
+
+  function prepareNextTrack(audio) {
+    const remaining = (Number(audio.duration) || 0) - (Number(audio.currentTime) || 0);
+    if (remaining > 8 || remaining < 0) return;
+    const nextIndex = getNextTrackIndex();
+    if (nextIndex < 0) {
+      clearPreparedTrack();
+      return;
+    }
+    if (preparedTrackRef.current?.trackIndex === nextIndex) return;
+    clearPreparedTrack();
+
+    const slot = activeAudioSlotRef.current === 0 ? 1 : 0;
+    const preloadAudio = audioPlayersRef.current[slot];
+    if (!preloadAudio) return;
+    const prepared = { audio: preloadAudio, promoted: false, slot, trackIndex: nextIndex, warmDecoder: null };
+    preparedTrackRef.current = prepared;
+    preloadAudio.preload = 'auto';
+    preloadAudio.src = tracks[nextIndex].streamUrl;
+    preloadAudio.load();
+    prepared.warmDecoder = () => {
+      if (prepared !== preparedTrackRef.current || prepared.promoted) return;
+      preloadAudio.muted = true;
+      preloadAudio.play().then(() => {
+        if (prepared.promoted || prepared !== preparedTrackRef.current) return;
+        preloadAudio.pause();
+        preloadAudio.currentTime = 0;
+        preloadAudio.muted = false;
+      }).catch(() => {
+        preloadAudio.muted = false;
+      });
+    };
+    if (preloadAudio.readyState >= 3) prepared.warmDecoder();
+    else preloadAudio.addEventListener('canplay', prepared.warmDecoder, { once: true });
+  }
+
+  function promotePreparedTrack() {
+    const prepared = preparedTrackRef.current;
+    if (!prepared) return false;
+    const previousAudio = getActiveAudio();
+    preparedTrackRef.current = null;
+    prepared.promoted = true;
+    prepared.audio.removeEventListener('canplay', prepared.warmDecoder);
+    prepared.audio.muted = false;
+    prepared.audio.volume = volume;
+    activeAudioSlotRef.current = prepared.slot;
+    setTrackIndex(prepared.trackIndex);
+    setCurrentTime(0);
+    setDuration(Number(tracks[prepared.trackIndex].duration) || 0);
+    setPlaying(true);
+    prepared.audio.play().catch(() => setPlaying(false));
+    previousAudio.pause();
+    previousAudio.removeAttribute('src');
+    previousAudio.load();
+    return true;
+  }
+
   useEffect(() => {
-    const audio = audioRef.current;
+    const audio = getActiveAudio();
     if (!audio) return undefined;
-    const updateTime = () => setCurrentTime(audio.currentTime || 0);
-    const updateDuration = () => setDuration(audio.duration || Number(currentTrack?.duration) || 0);
+    const updateTime = () => {
+      if (audio !== getActiveAudio()) return;
+      setCurrentTime(audio.currentTime || 0);
+      prepareNextTrack(audio);
+    };
+    const updateDuration = () => {
+      if (audio === getActiveAudio()) setDuration(audio.duration || Number(currentTrack?.duration) || 0);
+    };
     const handleEnded = () => {
+      if (audio !== getActiveAudio()) return;
       if (repeatMode === 'one') {
         audio.currentTime = 0;
         audio.play().catch(() => setPlaying(false));
+      } else if (promotePreparedTrack()) {
+        return;
       } else if (shuffle && tracks.length > 1) {
         selectTrack(getShuffledIndex(trackIndex), true);
       } else if (trackIndex < tracks.length - 1) {
@@ -50,8 +138,12 @@ function SharedAlbumPage() {
         setCurrentTime(0);
       }
     };
-    const handlePause = () => setPlaying(false);
-    const handlePlay = () => setPlaying(true);
+    const handlePause = () => {
+      if (audio === getActiveAudio()) setPlaying(false);
+    };
+    const handlePlay = () => {
+      if (audio === getActiveAudio()) setPlaying(true);
+    };
     audio.addEventListener('timeupdate', updateTime);
     audio.addEventListener('loadedmetadata', updateDuration);
     audio.addEventListener('durationchange', updateDuration);
@@ -66,11 +158,12 @@ function SharedAlbumPage() {
       audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('play', handlePlay);
     };
-  }, [trackIndex, currentTrack?.duration, repeatMode, shuffle]);
+  }, [trackIndex, currentTrack?.duration, repeatMode, shuffle, volume]);
 
   function selectTrack(index, autoplay = true) {
     if (!tracks[index]) return;
-    const audio = audioRef.current;
+    clearPreparedTrack();
+    const audio = getActiveAudio();
     setTrackIndex(index);
     setCurrentTime(0);
     setDuration(Number(tracks[index].duration) || 0);
@@ -83,7 +176,7 @@ function SharedAlbumPage() {
   }
 
   function togglePlayback() {
-    const audio = audioRef.current;
+    const audio = getActiveAudio();
     if (!audio || !currentTrack) return;
     if (!audio.src) {
       audio.src = currentTrack.streamUrl;
@@ -97,7 +190,7 @@ function SharedAlbumPage() {
   }
 
   function seek(value) {
-    const audio = audioRef.current;
+    const audio = getActiveAudio();
     if (!audio) return;
     const nextTime = Number(value) || 0;
     audio.currentTime = nextTime;
@@ -108,7 +201,8 @@ function SharedAlbumPage() {
     const nextVolume = Math.max(0, Math.min(1, Number(value) || 0));
     setVolume(nextVolume);
     if (nextVolume > 0) setLastVolume(nextVolume);
-    if (audioRef.current) audioRef.current.volume = nextVolume;
+    const audio = getActiveAudio();
+    if (audio) audio.volume = nextVolume;
   }
 
   function toggleMute() {
@@ -177,7 +271,8 @@ function SharedAlbumPage() {
       </section>
 
       <section className="share-player" aria-label="Shared album player">
-        <audio ref={audioRef} preload="metadata" controlsList="nodownload noplaybackrate" onContextMenu={(event) => event.preventDefault()} />
+        <audio ref={(node) => { audioPlayersRef.current[0] = node; }} preload="metadata" controlsList="nodownload noplaybackrate" onContextMenu={(event) => event.preventDefault()} />
+        <audio ref={(node) => { audioPlayersRef.current[1] = node; }} preload="none" controlsList="nodownload noplaybackrate" onContextMenu={(event) => event.preventDefault()} />
         <div className="share-player-track">
           {album.coverUrl ? <img src={album.coverUrl} alt="" /> : <div />}
           <span><strong>{currentTrack.title}</strong><small>{album.title}</small><small>{currentTrack.artist || album.albumArtist}</small></span>

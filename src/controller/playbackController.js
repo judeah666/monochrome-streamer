@@ -21,10 +21,12 @@ export function createPlaybackController({
   updateProgressUi,
   render,
   applyPlaybackVolume = () => {},
+  onAudioPlayerChanged = () => {},
   onPlaybackError = console.error,
   onLyricsError = console.warn,
   onPreloadError = () => {},
 }) {
+  let activeAudioPlayer = audioPlayer;
   let preloadedNextTrack = null;
 
   const refreshPlayer = () => {
@@ -32,7 +34,18 @@ export function createPlaybackController({
     render();
   };
 
-  const playAudio = () => audioPlayer.play().catch(onPlaybackError);
+  const playAudio = () => activeAudioPlayer.play().catch(onPlaybackError);
+
+  function retireAudioPlayer(player) {
+    if (!player) return;
+    try {
+      player.pause?.();
+      player.removeAttribute?.('src');
+      player.load?.();
+    } catch (error) {
+      onPreloadError(error);
+    }
+  }
 
   function getPlaybackQueue() {
     return getPlaybackQueueIds(state);
@@ -49,8 +62,8 @@ export function createPlaybackController({
     applyPlaybackVolume(track);
     state.lyricsRefreshRequestedIds.delete(track.id);
     Promise.resolve(loadTrackLyrics(track.id)).catch((error) => onLyricsError('Unable to load lyrics', error));
-    audioPlayer.src = options.streamUrl || getTrackStreamUrl(track);
-    audioPlayer.playbackRate = 1;
+    activeAudioPlayer.src = options.streamUrl || getTrackStreamUrl(track);
+    activeAudioPlayer.playbackRate = 1;
     persistPlaybackState();
     playAudio();
     refreshPlayer();
@@ -71,10 +84,10 @@ export function createPlaybackController({
       return;
     }
 
-    if (audioPlayer.paused) {
+    if (activeAudioPlayer.paused) {
       playAudio();
     } else {
-      audioPlayer.pause();
+      activeAudioPlayer.pause();
     }
     refreshPlayer();
   }
@@ -103,13 +116,13 @@ export function createPlaybackController({
     }
 
     if (state.repeatMode === 'one') {
-      audioPlayer.currentTime = 0;
+      activeAudioPlayer.currentTime = 0;
       playAudio();
     } else if (state.repeatMode === 'all' && queue.length > 0) {
       playTrackById(queue[0]);
     } else {
-      audioPlayer.pause();
-      audioPlayer.currentTime = 0;
+      activeAudioPlayer.pause();
+      activeAudioPlayer.currentTime = 0;
       persistPlaybackState();
       refreshPlayer();
     }
@@ -117,8 +130,8 @@ export function createPlaybackController({
 
   function playPreviousTrack() {
     clearPreloadedTrack();
-    if (audioPlayer.currentTime > 3) {
-      audioPlayer.currentTime = 0;
+    if (activeAudioPlayer.currentTime > 3) {
+      activeAudioPlayer.currentTime = 0;
       updateProgressUi();
       persistPlaybackState();
       return;
@@ -131,7 +144,7 @@ export function createPlaybackController({
     if (currentIndex > 0) {
       playTrackById(queue[currentIndex - 1]);
     } else {
-      audioPlayer.currentTime = 0;
+      activeAudioPlayer.currentTime = 0;
       updateProgressUi();
       persistPlaybackState();
     }
@@ -140,14 +153,13 @@ export function createPlaybackController({
   function handleTrackEnded() {
     if (state.repeatMode === 'one') {
       clearPreloadedTrack();
-      audioPlayer.currentTime = 0;
+      activeAudioPlayer.currentTime = 0;
       playAudio();
       return;
     }
     const nextTarget = getNextPlaybackTarget();
     if (nextTarget && preloadedNextTrack?.trackId === nextTarget.track.id) {
-      const streamUrl = preloadedNextTrack.streamUrl;
-      loadTrack(nextTarget.track, { streamUrl });
+      promotePreloadedTrack(nextTarget.track);
       return;
     }
     playNextTrack();
@@ -193,12 +205,12 @@ export function createPlaybackController({
       clearPreloadedTrack();
       return;
     }
-    if (audioPlayer.paused) {
+    if (activeAudioPlayer.paused) {
       clearPreloadedTrack();
       return;
     }
-    const duration = Number.isFinite(audioPlayer.duration) ? audioPlayer.duration : 0;
-    const currentTime = Number.isFinite(audioPlayer.currentTime) ? audioPlayer.currentTime : 0;
+    const duration = Number.isFinite(activeAudioPlayer.duration) ? activeAudioPlayer.duration : 0;
+    const currentTime = Number.isFinite(activeAudioPlayer.currentTime) ? activeAudioPlayer.currentTime : 0;
     if (duration <= 0 || currentTime < 0 || duration - currentTime > GAPLESS_PRELOAD_WINDOW_SECONDS) {
       return;
     }
@@ -219,6 +231,9 @@ export function createPlaybackController({
     if (!preloadAudio) return;
     preloadedNextTrack = {
       audio: preloadAudio,
+      priming: false,
+      primed: false,
+      promoted: false,
       streamUrl,
       trackId: nextTarget.track.id,
     };
@@ -227,28 +242,88 @@ export function createPlaybackController({
       preloadAudio.preload = 'auto';
       preloadAudio.src = streamUrl;
       preloadAudio.load?.();
+      primePreloadedAudio(preloadedNextTrack);
     } catch (error) {
       clearPreloadedTrack();
       onPreloadError(error);
     }
   }
 
+  function primePreloadedAudio(preparedTrack) {
+    const preloadAudio = preparedTrack?.audio;
+    if (!preloadAudio || typeof preloadAudio.addEventListener !== 'function') return;
+
+    const warmDecoder = () => {
+      if (preparedTrack !== preloadedNextTrack || preparedTrack.priming || preparedTrack.primed) return;
+      preparedTrack.priming = true;
+      preloadAudio.muted = true;
+      let playResult;
+      try {
+        playResult = preloadAudio.play?.();
+      } catch {
+        preloadAudio.muted = false;
+        preparedTrack.priming = false;
+        return;
+      }
+      Promise.resolve(playResult).then(() => {
+        preparedTrack.priming = false;
+        if (preparedTrack.promoted) return;
+        if (preparedTrack !== preloadedNextTrack) return;
+        preloadAudio.pause?.();
+        preloadAudio.currentTime = 0;
+        preloadAudio.muted = false;
+        preparedTrack.primed = true;
+      }).catch(() => {
+        preloadAudio.muted = false;
+        preparedTrack.priming = false;
+      });
+    };
+
+    preparedTrack.canPlayHandler = warmDecoder;
+    if (Number(preloadAudio.readyState) >= 3) {
+      warmDecoder();
+    } else {
+      preloadAudio.addEventListener('canplay', warmDecoder, { once: true });
+    }
+  }
+
+  function promotePreloadedTrack(track) {
+    const preparedTrack = preloadedNextTrack;
+    if (!preparedTrack || preparedTrack.trackId !== track.id) return false;
+    preloadedNextTrack = null;
+    preparedTrack.promoted = true;
+    preparedTrack.audio.removeEventListener?.('canplay', preparedTrack.canPlayHandler);
+    preparedTrack.audio.muted = false;
+
+    const previousAudioPlayer = activeAudioPlayer;
+    activeAudioPlayer = preparedTrack.audio;
+    state.currentTrackId = track.id;
+    onAudioPlayerChanged(activeAudioPlayer, previousAudioPlayer);
+    applyPlaybackVolume(track);
+    activeAudioPlayer.playbackRate = 1;
+    playAudio();
+
+    state.lyricsRefreshRequestedIds.delete(track.id);
+    Promise.resolve(loadTrackLyrics(track.id)).catch((error) => onLyricsError('Unable to load lyrics', error));
+    persistPlaybackState();
+    refreshPlayer();
+    retireAudioPlayer(previousAudioPlayer);
+    return true;
+  }
+
   function clearPreloadedTrack() {
     if (!preloadedNextTrack) return;
     const preloadAudio = preloadedNextTrack.audio;
+    preloadAudio.removeEventListener?.('canplay', preloadedNextTrack.canPlayHandler);
+    preloadedNextTrack.promoted = true;
     preloadedNextTrack = null;
-    try {
-      preloadAudio.pause?.();
-      preloadAudio.removeAttribute?.('src');
-      preloadAudio.load?.();
-    } catch (error) {
-      onPreloadError(error);
-    }
+    retireAudioPlayer(preloadAudio);
   }
 
   return {
     clearPreloadedTrack,
     cycleRepeatMode,
+    getAudioPlayer: () => activeAudioPlayer,
     getPlaybackQueue,
     handleTrackEnded,
     maybePreloadNextTrack,

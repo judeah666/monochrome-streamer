@@ -80,6 +80,7 @@ import {
   writeLibraryFilterState,
 } from './libraryFilterPersistence.js';
 import {
+  stopVisualizer,
   updateVisualizerState as updateFullscreenVisualizerState,
 } from './visualizerController.js';
 import {
@@ -219,7 +220,7 @@ const {
   settingsStatusRoot,
   adminIntroRoot,
   appFavicon,
-  audioPlayer,
+  audioPlayer: initialAudioPlayer,
   nowPlayingBar,
   playerTrackInfoRoot,
   playerTransportControls,
@@ -281,6 +282,8 @@ const {
   playlistDialogModal,
 } = getDomRefs();
 
+let audioPlayer = initialAudioPlayer;
+
 const state = createInitialState();
 const LIBRARY_PAGE_CACHE_TTL_MS = 2 * 60 * 1000;
 const LIBRARY_PAGE_CACHE_MAX_ENTRIES = 40;
@@ -308,6 +311,19 @@ const playbackController = createPlaybackController({
   render,
   applyPlaybackVolume: () => {
     audioPlayer.volume = getEffectiveAudioVolume();
+  },
+  onAudioPlayerChanged: (nextAudioPlayer) => {
+    audioPlayer = nextAudioPlayer;
+    configureBackgroundAudioPlayback({ audioPlayer, navigatorRef: navigator, preload: 'auto' });
+    bindAudioPlayerEvents(audioPlayer);
+    if (state.audioContext) {
+      stopVisualizer({ state, windowRef: window });
+      state.audioContext.close?.().catch(() => {});
+      state.audioContext = null;
+      state.audioSource = null;
+      state.analyser = null;
+      state.analyserData = null;
+    }
   },
   onPlaybackError: (error) => console.error(error),
   onLyricsError: (message, error) => console.warn(message, error),
@@ -431,6 +447,7 @@ async function init() {
   bindEvents();
   setupMediaSessionActions({
     audioPlayer,
+    getAudioPlayer: () => audioPlayer,
     hasCurrentTrack: () => Boolean(state.currentTrackId),
     onPreviousTrack: playPreviousTrack,
     onNextTrack: playNextTrack,
@@ -836,43 +853,11 @@ function bindEvents() {
   fullscreenShuffleButton.addEventListener('click', toggleShuffle);
   fullscreenRepeatButton.addEventListener('click', cycleRepeatMode);
 
-  audioPlayer.addEventListener('play', () => {
-    startLyricsTicker();
-    updateMediaSessionPlaybackState({ audioPlayer, currentTrackId: state.currentTrackId });
-    updatePlayerUi();
-    render();
-    reportPlaybackPresence();
-  });
-  audioPlayer.addEventListener('pause', () => {
-    stopLyricsTicker();
-    if (!audioPlayer.ended) {
-      playbackController.clearPreloadedTrack();
-    }
-    updateMediaSessionPlaybackState({ audioPlayer, currentTrackId: state.currentTrackId });
-    updateProgressUi();
-    updatePlayerUi();
-    render();
-    reportPlaybackPresence({ force: true });
-  });
-  audioPlayer.addEventListener('loadedmetadata', () => {
-    updateProgressUi();
-    updateMediaSessionPositionState(audioPlayer);
-    updateFullscreenLyricsHighlight({ forceScroll: true });
-  });
-  audioPlayer.addEventListener('timeupdate', () => {
-    playbackController.maybePreloadNextTrack();
-    updateProgressUi();
-    updateMediaSessionPositionState(audioPlayer);
-    maybePersistPlaybackProgress();
-  });
-  audioPlayer.addEventListener('ended', () => {
-    stopLyricsTicker();
-    reportPlaybackPresence({ force: true });
-    handleTrackEnded();
-  });
+  bindAudioPlayerEvents(audioPlayer);
 
   bindPlayerSeekControl(progressBar, {
     audioPlayer,
+    getAudioPlayer: () => audioPlayer,
     onProgress: updateProgressUi,
     onPersist: persistPlaybackState,
   });
@@ -880,6 +865,7 @@ function bindEvents() {
   bindVolumeControl(volumeBar);
   bindPlayerSeekControl(fullscreenProgressBar, {
     audioPlayer,
+    getAudioPlayer: () => audioPlayer,
     onProgress: updateProgressUi,
     onPersist: persistPlaybackState,
   });
@@ -918,6 +904,46 @@ function bindEvents() {
 
   window.addEventListener('pagehide', () => persistPlaybackState());
   window.addEventListener('beforeunload', () => persistPlaybackState());
+}
+
+function bindAudioPlayerEvents(player) {
+  player.addEventListener('play', () => {
+    if (player !== audioPlayer) return;
+    startLyricsTicker();
+    updateMediaSessionPlaybackState({ audioPlayer: player, currentTrackId: state.currentTrackId });
+    updatePlayerUi();
+    render();
+    reportPlaybackPresence();
+  });
+  player.addEventListener('pause', () => {
+    if (player !== audioPlayer) return;
+    stopLyricsTicker();
+    if (!player.ended) playbackController.clearPreloadedTrack();
+    updateMediaSessionPlaybackState({ audioPlayer: player, currentTrackId: state.currentTrackId });
+    updateProgressUi();
+    updatePlayerUi();
+    render();
+    reportPlaybackPresence({ force: true });
+  });
+  player.addEventListener('loadedmetadata', () => {
+    if (player !== audioPlayer) return;
+    updateProgressUi();
+    updateMediaSessionPositionState(player);
+    updateFullscreenLyricsHighlight({ forceScroll: true });
+  });
+  player.addEventListener('timeupdate', () => {
+    if (player !== audioPlayer) return;
+    playbackController.maybePreloadNextTrack();
+    updateProgressUi();
+    updateMediaSessionPositionState(player);
+    maybePersistPlaybackProgress();
+  });
+  player.addEventListener('ended', () => {
+    if (player !== audioPlayer) return;
+    stopLyricsTicker();
+    reportPlaybackPresence({ force: true });
+    handleTrackEnded();
+  });
 }
 
 function hydrateLibrary(config, library) {

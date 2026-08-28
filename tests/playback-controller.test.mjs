@@ -42,6 +42,19 @@ function createAudio() {
   };
 }
 
+function createEventAudio() {
+  const audio = createAudio();
+  const listeners = new Map();
+  audio.readyState = 0;
+  audio.muted = false;
+  audio.addEventListener = (eventName, handler) => listeners.set(eventName, handler);
+  audio.removeEventListener = (eventName, handler) => {
+    if (listeners.get(eventName) === handler) listeners.delete(eventName);
+  };
+  audio.dispatch = (eventName) => listeners.get(eventName)?.();
+  return audio;
+}
+
 function createHarness(overrides = {}) {
   const tracks = [createTrack('a'), createTrack('b'), createTrack('c')];
   const state = {
@@ -292,6 +305,32 @@ test('near-end preload starts only for the next expected track', () => {
   assert.equal(createdPreloads[0].loadCount, 1);
 });
 
+test('near-end preload silently warms the decoder and rewinds before handoff', async () => {
+  const preloadAudio = createEventAudio();
+  const { controller } = createHarness({
+    audioPlayer: { ...createAudio(), paused: false, duration: 100, currentTime: 96 },
+    state: {
+      currentTrackId: 'a',
+      queueIds: ['a', 'b', 'c'],
+      settings: { gaplessPlayback: true },
+    },
+    controller: {
+      createPreloadAudio: () => preloadAudio,
+    },
+  });
+
+  controller.maybePreloadNextTrack();
+  preloadAudio.currentTime = 0.04;
+  preloadAudio.dispatch('canplay');
+  await Promise.resolve();
+
+  assert.equal(preloadAudio.playCount, 1);
+  assert.equal(preloadAudio.pauseCount, 1);
+  assert.equal(preloadAudio.currentTime, 0);
+  assert.equal(preloadAudio.muted, false);
+  assert.equal(preloadAudio.src, '/stream/b');
+});
+
 test('repeat one does not preload next and restarts the current track', () => {
   const createdPreloads = [];
   const audioPlayer = { ...createAudio(), paused: false, duration: 100, currentTime: 96 };
@@ -372,8 +411,9 @@ test('preloaded audio is cleaned up on manual next track changes', () => {
   assert.deepEqual(createdPreloads[0].removedAttributes, ['src']);
 });
 
-test('ended playback uses the preloaded next-track URL when available', () => {
+test('ended playback promotes the prepared audio element without reloading its URL', () => {
   const createdPreloads = [];
+  const playerChanges = [];
   let urlVersion = 1;
   const { audioPlayer, controller, state } = createHarness({
     audioPlayer: { ...createAudio(), paused: false, duration: 100, currentTime: 96 },
@@ -389,6 +429,9 @@ test('ended playback uses the preloaded next-track URL when available', () => {
         return audio;
       },
       getTrackStreamUrl: (track) => `${track.streamUrl}?v=${urlVersion}`,
+      onAudioPlayerChanged: (nextPlayer, previousPlayer) => {
+        playerChanges.push({ nextPlayer, previousPlayer });
+      },
     },
   });
 
@@ -397,8 +440,13 @@ test('ended playback uses the preloaded next-track URL when available', () => {
   controller.handleTrackEnded();
 
   assert.equal(state.currentTrackId, 'b');
-  assert.equal(audioPlayer.src, '/stream/b?v=1');
-  assert.equal(createdPreloads[0].pauseCount, 1);
+  assert.equal(controller.getAudioPlayer(), createdPreloads[0]);
+  assert.equal(createdPreloads[0].src, '/stream/b?v=1');
+  assert.equal(createdPreloads[0].playCount, 1);
+  assert.equal(createdPreloads[0].loadCount, 1);
+  assert.deepEqual(playerChanges, [{ nextPlayer: createdPreloads[0], previousPlayer: audioPlayer }]);
+  assert.equal(audioPlayer.pauseCount, 1);
+  assert.deepEqual(audioPlayer.removedAttributes, ['src']);
 });
 
 test('playback quality URL changes invalidate the near-end preload', () => {
