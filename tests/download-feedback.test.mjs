@@ -14,6 +14,7 @@ async function loadModules() {
     PlayerUtilityControls: '../src/components/player/PlayerUtilityControls.jsx',
     QueuePanel: '../src/components/queue/QueuePanel.jsx',
     AlbumDetail: '../src/components/albums/AlbumDetail.jsx',
+    PlaylistBrowser: '../src/components/library/PlaylistBrowser.jsx',
     DownloadStatusToast: '../src/components/common/DownloadStatusToast.jsx',
   };
   const loaded = {};
@@ -95,6 +96,77 @@ test('album detail download button shows busy state and disables during download
   assert.match(html, />Downloading<\/span>/u);
 });
 
+test('playlist detail download button follows permission and busy state', async () => {
+  const { PlaylistBrowser } = await modulesPromise.then((modules) => modules.PlaylistBrowser);
+  const playlist = {
+    id: 'playlist-one',
+    name: 'Road Trip',
+    trackCount: 2,
+    tracks: [
+      { id: 'one', title: 'One', artist: 'Artist', album: 'Album' },
+      { id: 'two', title: 'Two', artist: 'Artist', album: 'Album' },
+    ],
+  };
+  const busyHtml = renderToStaticMarkup(React.createElement(PlaylistBrowser, {
+    canUsePlaylists: true,
+    selectedPlaylistId: playlist.id,
+    selectedPlaylist: playlist,
+    canDownload: true,
+    downloadActive: true,
+    downloadBusy: true,
+  }));
+  assert.match(busyHtml, /aria-label="Downloading playlist"/u);
+  assert.match(busyHtml, /aria-busy="true"/u);
+  assert.match(busyHtml, /download-busy-spinner/u);
+  assert.match(busyHtml, /disabled=""/u);
+
+  const disabledHtml = renderToStaticMarkup(React.createElement(PlaylistBrowser, {
+    canUsePlaylists: true,
+    selectedPlaylistId: playlist.id,
+    selectedPlaylist: playlist,
+    canDownload: false,
+  }));
+  assert.match(disabledHtml, /disabled="" aria-label="Download playlist"/u);
+
+  const emptyHtml = renderToStaticMarkup(React.createElement(PlaylistBrowser, {
+    canUsePlaylists: true,
+    selectedPlaylistId: 'empty',
+    selectedPlaylist: { id: 'empty', name: 'Empty', trackCount: 0, tracks: [] },
+    canDownload: true,
+  }));
+  assert.match(emptyHtml, /disabled="" aria-label="Download playlist"/u);
+});
+
+test('playlist download action keeps the complete playlist when search filters the rows', async () => {
+  const { PlaylistBrowser } = await modulesPromise.then((modules) => modules.PlaylistBrowser);
+  const playlist = {
+    id: 'playlist-one',
+    name: 'Road Trip',
+    trackCount: 2,
+    tracks: [
+      { id: 'one', title: 'Visible Song', artist: 'Artist', album: 'Album' },
+      { id: 'two', title: 'Hidden Song', artist: 'Artist', album: 'Album' },
+    ],
+  };
+  let downloadedPlaylist = null;
+  const browserTree = PlaylistBrowser({
+    canUsePlaylists: true,
+    selectedPlaylistId: playlist.id,
+    selectedPlaylist: playlist,
+    searchTerm: 'Visible',
+    canDownload: true,
+    onDownloadPlaylist: (selected) => { downloadedPlaylist = selected; },
+  });
+  const detailTree = browserTree.type(browserTree.props);
+  const downloadButton = findElement(detailTree, (element) => (
+    element.type === 'button' && element.props?.['aria-label'] === 'Download playlist'
+  ));
+  assert.ok(downloadButton);
+  downloadButton.props.onClick();
+  assert.equal(downloadedPlaylist, playlist);
+  assert.deepEqual(downloadedPlaylist.tracks.map((track) => track.id), ['one', 'two']);
+});
+
 test('download status toast renders active, complete, and failed states', async () => {
   const { DownloadStatusToast } = await modulesPromise.then((modules) => modules.DownloadStatusToast);
   const preparing = renderToStaticMarkup(React.createElement(DownloadStatusToast, {
@@ -129,7 +201,24 @@ test('app controller routes all download entry points through shared activity st
   assert.match(source, /async function runDownloadActivity/u);
   assert.match(source, /target:\s*'queue'/u);
   assert.match(source, /target:\s*`album:\$\{albumId\}`/u);
+  assert.match(source, /target:\s*`playlist:\$\{playlist\.id\}`/u);
+  assert.match(source, /const tracks = Array\.isArray\(playlist\.tracks\)/u);
+  assert.match(source, /submitBulkDownload\(tracks, getBulkDownloadFilename\(\{[\s\S]*name: playlist\.name/u);
   assert.match(source, /triggerTrackBrowserDownload\(track,\s*\{\s*target:\s*'fullscreen'\s*\}\)/u);
   assert.match(source, /triggerTrackBrowserDownload\(track,\s*\{\s*target:\s*'player'\s*\}\)/u);
   assert.match(source, /setDownloadPhase\('downloading'/u);
 });
+
+function findElement(node, predicate) {
+  if (!node) return null;
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const match = findElement(child, predicate);
+      if (match) return match;
+    }
+    return null;
+  }
+  if (typeof node !== 'object') return null;
+  if (predicate(node)) return node;
+  return findElement(node.props?.children, predicate);
+}

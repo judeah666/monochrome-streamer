@@ -4268,6 +4268,9 @@ function renderPlaylistsBrowser() {
       if (tracks[0]) playTrack(tracks[0], tracks);
     },
     onQueuePlaylist: () => addTracksToQueue(state.selectedPlaylist?.tracks || []),
+    onDownloadPlaylist: () => {
+      downloadSelectedPlaylist().catch((error) => console.error(error));
+    },
     onPlayTrack: (trackId, options = {}) => {
       const track = state.trackMap.get(trackId);
       if (!track) return;
@@ -4286,6 +4289,9 @@ function renderPlaylistsBrowser() {
     onRemoveTrack: removeTrackFromSelectedPlaylist,
     onArtistClick: openArtist,
     onAlbumClick: openAlbumForTrackId,
+    canDownload: state.canDownload !== false,
+    downloadActive: isDownloadActive(),
+    downloadBusy: isDownloadTargetBusy(`playlist:${state.selectedPlaylistId}`),
   });
 
   if (canUsePlaylists && !state.playlistsLoaded && !state.playlistsLoading) {
@@ -6022,6 +6028,9 @@ function syncDownloadFeedback() {
   if (state.route.view === 'album') {
     renderAlbumDetail(getCurrentAlbum());
   }
+  if (state.route.view === 'playlists' && state.selectedPlaylistId) {
+    renderPlaylistsBrowser();
+  }
 }
 
 function renderDownloadStatusToast() {
@@ -6092,6 +6101,34 @@ async function downloadAlbumTracks(albumId) {
         albumTitle: album.title || 'Album',
         albumArtist: album.albumArtist || album.artist || '',
         year: album.year || '',
+        tracks,
+      }));
+      return;
+    }
+
+    for (let index = 0; index < tracks.length; index += 1) {
+      await downloadSingleTrackFile(tracks[index], `Downloading track ${index + 1} of ${tracks.length}...`);
+      await delay(140);
+    }
+  });
+}
+
+async function downloadSelectedPlaylist() {
+  const playlist = state.selectedPlaylist;
+  if (!playlist || !ensureDownloadAllowed()) return;
+  const tracks = Array.isArray(playlist.tracks) ? playlist.tracks.filter(Boolean) : [];
+  if (tracks.length === 0) return;
+
+  await runDownloadActivity({
+    target: `playlist:${playlist.id}`,
+    label: `${playlist.name || 'Playlist'} (${tracks.length} track${tracks.length === 1 ? '' : 's'})`,
+    detail: state.settings.bulkDownloadMethod === 'zip'
+      ? 'Preparing playlist ZIP archive...'
+      : 'Preparing playlist download...',
+  }, async () => {
+    if (state.settings.bulkDownloadMethod === 'zip') {
+      await submitBulkDownload(tracks, getBulkDownloadFilename({
+        name: playlist.name || 'Playlist',
         tracks,
       }));
       return;

@@ -30,6 +30,7 @@ export function PlaylistBrowser({
   onDeletePlaylist,
   onPlayPlaylist,
   onQueuePlaylist,
+  onDownloadPlaylist,
   onPlayTrack,
   onFavoriteTrack,
   onAddTrackToQueue,
@@ -38,6 +39,9 @@ export function PlaylistBrowser({
   onArtistClick,
   onAlbumClick,
   onLogin,
+  canDownload = true,
+  downloadActive = false,
+  downloadBusy = false,
 }) {
   if (!canUsePlaylists) {
     return (
@@ -60,6 +64,7 @@ export function PlaylistBrowser({
         onDeletePlaylist={onDeletePlaylist}
         onPlayPlaylist={onPlayPlaylist}
         onQueuePlaylist={onQueuePlaylist}
+        onDownloadPlaylist={onDownloadPlaylist}
         onPlayTrack={onPlayTrack}
         onFavoriteTrack={onFavoriteTrack}
         onAddTrackToQueue={onAddTrackToQueue}
@@ -67,6 +72,9 @@ export function PlaylistBrowser({
         onRemoveTrack={onRemoveTrack}
         onArtistClick={onArtistClick}
         onAlbumClick={onAlbumClick}
+        canDownload={canDownload}
+        downloadActive={downloadActive}
+        downloadBusy={downloadBusy}
       />
     );
   }
@@ -122,6 +130,7 @@ function PlaylistDetail({
   onDeletePlaylist,
   onPlayPlaylist,
   onQueuePlaylist,
+  onDownloadPlaylist,
   onPlayTrack,
   onFavoriteTrack,
   onAddTrackToQueue,
@@ -129,6 +138,9 @@ function PlaylistDetail({
   onRemoveTrack,
   onArtistClick,
   onAlbumClick,
+  canDownload,
+  downloadActive,
+  downloadBusy,
 }) {
   if (loading && !playlist) return <p className="empty-state">Loading playlist...</p>;
   if (error && !playlist) return <p className="settings-status-message is-error" role="alert">{error}</p>;
@@ -171,6 +183,22 @@ function PlaylistDetail({
             </button>
             <button type="button" className="secondary-button" disabled={!hasTracks} onClick={() => onQueuePlaylist?.(playlist)}>
               <i className="fa-solid fa-plus" aria-hidden="true" /> Add to queue
+            </button>
+            <button
+              type="button"
+              className={`secondary-button${downloadBusy ? ' is-download-busy' : ''}`}
+              disabled={!hasTracks || !canDownload || downloadActive}
+              aria-label={downloadBusy ? 'Downloading playlist' : 'Download playlist'}
+              aria-busy={downloadBusy ? 'true' : undefined}
+              title={downloadBusy ? 'Downloading playlist' : 'Download playlist'}
+              onClick={() => onDownloadPlaylist?.(playlist)}
+            >
+              {downloadBusy ? (
+                <span className="download-busy-spinner" aria-hidden="true" />
+              ) : (
+                <i className="fa-solid fa-download" aria-hidden="true" />
+              )}
+              {downloadBusy ? 'Downloading' : 'Download playlist'}
             </button>
             <button type="button" className="secondary-button" onClick={() => onDeletePlaylist?.(playlist.id)}>
               <i className="fa-solid fa-trash" aria-hidden="true" /> Delete playlist
