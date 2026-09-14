@@ -125,6 +125,8 @@ body[data-view='fullscreen'] .queue-overlay {
 }
 
 .queue-thumb-fallback {
+  position: relative;
+  overflow: hidden;
   display: grid;
   place-items: center;
   gap: 4px;
@@ -133,6 +135,10 @@ body[data-view='fullscreen'] .queue-overlay {
   font-size: 0.55rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
+}
+
+.queue-thumb-fallback::before {
+  pointer-events: none;
 }
 
 .queue-item-main {

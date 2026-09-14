@@ -2,8 +2,8 @@ import React from 'react';
 import { AlbumGrid } from './AlbumGrid.jsx';
 import { LibraryFilterBar, LibraryPager } from '../library/LibraryControls.jsx';
 
-const albumGridClassName = 'album-grid tw-grid tw-grid-cols-[repeat(auto-fill,minmax(var(--album-card-size),1fr))] tw-gap-4';
-const libraryAlbumGridClassName = 'library-album-grid tw-grid tw-grid-cols-[repeat(auto-fill,minmax(var(--album-card-size),1fr))] tw-gap-3.5';
+const albumGridClassName = 'album-grid tw-grid tw-grid-cols-[repeat(auto-fill,minmax(0,min(var(--album-card-size),100%)))] tw-gap-4';
+const libraryAlbumGridClassName = 'library-album-grid tw-grid tw-grid-cols-[repeat(auto-fill,minmax(0,min(var(--album-card-size),100%)))] tw-gap-3.5';
 
 export function AlbumCollection({
   albums = [],

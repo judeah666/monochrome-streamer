@@ -653,7 +653,7 @@ body[data-view='settings'] .settings-group-heading {
   padding: 0 0 8px;
 }
 
-body[data-view='settings'] .settings-group-heading h4 {
+body[data-view='settings'] .settings-group-heading > h4 {
   color: var(--muted);
   font-family: var(--font-body);
   font-size: 0.76rem;
@@ -661,7 +661,7 @@ body[data-view='settings'] .settings-group-heading h4 {
   text-transform: uppercase;
 }
 
-body[data-view='settings'] .settings-group-heading p {
+body[data-view='settings'] .settings-group-heading > p {
   max-width: 680px;
   margin-top: 5px;
   font-size: 0.82rem;
@@ -873,7 +873,7 @@ body[data-view='admin'] .admin-settings-group .settings-group-heading {
   padding: 0 0 8px;
 }
 
-body[data-view='admin'] .admin-settings-group .settings-group-heading h4 {
+body[data-view='admin'] .admin-settings-group .settings-group-heading > h4 {
   color: var(--muted);
   font-family: var(--font-body);
   font-size: 0.76rem;
@@ -881,7 +881,7 @@ body[data-view='admin'] .admin-settings-group .settings-group-heading h4 {
   text-transform: uppercase;
 }
 
-body[data-view='admin'] .admin-settings-group .settings-group-heading p {
+body[data-view='admin'] .admin-settings-group .settings-group-heading > p {
   max-width: 680px;
   margin-top: 5px;
   font-size: 0.82rem;

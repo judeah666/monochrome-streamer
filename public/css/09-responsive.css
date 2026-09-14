@@ -849,8 +849,8 @@
   }
 
   .home-album-rail .album-card {
-    flex-basis: clamp(128px, 42vw, 168px);
-    width: clamp(128px, 42vw, 168px);
+    flex-basis: var(--album-card-size);
+    width: var(--album-card-size);
   }
 
   #download-status-root {

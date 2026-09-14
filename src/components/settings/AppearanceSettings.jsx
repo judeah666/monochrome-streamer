@@ -124,7 +124,7 @@ export function AppearanceSettings({
       <section className={`${settingsGroupClassName} visuals-settings-group`}>
         <div className="settings-group-heading">
           <h4>Visuals</h4>
-          <p>Local equivalents of Monochrome appearance toggles.</p>
+          <p>Adjust card size and artwork preferences.</p>
           <AlbumCardSizePreview preview={preview} />
         </div>
         <div className={settingsGroupBodyClassName}>
@@ -190,7 +190,7 @@ function AlbumCardSizePreview({ preview }) {
       <article className="album-card album-card-shell compact album-card-sample" aria-hidden="true">
         <div className="album-card-media">
           <span className="album-card-placeholder-host">
-            <CoverPlaceholder />
+            <CoverPlaceholder className="album-art-placeholder album-card-cover-placeholder" />
           </span>
         </div>
         <div className="meta album-card-meta">
@@ -204,7 +204,7 @@ function AlbumCardSizePreview({ preview }) {
           </div>
         </div>
       </article>
-      <p className={settingsHelpClassName}>Preview uses the same card style as Home, Library, Favorites, and artist album grids.</p>
+      <p className={settingsHelpClassName}>Preview shows the selected card width. Album grids use this width without stretching cards to fill the row.</p>
     </div>
   );
 }

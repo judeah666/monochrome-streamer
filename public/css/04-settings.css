@@ -66,14 +66,14 @@
   backdrop-filter: blur(16px);
 }
 
-.settings-group-heading h4 {
+.settings-group-heading > h4 {
   margin: 0;
   font-family: var(--font-display);
   font-size: 1.15rem;
   letter-spacing: -0.035em;
 }
 
-.settings-group-heading p,
+.settings-group-heading > p,
 .settings-help,
 .settings-status {
   margin: 8px 0 0;
