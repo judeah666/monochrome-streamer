@@ -496,8 +496,8 @@ body.compact-artists .artist-card-grid {
 }
 
 body.compact-artists .artist-card-image {
-  width: 92px;
-  height: 92px;
+  width: 100%;
+  height: auto;
 }
 
 .playlist-list {

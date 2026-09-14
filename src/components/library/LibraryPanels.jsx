@@ -3,7 +3,7 @@ import { ArtistGrid } from '../artists/ArtistGrid.jsx';
 import { LibraryFilterBar, LibraryPager } from './LibraryControls.jsx';
 import { TrackList } from './TrackList.jsx';
 
-const artistGridClassName = 'artist-card-grid';
+const artistGridClassName = 'artist-card-grid library-album-grid';
 const trackListClassName = 'track-list track-list-shell library-track-search-list';
 
 function EmptyState({ children }) {

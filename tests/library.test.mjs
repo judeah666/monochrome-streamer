@@ -351,7 +351,7 @@ test('library database migrations install stable paging indexes once', async () 
         SELECT COUNT(*) AS count FROM tracks_fts WHERE tracks_fts MATCH ?
       `).get('title : "indexed"').count;
 
-      assert.equal(userVersion, 6);
+      assert.equal(userVersion, 7);
       assert.ok(trackColumns.has('replay_gain_json'));
       assert.ok(indexes.has('idx_albums_library_order'));
       assert.ok(indexes.has('idx_albums_collection_order'));
@@ -411,7 +411,7 @@ test('version 5 databases repair the missing ReplayGain column before a scan rew
       const trackColumns = new Set(repairedDb.prepare('PRAGMA table_info(tracks)').all().map((row) => row.name));
       const userVersion = Object.values(repairedDb.prepare('PRAGMA user_version').get())[0];
       assert.ok(trackColumns.has('replay_gain_json'));
-      assert.equal(userVersion, 6);
+      assert.equal(userVersion, 7);
       assert.equal(repairedDb.prepare('SELECT COUNT(*) AS count FROM tracks').get().count, 0);
       assert.equal(repairedDb.prepare('SELECT COUNT(*) AS count FROM tracks_fts').get().count, 0);
     } finally {
