@@ -1,4 +1,5 @@
 import React from 'react';
+import { BACKGROUND_PATTERNS, DEFAULT_BACKGROUND_PATTERN } from '../../controller/backgroundPatterns.js';
 import { CoverPlaceholder, MediaTypeIcons } from '../common/VisualBits.jsx';
 
 const settingsGroupClassName = [
@@ -81,6 +82,25 @@ export function AppearanceSettings({
             </label>
           </div>
         </div>
+      </SettingsGroup>
+
+      <SettingsGroup title="Background Pattern" description="Choose a repeating music pattern. Select None to restore the theme background.">
+        <div className="background-pattern-grid" role="group" aria-label="Background pattern">
+          {BACKGROUND_PATTERNS.map((pattern) => (
+            <button
+              key={pattern.value}
+              type="button"
+              className="background-pattern-option"
+              data-setting-value="backgroundPattern"
+              data-value={pattern.value}
+              aria-pressed={(settings.backgroundPattern || DEFAULT_BACKGROUND_PATTERN) === pattern.value}
+            >
+              <span className="background-pattern-preview" aria-hidden="true" style={{ backgroundImage: pattern.image ? 'url("' + pattern.image + '")' : 'none' }} />
+              <span>{pattern.label}</span>
+            </button>
+          ))}
+        </div>
+        <p className={settingsHelpClassName}>Patterns are static and softly muted for readability. Panel blur is turned off while a pattern is selected to keep scrolling lightweight.</p>
       </SettingsGroup>
 
       <SettingsGroup title="Text" description="Rename the app and the home banner without editing config files.">

@@ -357,3 +357,20 @@ button:disabled {
   cursor: not-allowed;
 }
 
+
+/* Small cached tiles on the normal scrolling background: no fixed image,
+   animation, filter, blend mode, or extra full-screen compositing layer. */
+body.has-background-pattern {
+  background-image: linear-gradient(color-mix(in srgb, var(--background) 88%, transparent), color-mix(in srgb, var(--background) 88%, transparent)), var(--background-pattern);
+  background-repeat: repeat;
+  background-size: auto;
+  background-attachment: scroll;
+}
+body.has-background-pattern::before { content: none; }
+/* Sampling detailed tiles through nested glass panels is costly during scrolling. */
+body.has-background-pattern *:not(.now-playing-bar),
+body.has-background-pattern *::before,
+body.has-background-pattern *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}

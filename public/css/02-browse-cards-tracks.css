@@ -211,6 +211,7 @@
 
 .library-album-grid {
   display: grid;
+  justify-content: center;
   grid-template-columns: repeat(auto-fill, minmax(0, min(var(--album-card-size), 100%)));
   gap: 14px;
 }
@@ -299,6 +300,7 @@
 
 .album-grid {
   display: grid;
+  justify-content: center;
   grid-template-columns: repeat(auto-fill, minmax(0, min(var(--album-card-size), 100%)));
   gap: 16px;
 }
@@ -370,6 +372,7 @@
 
 .home-recommended-grid {
   display: grid;
+  justify-content: center;
   grid-template-columns: repeat(auto-fill, minmax(0, min(var(--album-card-size), 100%)));
   gap: 16px;
 }

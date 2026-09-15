@@ -1,3 +1,4 @@
+import { DEFAULT_BACKGROUND_PATTERN } from './backgroundPatterns.js';
 export const ICONS = {
   play: 'fa-play',
   pause: 'fa-pause',
@@ -56,6 +57,7 @@ export const STORAGE_KEYS = {
 
 export const DEFAULT_SETTINGS = {
   theme: 'black',
+  backgroundPattern: DEFAULT_BACKGROUND_PATTERN,
   fontPreset: 'jakarta',
   fontSize: 100,
   libraryPageSize: 50,

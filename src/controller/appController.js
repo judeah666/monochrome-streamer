@@ -12,6 +12,7 @@ import {
   SETTINGS_TABS,
   STORAGE_KEYS,
 } from './constants.js';
+import { applyBackgroundPattern, normalizeBackgroundPattern } from './backgroundPatterns.js';
 import { AUDIO_QUALITY_ICONS } from '../assets/icons/audio-quality/index.js';
 import { getRepeatIcon, getShuffleIcon } from '../assets/icons/player/index.js';
 import { createInitialState } from './appState.js';
@@ -3341,6 +3342,12 @@ function applyPlaybackQualityChange() {
 }
 
 function updateSetting(key, value, avoidFullRender = false) {
+  if (key === 'backgroundPattern') {
+    state.settings = { ...state.settings, backgroundPattern: normalizeBackgroundPattern(value) };
+    persistSettings(state.settings);
+    applyBackgroundPattern(document.body, state.settings.backgroundPattern);
+    return;
+  }
   const normalizedValue = key === 'replayGainMode'
     ? normalizeReplayGainMode(value, DEFAULT_SETTINGS.replayGainMode)
     : key === 'replayGainPreamp'
@@ -3380,6 +3387,7 @@ function applySettings() {
     state.libraryTab = 'albums';
   }
   applyThemeSettings();
+  applyBackgroundPattern(document.body, state.settings.backgroundPattern);
   const selectedFont = FONT_PRESETS[state.settings.fontPreset] || FONT_PRESETS.jakarta;
   document.documentElement.style.setProperty('--font-body', selectedFont);
   document.documentElement.style.setProperty('--font-display', selectedFont);

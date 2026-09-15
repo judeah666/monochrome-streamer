@@ -5,6 +5,7 @@ import {
   NOW_PLAYING_CLICK_ACTIONS,
   STORAGE_KEYS,
 } from './constants.js';
+import { normalizeBackgroundPattern } from './backgroundPatterns.js';
 import { readStoredObject } from './utils.js';
 import {
   normalizeReplayGainMode,
@@ -53,6 +54,9 @@ export function normalizeSettings(settings) {
     ? { ...settings }
     : {};
 
+  if (Object.hasOwn(normalized, 'backgroundPattern')) {
+    normalized.backgroundPattern = normalizeBackgroundPattern(normalized.backgroundPattern);
+  }
   removeLegacySettings(normalized);
   migrateLegacyDownloadTemplateKeys(normalized);
 

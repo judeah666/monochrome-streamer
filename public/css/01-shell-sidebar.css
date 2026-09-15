@@ -225,27 +225,15 @@
 }
 
 .sidebar-bottom {
-  position: relative;
-  isolation: isolate;
   display: grid;
   gap: 12px;
   margin-top: auto;
-  padding-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
 }
 
 .sidebar-bottom::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: 8px -12px -12px;
-  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--line));
-  border-radius: 20px;
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--accent) 13%, transparent), transparent 68%),
-    color-mix(in srgb, var(--surface-2) 86%, var(--background));
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent),
-    0 12px 28px color-mix(in srgb, var(--background) 24%, transparent);
+  content: none;
 }
 
 .sidebar-account {
@@ -441,17 +429,17 @@
   height: 28px;
   border-radius: 0;
   background: transparent;
-  color: var(--accent);
+  color: var(--muted);
   box-shadow: none;
 }
 
 .stat-icon .fa-solid {
-  font-size: 1.08rem;
+  font-size: 1rem;
 }
 
 .stat-icon .sidebar-symbol {
-  width: 1.55rem;
-  height: 1.55rem;
+  width: 1.38rem;
+  height: 1.38rem;
 }
 
 .stat-card strong {
@@ -460,8 +448,9 @@
   min-width: 0;
   max-width: 100%;
   font-family: var(--font-body);
-  font-size: 1.05rem;
-  font-weight: 700;
+  font-size: inherit;
+  font-weight: 400;
+  color: var(--muted);
   line-height: 1.2;
   letter-spacing: 0;
   overflow: hidden;
