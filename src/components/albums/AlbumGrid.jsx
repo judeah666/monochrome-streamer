@@ -6,7 +6,7 @@ const albumCardBaseClassName = [
 ].join(' ');
 const albumCardCompactClassName = `${albumCardBaseClassName} compact`;
 const albumCardMediaClassName = 'album-card-media tw-relative';
-const albumCardImageClassName = 'tw-block tw-aspect-square tw-w-full tw-object-cover';
+const albumCardImageClassName = 'tw-block tw-aspect-square tw-h-auto tw-w-full tw-object-cover';
 const albumCardPlaceholderClassName = 'album-card-placeholder-host tw-block tw-w-full';
 const albumCardPlayClassName = 'album-card-play album-card-play-button';
 const albumMetaClassName = 'meta album-card-meta';
@@ -19,11 +19,12 @@ const albumFormatClassName = 'album-card-format album-card-format-row';
 export function AlbumGrid({ albums = [], compact = false, onOpen, onPlay }) {
   return (
     <>
-      {albums.map((album) => (
+      {albums.map((album, index) => (
         <AlbumCard
           key={album.id}
           album={album}
           compact={compact}
+          loading={index < 8 ? 'eager' : 'lazy'}
           onOpen={() => onOpen?.(album.id)}
           onPlay={() => onPlay?.(album.id)}
         />
@@ -32,7 +33,7 @@ export function AlbumGrid({ albums = [], compact = false, onOpen, onPlay }) {
   );
 }
 
-function AlbumCard({ album, compact, onOpen, onPlay }) {
+function AlbumCard({ album, compact, loading, onOpen, onPlay }) {
   const className = compact ? albumCardCompactClassName : albumCardBaseClassName;
   const year = album.year || 'Unknown year';
 
@@ -55,7 +56,9 @@ function AlbumCard({ album, compact, onOpen, onPlay }) {
           className={albumCardImageClassName}
           src={album.coverUrl}
           alt={`${album.title} cover art`}
-          loading="lazy"
+          width={300}
+          height={300}
+          loading={loading}
           decoding="async"
           placeholderClassName="album-art-placeholder album-card-cover-placeholder"
           placeholderWrapperClassName={albumCardPlaceholderClassName}

@@ -75,7 +75,7 @@
   }
 
   .album-card-shell {
-    @apply tw-grid tw-grid-rows-[auto_1fr] tw-overflow-hidden tw-border tw-border-line tw-bg-surface tw-p-0 tw-text-left tw-shadow-panel tw-backdrop-blur-[18px] tw-cursor-pointer tw-transition tw-duration-200;
+    @apply tw-grid tw-grid-rows-[auto_1fr] tw-overflow-hidden tw-border tw-border-line tw-bg-surface tw-p-0 tw-text-left tw-shadow-panel tw-cursor-pointer tw-transition tw-duration-200;
     border-radius: var(--radius);
   }
 
