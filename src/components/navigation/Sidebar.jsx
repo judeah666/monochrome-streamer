@@ -2,21 +2,23 @@ import React from 'react';
 
 const NAV_ITEMS = [
   { id: 'home', label: 'Home', icon: '/assets/icons/sidebar/house.svg' },
-  { id: 'library', label: 'Library', icon: '/assets/icons/sidebar/album-collection.svg' },
   { id: 'collections', label: 'Collections', faIcon: 'fa-layer-group' },
   { id: 'playlists', label: 'Playlists', faIcon: 'fa-list-ul' },
   { id: 'favorites', label: 'Favorites', icon: '/assets/icons/sidebar/heart-pulse.svg' },
   { id: 'wishlist', label: 'Wishlist', icon: '/assets/icons/sidebar/bookmark.svg' },
-  { id: 'settings', label: 'Settings', icon: '/assets/icons/sidebar/gear.svg' },
-  { id: 'admin', label: 'Admin', faIcon: 'fa-user-shield', adminOnly: true },
+  { id: 'albums', label: 'Albums', icon: '/assets/icons/sidebar/album.svg', section: 'LIBRARY' },
+  { id: 'artists', label: 'Artists', faIcon: 'fa-user-group', section: 'LIBRARY' },
+  { id: 'tracks', label: 'Songs', icon: '/assets/icons/sidebar/list-music.svg', section: 'LIBRARY' },
+  { id: 'settings', label: 'Options', section: 'SETTINGS', icon: '/assets/icons/sidebar/gear.svg' },
+  { id: 'admin', label: 'Admin', faIcon: 'fa-user-shield', section: 'SETTINGS', adminOnly: true },
 ];
 const brandClassName = 'sidebar-brand tw-mb-3 tw-min-w-0';
 const sidebarTopClassName = 'sidebar-topbar tw-mb-3 tw-flex tw-min-w-0 tw-items-center tw-justify-between tw-gap-2.5';
 const sidebarToggleClassName = 'sidebar-toggle-button tw-inline-flex tw-h-9 tw-w-9 tw-items-center tw-justify-center tw-rounded-pill tw-border tw-border-line tw-bg-[var(--glass)] tw-p-0 tw-text-accent';
 const titleClassName = 'tw-m-0 tw-min-w-0 tw-break-words tw-font-display tw-text-[clamp(1.45rem,2vw,2rem)] tw-leading-[1.05] tw-tracking-[-0.05em]';
 const navClassName = 'sidebar-nav tw-mb-6 tw-grid tw-gap-2';
-const navButtonClassName = 'nav-link tw-flex tw-items-center tw-gap-3 tw-rounded-[16px] tw-border tw-border-transparent tw-px-4 tw-py-3 tw-text-left tw-text-muted tw-transition hover:tw-bg-[var(--glass-strong)] hover:tw-text-text';
-const activeNavClassName = ' is-active tw-border-accent tw-bg-accent tw-text-[var(--accent-contrast)] tw-shadow-glow';
+const navButtonClassName = 'nav-link';
+const activeNavClassName = ' is-active';
 const sidebarBottomClassName = 'sidebar-bottom tw-mt-auto tw-grid tw-gap-3 tw-pt-[22px]';
 const sidebarUserClassName = 'sidebar-user-section tw-my-4';
 const statsClassName = 'sidebar-stats tw-grid tw-gap-3';
@@ -36,6 +38,7 @@ export function Sidebar({
   title = 'Monochrome-Streamer',
   showTitle = true,
   activeView = 'home',
+  libraryTab = 'albums',
   settings = {},
   albumCount = 0,
   trackCount = 0,
@@ -51,10 +54,10 @@ export function Sidebar({
     || (!settings.themeBase && (settings.theme === 'white' || settings.theme === 'latte' || settings.customThemeBase === 'light'));
   const themeMode = isLightTheme ? 'light' : 'dark';
   const isAdmin = currentUser?.role === 'admin';
-  const visibleItems = NAV_ITEMS.filter(({ id, adminOnly }) => {
+  const visibleItems = NAV_ITEMS.filter(({ id, adminOnly, section }) => {
     if (adminOnly) return isAdmin;
     if (id === 'home') return settings.showHome !== false;
-    if (id === 'library' || id === 'collections') return settings.showLibrary !== false;
+    if (section === 'LIBRARY' || id === 'collections') return settings.showLibrary !== false;
     if (id === 'favorites' || id === 'wishlist') return settings.showFavorites !== false;
     return true;
   });
@@ -97,19 +100,35 @@ export function Sidebar({
       </div>
 
       <nav className={navClassName}>
-        {visibleItems.map((item) => (
-          <button
-            key={item.id}
-            id={`nav-${item.id}`}
-            className={`${navButtonClassName}${activeView === item.id ? activeNavClassName : ''}`}
-            type="button"
-            title={item.label}
-            onClick={() => onNavigate?.(item.id)}
-          >
-            <NavIcon item={item} />
-            <span className="sidebar-nav-label">{item.label}</span>
-          </button>
-        ))}
+        {['MENU', 'LIBRARY', 'SETTINGS'].map((section) => {
+          const items = visibleItems.filter((item) => (item.section || 'MENU') === section);
+          if (!items.length) return null;
+          return (
+            <div className="sidebar-nav-section" role="group" aria-label={section} key={section}>
+              <h2 className="sidebar-nav-heading">{section}</h2>
+              {items.map((item) => {
+                const active = item.section === 'LIBRARY'
+                  ? activeView === 'library' && libraryTab === item.id
+                  : activeView === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    id={`nav-${item.id}`}
+                    className={`${navButtonClassName}${active ? activeNavClassName : ''}`}
+                    type="button"
+                    title={item.label}
+                    aria-label={item.label}
+                    aria-current={active ? 'page' : undefined}
+                    onClick={() => onNavigate?.(item.id)}
+                  >
+                    <NavIcon item={item} />
+                    <span className="sidebar-nav-label">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
       </nav>
 
       <div className={sidebarBottomClassName}>

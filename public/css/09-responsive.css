@@ -101,7 +101,7 @@
 
   body.sidebar-collapsed .nav-link {
     width: 52px;
-    height: 52px;
+    height: 40px;
     justify-content: center;
     padding: 0;
   }
@@ -253,7 +253,8 @@
     width: 100%;
     height: auto;
     justify-content: flex-start;
-    padding: 14px 16px;
+    min-height: 44px;
+    padding: 10px 12px;
   }
 
   .nav-link .sidebar-nav-label,

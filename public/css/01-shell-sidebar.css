@@ -336,15 +336,19 @@
 }
 
 .nav-link {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
-  border-radius: 14px;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 0;
   background: transparent;
-  color: var(--muted);
+  color: var(--text);
   text-align: left;
   text-decoration: none;
+  box-shadow: none;
 }
 
 .sidebar-nav-icon {
@@ -366,17 +370,32 @@
 }
 
 .nav-link:hover {
-  background: var(--glass-strong);
-  color: var(--text);
+  background: transparent;
+  color: var(--accent);
 }
 
 .nav-link.is-active {
-  background:
-    radial-gradient(circle at 88% 12%, color-mix(in srgb, #ffffff 26%, transparent), transparent 38%),
-    linear-gradient(135deg, color-mix(in srgb, var(--accent) 92%, #ffffff 2%), color-mix(in srgb, var(--accent) 70%, #000000 16%));
-  border-color: color-mix(in srgb, var(--accent) 78%, transparent);
-  color: var(--accent-contrast);
-  box-shadow: 0 16px 34px color-mix(in srgb, var(--accent) 24%, transparent);
+  background: transparent;
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.nav-link.is-active::after {
+  content: '';
+  position: absolute;
+  right: -18px;
+  top: 50%;
+  width: 2px;
+  height: 24px;
+  border-radius: 2px;
+  background: var(--accent);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.nav-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .nav-link.is-active .fa-solid,
@@ -618,7 +637,7 @@ body.sidebar-collapsed .sidebar-user-section {
 
 body.sidebar-collapsed .nav-link {
   width: 52px;
-  height: 52px;
+  height: 40px;
   justify-content: center;
   padding: 0;
 }
@@ -739,3 +758,27 @@ body.sidebar-collapsed .sidebar-progress-percent {
   padding: 16px 18px var(--measured-player-reserve);
 }
 
+
+/* Grouped navigation keeps library destinations available in compact mode. */
+.sidebar-nav-section {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+.sidebar-nav-section + .sidebar-nav-section {
+  margin-top: 16px;
+}
+.sidebar-nav-heading {
+  margin: 0 12px 6px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+@media (min-width: 721px) {
+  body.sidebar-collapsed .nav-link.is-active::after { right: -10px; }
+  body.sidebar-collapsed .sidebar-nav-heading { display: none; }
+}
+@media (max-width: 720px) {
+  body.sidebar-collapsed .sidebar-nav { justify-items: stretch; }
+}

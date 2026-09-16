@@ -36,7 +36,7 @@ test('sidebar nav items render both icon wrappers and compact-mode labels', asyn
     currentUser: { username: 'admin', role: 'admin' },
   }));
 
-  const navItems = ['Home', 'Library', 'Collections', 'Playlists', 'Favorites', 'Wishlist', 'Settings', 'Admin'];
+  const navItems = ['Home', 'Collections', 'Playlists', 'Favorites', 'Wishlist', 'Albums', 'Artists', 'Songs', 'Options', 'Admin'];
   for (const label of navItems) {
     const buttonPattern = new RegExp(
       `<button[^>]*>[\\s\\S]*?<span class="sidebar-nav-icon"[^>]*>[\\s\\S]*?</span>[\\s\\S]*?<span class="sidebar-nav-label">${label}</span>[\\s\\S]*?</button>`,
@@ -106,4 +106,28 @@ test('sidebar statistics use a plain divided footer with navigation-sized muted 
   assert.match(source, /\.stat-card strong \{[\s\S]*font-size: inherit/u);
   assert.match(responsiveSource, /grid-template-columns: 28px minmax\(0, 1fr\)/u);
   assert.match(responsiveSource, /width: 1\.35rem;[\s\S]*height: 1\.35rem/u);
+});
+
+test('sidebar groups destinations and marks only the selected library section active', async () => {
+  const { Sidebar } = await sidebarModulePromise;
+  for (const tab of ['albums', 'artists', 'tracks']) {
+    const html = renderToStaticMarkup(React.createElement(Sidebar, {
+      activeView: 'library', libraryTab: tab, currentUser: { role: 'admin' },
+    }));
+    assert.deepEqual([...html.matchAll(/role="group" aria-label="([^"]+)"/gu)].map(m => m[1]), ['MENU', 'LIBRARY', 'SETTINGS']);
+    assert.deepEqual([...html.matchAll(/id="nav-([^"]+)"[^>]*aria-current="page"/gu)].map(m => m[1]), [tab]);
+    assert.doesNotMatch(html, /id="nav-library"/u);
+  }
+});
+
+test('sidebar respects library visibility and admin permissions', async () => {
+  const { Sidebar } = await sidebarModulePromise;
+  const html = renderToStaticMarkup(React.createElement(Sidebar, {
+    settings: { showLibrary: false, showHome: false, showFavorites: false },
+    currentUser: { role: 'guest' },
+  }));
+  assert.doesNotMatch(html, /id="nav-(?:albums|artists|tracks|collections|admin|home|favorites|wishlist)"/u);
+  assert.doesNotMatch(html, /aria-label="LIBRARY"/u);
+  assert.match(html, /id="nav-settings"/u);
+  assert.match(html, /id="nav-playlists"/u);
 });

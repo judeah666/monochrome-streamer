@@ -623,6 +623,13 @@ function setMobileSidebarOpen(open) {
 }
 
 function navigateFromSidebar(view) {
+  if (['albums', 'artists', 'tracks'].includes(view)) {
+    state.libraryTab = view;
+    state.unsearchedLibraryStale = true;
+    navigateToView('library');
+    if (isMobileSidebarLayout()) setMobileSidebarOpen(false);
+    return;
+  }
   if (view === 'admin') {
     if (!isCurrentUserAdmin()) return;
     navigateToView('admin');
@@ -3621,6 +3628,7 @@ function renderSidebar({
     title: getDisplayTitle(),
     showTitle: state.settings.showLibraryTitle,
     activeView: state.route.view,
+    libraryTab: state.libraryTab,
     settings: { ...state.settings },
     albumCount: albumTotal,
     trackCount: trackTotal,
@@ -3743,7 +3751,7 @@ function renderLibraryIntro() {
     tracks: 'Search tracks directly without loading the whole library.',
   };
   renderReact('renderLibraryIntro', libraryIntroRoot, {
-    title: state.route.view === 'collections' ? 'Collections' : 'Browse Library',
+    title: state.route.view === 'collections' ? 'Collections' : ({ albums: 'Albums', artists: 'Artists', tracks: 'Songs', folders: 'Folders' }[state.libraryTab] || 'Albums'),
     caption: captionsByTab[state.libraryTab] || captionsByTab.albums,
     actionLabel: state.route.view === 'collections' && isCurrentUserAdmin() ? 'Add collection' : '',
     onAction: state.route.view === 'collections' && isCurrentUserAdmin()
@@ -3760,9 +3768,9 @@ function renderPlaylistsIntro() {
 }
 
 function renderLibraryTabs() {
-  libraryTabsRoot.hidden = state.route.view === 'collections';
+  libraryTabsRoot.hidden = state.route.view === 'collections' || !state.settings.showFolderBrowser;
   renderReact('renderLibraryTabs', libraryTabsRoot, {
-    tabs: LIBRARY_TAB_REGISTRY.filter(([id]) => id !== 'collections').map(([id, label]) => ({
+    tabs: LIBRARY_TAB_REGISTRY.filter(([id]) => id === 'folders').map(([id, label]) => ({
       id,
       label,
       hidden: id === 'folders' && !state.settings.showFolderBrowser,

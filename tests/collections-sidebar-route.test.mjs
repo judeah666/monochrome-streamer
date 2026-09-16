@@ -14,10 +14,10 @@ test('Collections is a first-class sidebar destination', () => {
   assert.match(controllerSource, /state\.libraryTab = 'collections'/u);
 });
 
-test('Library tabs no longer duplicate the Collections destination', () => {
+test('Library tabs retain only the optional folder browser', () => {
   assert.match(
     controllerSource,
-    /LIBRARY_TAB_REGISTRY\.filter\(\(\[id\]\) => id !== 'collections'\)/u,
+    /LIBRARY_TAB_REGISTRY\.filter\(\(\[id\]\) => id === 'folders'\)/u,
   );
   assert.match(controllerSource, /libraryTabsRoot\.hidden = state\.route\.view === 'collections'/u);
 });

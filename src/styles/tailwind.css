@@ -1035,7 +1035,7 @@ body[data-view='admin'] .admin-hero h2 {
 }
 
 body:not([data-view='login']):not([data-view='fullscreen']) .nav-link {
-  border-radius: var(--radius-small);
+  border-radius: 0;
 }
 
 body:not([data-view='login']):not([data-view='fullscreen']) .nav-link.is-active {
