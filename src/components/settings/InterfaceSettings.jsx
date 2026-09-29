@@ -65,7 +65,7 @@ export function InterfaceSettings({
         <SettingToggle
           settingKey="showRecentlyAdded"
           title="Show Recently Added on Home"
-          description="Display the horizontal Recently Added album row above recommended albums."
+          description="Show recent albums in the Home banner carousel. The Home banner must also be enabled in Appearance."
           checked={settings.showRecentlyAdded}
         />
         <SettingToggle

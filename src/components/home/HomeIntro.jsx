@@ -1,31 +1,9 @@
 import React from 'react';
+import { RecentAlbumsCarousel } from './RecentAlbumsCarousel.jsx';
 
-export function HomeIntro({
-  showBanner = true,
-  eyebrow = 'Local Audio',
-  title = 'Your server, your collection, your rules.',
-  subtitle = 'Browse your albums, open them like a proper detail page, and control playback from a full bottom player.',
-  albumHeading = '',
-  albumCaption = '',
-}) {
-  return (
-    <>
-      {showBanner ? (
-        <section className="home-hero">
-          <p className="eyebrow">{eyebrow}</p>
-          <h2>{title}</h2>
-          <p className="lede">{subtitle}</p>
-        </section>
-      ) : null}
-
-      {albumHeading ? (
-        <div className="section-heading">
-          <div>
-            <h3>{albumHeading}</h3>
-            <p>{albumCaption}</p>
-          </div>
-        </div>
-      ) : null}
-    </>
-  );
+export function HomeIntro({ showBanner = true, albums = [], onOpen, onPlay, albumHeading = '', albumCaption = '' }) {
+  return <>
+    {showBanner ? <RecentAlbumsCarousel albums={albums} onOpen={onOpen} onPlay={onPlay} /> : null}
+    {albumHeading ? <div className="section-heading"><div><h3>{albumHeading}</h3><p>{albumCaption}</p></div></div> : null}
+  </>;
 }

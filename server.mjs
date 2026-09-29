@@ -1,3 +1,4 @@
+import { PersistentSessionStore, sessionCookieName } from './src/server/sessionStore.js';
 import { createReadStream, existsSync, promises as fs } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -238,7 +239,7 @@ let authStoreCache = null;
 let homeAlbumPageCache = new Map();
 let recentlyAddedAlbumPageCache = new Map();
 let albumCoverLookup = new Map();
-const sessions = new Map();
+const sessions = new PersistentSessionStore(path.join(path.dirname(authUsersPath), 'sessions.json'));
 const loginAttempts = new Map();
 const downloadAttempts = new Map();
 const playbackTranscodeJobs = new Map();
@@ -362,6 +363,9 @@ const server = http.createServer(async (request, response) => {
     }
 
     const authUser = await getAuthenticatedUser(request);
+    if (authUser && authUser.role !== 'guest') {
+      response.setHeader('Set-Cookie', createSessionCookie(getSessionToken(request), request));
+    }
 
     if (url.pathname === '/login' || url.pathname === '/login/') {
       if (request.method === 'POST') {
@@ -1162,6 +1166,11 @@ async function getSessionUser(request) {
   }
 
   if (activeSession.role === 'admin') {
+    const credentialVersion = createHash('sha256').update(JSON.stringify([config.adminUsername, config.adminPassword])).digest('hex');
+    if (activeSession.credentialVersion !== credentialVersion) {
+      sessions.delete(token);
+      return null;
+    }
     return {
       username: config.adminUsername,
       role: 'admin',
@@ -1172,7 +1181,7 @@ async function getSessionUser(request) {
 
   const store = await readAuthStore();
   const user = store.users.find((candidate) => candidate.username === activeSession.username);
-  if (!user) {
+  if (!user || activeSession.credentialVersion !== user.passwordHash) {
     sessions.delete(token);
     return null;
   }
@@ -1246,6 +1255,7 @@ async function authenticateUser(username, password) {
       username: config.adminUsername,
       role: 'admin',
       downloadsEnabled: true,
+      credentialVersion: createHash('sha256').update(JSON.stringify([config.adminUsername, config.adminPassword])).digest('hex'),
     };
   }
 
@@ -1256,16 +1266,17 @@ async function authenticateUser(username, password) {
   return {
     username: user.username,
     role: 'user',
+    credentialVersion: user.passwordHash,
     downloadsEnabled: user.downloadsEnabled !== false,
   };
 }
 
 function createSession(user) {
   const token = randomBytes(32).toString('hex');
-  sessions.set(token, createSessionRecord({
+  sessions.set(token, { ...createSessionRecord({
     username: user.username,
     role: user.role,
-  }));
+  }), credentialVersion: user.credentialVersion });
   return token;
 }
 
@@ -2243,7 +2254,7 @@ function normalizeUsername(value) {
 }
 
 function getSessionToken(request) {
-  return parseCookies(request.headers.cookie || '').ms_session || '';
+  return parseCookies(request.headers.cookie || '')[sessionCookieName(request.headers.host)] || '';
 }
 
 function parseCookies(cookieHeader) {
@@ -2259,9 +2270,9 @@ function parseCookies(cookieHeader) {
 }
 
 function createSessionCookie(token, request, options = {}) {
-  const maxAge = Number.isFinite(options.maxAge) ? options.maxAge : 7 * 24 * 60 * 60;
+  const maxAge = Number.isFinite(options.maxAge) ? options.maxAge : 400 * 24 * 60 * 60;
   const parts = [
-    `ms_session=${encodeURIComponent(token)}`,
+    `${sessionCookieName(request.headers.host)}=${encodeURIComponent(token)}`,
     'Path=/',
     'HttpOnly',
     'SameSite=Strict',

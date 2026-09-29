@@ -7,8 +7,6 @@ import {
   isWeakAdminCredentials,
   normalizeCorsOrigin,
   refreshSessionRecord,
-  SESSION_ABSOLUTE_MS,
-  SESSION_IDLE_MS,
 } from '../src/server/securityPolicy.js';
 
 test('security policy flags weak admin credentials', () => {
@@ -18,26 +16,15 @@ test('security policy flags weak admin credentials', () => {
   assert.equal(isWeakAdminCredentials('streamer-admin', 'correct-horse-battery'), false);
 });
 
-test('session records include csrf tokens and respect idle versus absolute expiry', () => {
+test('sessions remain valid across inactivity until explicitly revoked', () => {
   const now = 1_700_000_000_000;
   const session = createSessionRecord({ username: 'tester', role: 'admin' }, now);
-
-  assert.equal(session.username, 'tester');
-  assert.equal(session.role, 'admin');
-  assert.ok(session.csrfToken);
-  assert.equal(session.lastSeenAt, now);
-  assert.equal(session.expiresAt, now + SESSION_IDLE_MS);
-
-  const refreshed = refreshSessionRecord(session, now + 60_000);
-  assert.equal(refreshed.expiresAt, now + 60_000 + SESSION_IDLE_MS);
-
-  const nearAbsoluteExpiry = createSessionRecord({ username: 'tester', role: 'user' }, now);
-  nearAbsoluteExpiry.expiresAt = now + SESSION_ABSOLUTE_MS;
-  const clipped = refreshSessionRecord(nearAbsoluteExpiry, now + SESSION_ABSOLUTE_MS - 500);
-  assert.equal(clipped.expiresAt, now + SESSION_ABSOLUTE_MS);
-
-  const expired = refreshSessionRecord(createSessionRecord({ username: 'tester', role: 'user' }, now), now + SESSION_ABSOLUTE_MS + 1);
-  assert.equal(expired, null);
+  const csrf = session.csrfToken;
+  assert.ok(csrf);
+  assert.equal(session.expiresAt, Number.MAX_SAFE_INTEGER);
+  assert.equal(refreshSessionRecord(session, now + 365 * 86400000), session);
+  assert.equal(session.csrfToken, csrf);
+  assert.equal(refreshSessionRecord(undefined), null);
 });
 
 test('widget security helpers reject wildcard origins and placeholder keys', () => {

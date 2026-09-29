@@ -19,6 +19,7 @@
   padding: 18px 18px 22px;
   background: var(--glass-heavy);
   border-right: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
 

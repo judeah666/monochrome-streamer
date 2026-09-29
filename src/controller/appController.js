@@ -953,6 +953,7 @@ function bindAudioPlayerEvents(player) {
   });
   player.addEventListener('ended', () => {
     if (player !== audioPlayer) return;
+    updateBrowserTitle();
     stopLyricsTicker();
     reportPlaybackPresence({ force: true });
     handleTrackEnded();
@@ -3406,8 +3407,7 @@ function applySettings() {
   document.body.classList.toggle('player-layout-qobuz', isQobuzLayout);
   document.body.classList.toggle('player-layout-floating', !isQobuzLayout);
 
-  const displayTitle = getDisplayTitle();
-  document.title = `${displayTitle} | Local Streamer`;
+  updateBrowserTitle();
 
   document.body.classList.toggle('sidebar-collapsed', Boolean(state.settings.sidebarCollapsed));
 
@@ -3679,10 +3679,13 @@ function renderTopbar(viewContext = getRouteRenderContext()) {
 
 function renderHomeIntro(viewContext = getRouteRenderContext()) {
   renderReact('renderHomeIntro', homeIntroRoot, {
-    showBanner: Boolean(viewContext.isHomeView && state.settings.showHomeBanner),
-    eyebrow: state.settings.homeBannerEyebrow || DEFAULT_SETTINGS.homeBannerEyebrow,
-    title: state.settings.homeBannerTitle || DEFAULT_SETTINGS.homeBannerTitle,
-    subtitle: state.settings.homeBannerSubtitle || DEFAULT_SETTINGS.homeBannerSubtitle,
+    showBanner: Boolean(viewContext.isHomeView && !state.searchTerm && state.settings.showHomeBanner && state.settings.showRecentlyAdded !== false),
+    albums: filterAlbumsByMediaType(viewContext.recentlyAddedAlbums || []).map(prepareAlbumCardForReact),
+    onOpen: openAlbum,
+    onPlay: (albumId) => {
+      const album = state.albumMap.get(albumId);
+      if (album) playAlbumFromCard(album).catch((error) => console.error(error));
+    },
     albumHeading: viewContext.isHomeView && !state.searchTerm ? '' : 'Recommended Albums',
     albumCaption: state.searchTerm
       ? `Albums matching "${state.searchTerm}"`
@@ -4687,9 +4690,7 @@ function renderHomeView(homeAlbums, recentlyAddedAlbums) {
   }
 
   renderReact('renderHomeAlbumSections', albumGrid, {
-    recentlyAddedAlbums: filterAlbumsByMediaType(recentlyAddedAlbums).map(prepareAlbumCardForReact),
     recommendedAlbums: filterAlbumsByMediaType(homeAlbums).map(prepareAlbumCardForReact),
-    showRecentlyAdded: state.settings.showRecentlyAdded !== false,
     emptyMessage: 'No albums matched this search.',
     onOpen: openAlbum,
     onPlay: (albumId) => {
@@ -5453,7 +5454,15 @@ function toggleMute() {
   setVolume(nextVolumeState.volume);
 }
 
+function updateBrowserTitle() {
+  const track = state.currentTrackId ? state.trackMap.get(state.currentTrackId) : null;
+  document.title = track && !audioPlayer.paused && !audioPlayer.ended
+    ? `${track.title || 'Unknown Title'} - ${track.artist || 'Unknown Artist'}`
+    : `${getDisplayTitle()} | Local Streamer`;
+}
+
 function updatePlayerUi() {
+  updateBrowserTitle();
   const track = state.currentTrackId ? state.trackMap.get(state.currentTrackId) : null;
   const queue = getPlaybackQueue();
   const currentIndex = track ? queue.indexOf(track.id) : -1;

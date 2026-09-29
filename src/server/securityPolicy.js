@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
-export const SESSION_IDLE_MS = 12 * 60 * 60 * 1000;
-export const SESSION_ABSOLUTE_MS = 7 * 24 * 60 * 60 * 1000;
+
+
 export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 export const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
 export const LOGIN_MAX_FAILURES = 5;
@@ -17,20 +17,16 @@ export function createSessionRecord({ username, role }, now = Date.now()) {
     csrfToken: randomBytes(24).toString('base64url'),
     createdAt: now,
     lastSeenAt: now,
-    expiresAt: Math.min(now + SESSION_IDLE_MS, now + SESSION_ABSOLUTE_MS),
+    expiresAt: Number.MAX_SAFE_INTEGER,
   };
 }
 
 export function refreshSessionRecord(session, now = Date.now()) {
   if (!session || typeof session !== 'object') return null;
   const createdAt = Number(session.createdAt) || now;
-  const absoluteExpiry = createdAt + SESSION_ABSOLUTE_MS;
-  const expiresAt = Number(session.expiresAt) || 0;
-  if (expiresAt < now || absoluteExpiry < now) return null;
-
   session.createdAt = createdAt;
   session.lastSeenAt = now;
-  session.expiresAt = Math.min(now + SESSION_IDLE_MS, absoluteExpiry);
+  session.expiresAt = Number.MAX_SAFE_INTEGER;
   if (!session.csrfToken) {
     session.csrfToken = randomBytes(24).toString('base64url');
   }

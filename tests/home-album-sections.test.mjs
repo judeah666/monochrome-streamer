@@ -12,7 +12,7 @@ const homeSectionsModulePromise = loadHomeSectionsModule();
 async function loadHomeSectionsModule() {
   const entry = new URL('../src/components/home/HomeAlbumSections.jsx', import.meta.url);
   const result = await build({
-    entryPoints: [fileURLToPath(entry)],
+    stdin: { contents: "export { HomeAlbumSections } from './HomeAlbumSections.jsx'; export { HomeIntro } from './HomeIntro.jsx';", resolveDir: path.dirname(fileURLToPath(entry)), loader: 'jsx' },
     bundle: true,
     format: 'esm',
     platform: 'node',
@@ -38,18 +38,19 @@ const album = {
   status: 'Collection',
 };
 
-test('home album sections render recently added before recommended albums', async () => {
+test('home album sections keep recommendations without duplicating the banner carousel', async () => {
   const { HomeAlbumSections } = await homeSectionsModulePromise;
   const html = renderToStaticMarkup(React.createElement(HomeAlbumSections, {
     recentlyAddedAlbums: [album],
     recommendedAlbums: [{ ...album, id: 'album-2', title: 'Album Two' }],
   }));
 
-  assert.ok(html.indexOf('Recently Added') < html.indexOf('Recommended Albums'));
-  assert.match(html, /class="[^"]*home-album-rail/u);
+  assert.match(html, /Recommended Albums/u);
+  assert.doesNotMatch(html, /Recently Added/u);
+  assert.match(html, /home-recommended-grid/u);
 });
 
-test('home album sections hide recently added when disabled', async () => {
+test('home recommendations render independently of the banner', async () => {
   const { HomeAlbumSections } = await homeSectionsModulePromise;
   const html = renderToStaticMarkup(React.createElement(HomeAlbumSections, {
     recentlyAddedAlbums: [album],
@@ -59,4 +60,25 @@ test('home album sections hide recently added when disabled', async () => {
 
   assert.doesNotMatch(html, /Recently Added/u);
   assert.match(html, /Recommended Albums/u);
+});
+
+
+test('banner shows the album carousel and no legacy welcome text', async () => {
+  const { HomeIntro } = await homeSectionsModulePromise;
+  const html = renderToStaticMarkup(React.createElement(HomeIntro, {
+    albums: [album], title: 'Old welcome text', subtitle: 'Old subtitle',
+  }));
+  assert.match(html, /Recently Added/u);
+  assert.match(html, /Album One/u);
+  assert.match(html, /Play Album One/u);
+  assert.match(html, /aria-roledescription="carousel"/u);
+  assert.doesNotMatch(html, /Old welcome text|Old subtitle/u);
+  assert.match(html, /disabled="" aria-label="Next recently added album"/u);
+});
+
+test('empty or disabled banner does not render carousel controls', async () => {
+  const { HomeIntro } = await homeSectionsModulePromise;
+  for (const props of [{ albums: [] }, { albums: [album], showBanner: false }]) {
+    assert.equal(renderToStaticMarkup(React.createElement(HomeIntro, props)), '');
+  }
 });

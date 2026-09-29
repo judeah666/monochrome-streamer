@@ -367,8 +367,8 @@ body.has-background-pattern {
   background-attachment: scroll;
 }
 body.has-background-pattern::before { content: none; }
-/* Sampling detailed tiles through nested glass panels is costly during scrolling. */
-body.has-background-pattern *:not(.now-playing-bar),
+/* Keep nested panels inexpensive; retain glass on the sidebar, album cards, and player. */
+body.has-background-pattern *:not(.now-playing-bar):not(.sidebar):not(.album-card-shell),
 body.has-background-pattern *::before,
 body.has-background-pattern *::after {
   -webkit-backdrop-filter: none !important;

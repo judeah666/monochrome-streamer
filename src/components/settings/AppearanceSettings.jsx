@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { FONT_OPTIONS } from '../../controller/constants.js';
 import { BACKGROUND_PATTERNS, DEFAULT_BACKGROUND_PATTERN } from '../../controller/backgroundPatterns.js';
 import { CoverPlaceholder, MediaTypeIcons } from '../common/VisualBits.jsx';
 
@@ -32,19 +33,34 @@ export function AppearanceSettings({
   customThemeBaseOptions = [],
   preview = {},
 }) {
+  const [section, setSection] = useState('style');
   return (
-    <>
+    <div className="appearance-settings">
+      <header className="appearance-settings-header">
+        <h3>Appearance</h3>
+        <p>Make this space yours. Changes are saved automatically in this browser.</p>
+      </header>
+      <nav className="appearance-section-nav" aria-label="Appearance sections">
+        {[
+          ['style', 'Theme & background', 'fa-palette'],
+          ['type', 'Typography', 'fa-font'],
+          ['cards', 'Cards & artwork', 'fa-images'],
+          ['identity', 'App identity', 'fa-pen'],
+        ].map(([id, label, icon]) => (
+          <button key={id} type="button" aria-pressed={section === id} aria-controls={`appearance-section-${id}`} onClick={() => setSection(id)}>
+            <i className={`fa-solid ${icon}`} aria-hidden="true" />{label}
+          </button>
+        ))}
+      </nav>
+      <div id="appearance-section-style" className="appearance-section-content" hidden={section !== 'style'}>
       <SettingsGroup title="Theme" description="Choose your preferred color scheme.">
-        <div className="theme-grid tw-grid tw-grid-cols-[repeat(auto-fill,minmax(128px,1fr))] tw-gap-2.5">
+        <div className="theme-grid" role="group" aria-label="Color theme">
           {themeOptions.map((theme) => (
             <button
               key={theme.value}
               type="button"
-              className={[
-                'theme-swatch tw-inline-flex tw-min-h-[54px] tw-items-center tw-justify-center',
-                'tw-rounded-[14px] tw-border tw-px-3 tw-font-extrabold tw-backdrop-blur-md',
-                settings.theme === theme.value ? 'is-active' : '',
-              ].join(' ')}
+              className={`theme-swatch${settings.theme === theme.value ? ' is-active' : ''}`}
+              aria-pressed={settings.theme === theme.value}
               data-setting-value="theme"
               data-value={theme.value}
               style={{
@@ -59,15 +75,21 @@ export function AppearanceSettings({
                 '--theme-preview-body-bottom': theme.bodyBottom,
               }}
             >
-              <span className="theme-swatch-label">{theme.label}</span>
+              <span className="theme-palette-preview" aria-hidden="true">
+                <span /><span /><span /><span />
+              </span>
+              <span className="appearance-option-caption">
+                <span className="theme-swatch-label">{theme.label}</span>
+                <span className="appearance-option-check" aria-hidden="true"><i className="fa-solid fa-check" /></span>
+              </span>
             </button>
           ))}
         </div>
         <div className={`${settingsFieldClassName} theme-custom-field tw-items-start`}>
-          <span>Theme Base</span>
+          <span>Mode &amp; accent</span>
           <div className="theme-custom-controls tw-grid tw-grid-cols-[minmax(120px,auto)_minmax(180px,1fr)] tw-items-end tw-gap-3 max-[720px]:tw-grid-cols-1">
             <label className="tw-grid tw-gap-1.5">
-              <span className="tw-m-0 tw-text-[0.78rem] tw-font-extrabold tw-uppercase tw-tracking-[0.08em] tw-text-muted">Base</span>
+              <span className="tw-m-0 tw-text-[0.78rem] tw-font-extrabold tw-uppercase tw-tracking-[0.08em] tw-text-muted">Color mode</span>
               <select data-setting="themeBase" defaultValue={settings.themeBase || settings.customThemeBase}>
                 {(themeBaseOptions.length ? themeBaseOptions : customThemeBaseOptions).map(([value, label]) => (
                   <option key={value} value={value}>
@@ -77,13 +99,12 @@ export function AppearanceSettings({
               </select>
             </label>
             <label className="tw-grid tw-gap-1.5">
-              <span className="tw-m-0 tw-text-[0.78rem] tw-font-extrabold tw-uppercase tw-tracking-[0.08em] tw-text-muted">Custom Accent</span>
+              <span className="tw-m-0 tw-text-[0.78rem] tw-font-extrabold tw-uppercase tw-tracking-[0.08em] tw-text-muted">Custom accent</span>
               <input type="color" data-setting="customAccent" defaultValue={settings.customAccent} />
             </label>
           </div>
         </div>
       </SettingsGroup>
-
       <SettingsGroup title="Background Pattern" description="Choose a repeating music pattern. Select None to restore the theme background.">
         <div className="background-pattern-grid" role="group" aria-label="Background pattern">
           {BACKGROUND_PATTERNS.map((pattern) => (
@@ -96,51 +117,39 @@ export function AppearanceSettings({
               aria-pressed={(settings.backgroundPattern || DEFAULT_BACKGROUND_PATTERN) === pattern.value}
             >
               <span className="background-pattern-preview" aria-hidden="true" style={{ backgroundImage: pattern.image ? 'url("' + pattern.image + '")' : 'none' }} />
-              <span>{pattern.label}</span>
+              <span className="appearance-option-caption">
+                <span>{pattern.label}</span>
+                <span className="appearance-option-check" aria-hidden="true"><i className="fa-solid fa-check" /></span>
+              </span>
             </button>
           ))}
         </div>
-        <p className={settingsHelpClassName}>Patterns are static and softly muted for readability. Panel blur is turned off while a pattern is selected to keep scrolling lightweight.</p>
+        <p className={settingsHelpClassName}>Backgrounds are softly muted to keep your music in focus.</p>
       </SettingsGroup>
-
-      <SettingsGroup title="Text" description="Rename the app and the home banner without editing config files.">
-        <div className={`${settingsFieldClassName} library-title-field`}>
-          <div className="library-title-label tw-flex tw-min-w-0 tw-items-center tw-gap-3">
-            <span>Library Title</span>
-            <label className="settings-inline-toggle tw-inline-flex tw-items-center tw-gap-2.5 tw-text-[0.82rem] tw-font-extrabold tw-text-muted" aria-label="Show library title">
-              <input type="checkbox" data-setting="showLibraryTitle" defaultChecked={settings.showLibraryTitle} />
-            </label>
-          </div>
-          <input type="text" data-setting="libraryTitle" defaultValue={settings.libraryTitle} placeholder={title} />
-        </div>
+      </div>
+      <div id="appearance-section-type" className="appearance-section-content" hidden={section !== 'type'}>
+      <SettingsGroup title="App Font" description="Choose the font and text size used by this browser.">
         <label className={settingsFieldClassName}>
-          <span>App / Browser Tab Icon URL</span>
-          <input type="url" data-setting="appIconUrl" defaultValue={settings.appIconUrl} placeholder="/icon.png or https://example.com/icon.png" />
+          <span>Font Preset</span>
+          <select data-setting="fontPreset" defaultValue={settings.fontPreset}>
+            {FONT_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
         </label>
-        <div className={`${settingsFieldClassName} home-banner-field tw-items-start`}>
-          <div className="home-banner-heading tw-flex tw-items-center tw-justify-between tw-gap-3.5">
-            <span>Home Banner</span>
-            <label className="settings-inline-toggle tw-inline-flex tw-items-center tw-gap-2.5 tw-text-[0.82rem] tw-font-extrabold tw-text-muted" aria-label="Show home banner">
-              <input type="checkbox" data-setting="showHomeBanner" defaultChecked={settings.showHomeBanner} />
-            </label>
-          </div>
-          <div className="home-banner-controls tw-grid tw-min-w-0 tw-gap-2.5">
-            <label className="tw-grid tw-gap-1.5">
-              <span className="tw-m-0 tw-text-[0.78rem] tw-font-extrabold tw-uppercase tw-tracking-[0.08em] tw-text-muted">Eyebrow</span>
-              <input type="text" data-setting="homeBannerEyebrow" defaultValue={settings.homeBannerEyebrow} />
-            </label>
-            <label className="tw-grid tw-gap-1.5">
-              <span className="tw-m-0 tw-text-[0.78rem] tw-font-extrabold tw-uppercase tw-tracking-[0.08em] tw-text-muted">Title</span>
-              <input type="text" data-setting="homeBannerTitle" defaultValue={settings.homeBannerTitle} />
-            </label>
-            <label className="tw-grid tw-gap-1.5">
-              <span className="tw-m-0 tw-text-[0.78rem] tw-font-extrabold tw-uppercase tw-tracking-[0.08em] tw-text-muted">Subtitle</span>
-              <input type="text" data-setting="homeBannerSubtitle" defaultValue={settings.homeBannerSubtitle} />
-            </label>
-          </div>
+        <label className={settingsFieldClassName}>
+          <span>Font Size <strong>{settings.fontSize}%</strong></span>
+          <input type="range" min="75" max="140" step="5" data-setting="fontSize" defaultValue={settings.fontSize} />
+        </label>
+        <div className="typography-preview" aria-label="Font preview">
+          <span className="appearance-preview-label">Preview</span>
+          <strong>Your music, your way.</strong>
+          <p>The sound of a familiar song. A new album waiting to be discovered.</p>
+          <span className="typography-preview-numbers">Aa Bb Cc · 0123456789</span>
         </div>
       </SettingsGroup>
-
+      </div>
+      <div id="appearance-section-cards" className="appearance-section-content" hidden={section !== 'cards'}>
       <section className={`${settingsGroupClassName} visuals-settings-group`}>
         <div className="settings-group-heading">
           <h4>Visuals</h4>
@@ -176,7 +185,28 @@ export function AppearanceSettings({
           />
         </div>
       </section>
-    </>
+      </div>
+      <div id="appearance-section-identity" className="appearance-section-content" hidden={section !== 'identity'}>
+      <SettingsGroup title="App identity" description="Personalize the library name, browser icon, and home banner.">
+        <div className={`${settingsFieldClassName} library-title-field`}>
+          <div className="library-title-label tw-flex tw-min-w-0 tw-items-center tw-gap-3">
+            <span>Library Title</span>
+            <label className="settings-inline-toggle tw-inline-flex tw-items-center tw-gap-2.5 tw-text-[0.82rem] tw-font-extrabold tw-text-muted" aria-label="Show library title">
+              <input type="checkbox" data-setting="showLibraryTitle" defaultChecked={settings.showLibraryTitle} />
+            </label>
+          </div>
+          <input type="text" data-setting="libraryTitle" defaultValue={settings.libraryTitle} placeholder={title} />
+        </div>
+        <label className={settingsFieldClassName}>
+          <span>App / Browser Tab Icon URL</span>
+          <input type="url" data-setting="appIconUrl" defaultValue={settings.appIconUrl} placeholder="/icon.png or https://example.com/icon.png" />
+        </label>
+        <SettingToggle settingKey="showHomeBanner" title="Recently added banner"
+          description="Show the recently added album carousel at the top of Home."
+          checked={settings.showHomeBanner} />
+      </SettingsGroup>
+      </div>
+    </div>
   );
 }
 

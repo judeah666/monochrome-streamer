@@ -24,17 +24,14 @@ test('admin React scan state tolerates the first empty render', async () => {
   assert.match(source, /scan = scan && typeof scan === 'object' \? scan : \{\};/u);
 });
 
-test('font controls live in Admin System and use the shared app settings callback', async () => {
+test('font controls live in Appearance and use the saved settings handlers', async () => {
   const adminSource = await readFile(new URL('../src/react/admin.jsx', import.meta.url), 'utf8');
   const appearanceSource = await readFile(new URL('../src/components/settings/AppearanceSettings.jsx', import.meta.url), 'utf8');
   const controllerSource = await readFile(new URL('../src/controller/appController.js', import.meta.url), 'utf8');
-
-  assert.match(adminSource, /<PanelGroup title="App Font"/u);
-  assert.match(adminSource, /onFontSettingChange\('fontPreset'/u);
-  assert.match(adminSource, /onFontSettingChange\('fontSize'/u);
-  assert.doesNotMatch(appearanceSource, /data-setting="fontPreset"/u);
-  assert.doesNotMatch(appearanceSource, /data-setting="fontSize"/u);
-  assert.match(controllerSource, /onAppSettingChange: \(key, value\) => updateSetting\(key, value, true\)/u);
+  assert.doesNotMatch(adminSource, /<PanelGroup title="App Font"/u);
+  assert.match(appearanceSource, /data-setting="fontPreset"/u);
+  assert.match(appearanceSource, /data-setting="fontSize"/u);
+  assert.match(controllerSource, /function handleSettingsInput/u);
 });
 
 test('admin users show presence, now playing, and on-demand download history', async () => {

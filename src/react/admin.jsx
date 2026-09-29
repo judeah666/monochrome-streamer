@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { DEFAULT_SETTINGS, FONT_OPTIONS, FONT_PRESETS, STORAGE_KEYS } from '../controller/constants.js';
+import { DEFAULT_SETTINGS, FONT_PRESETS, STORAGE_KEYS } from '../controller/constants.js';
 import { isLightTheme, resolveThemePreset } from '../controller/themeResolver.js';
 import { getCsrfToken } from '../controller/utils.js';
 import { mergeDiscoveredLibraryFolders } from '../shared/libraryFolders.js';
@@ -47,7 +47,7 @@ const libraryFolderOptionClassName = [
   'tw-rounded-[14px] tw-border tw-border-line tw-bg-surface tw-px-3 tw-py-2.5 tw-font-extrabold tw-text-text',
 ].join(' ');
 
-export function AdminSettingsPanel({ embedded = false, appSettings = null, onAppSettingChange = null }) {
+export function AdminSettingsPanel({ embedded = false }) {
   const savedSettings = loadSavedSettings();
   const adminThemeMode = isLightTheme(savedSettings) ? 'light' : 'dark';
   const [activeTab, setActiveTab] = useState('users');
@@ -59,7 +59,6 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
   const [widget, setWidget] = useState(null);
   const [folders, setFolders] = useState({ available: [], selected: [], scan: {} });
   const [selectedFolders, setSelectedFolders] = useState(new Set());
-  const [fontSettings, setFontSettings] = useState(() => getFontSettings(appSettings || savedSettings));
 
   const appTitle = config?.title || 'Monochrome-Streamer';
   const adminUser = users.admin?.username || 'admin';
@@ -69,11 +68,6 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
     loadAll().catch((error) => setStatus(error.message));
   }, []);
 
-  useEffect(() => {
-    if (embedded && appSettings) {
-      setFontSettings(getFontSettings(appSettings));
-    }
-  }, [embedded, appSettings?.fontPreset, appSettings?.fontSize]);
 
   useEffect(() => {
     const pollDelay = getAdminPollingDelay(activeTab);
@@ -217,17 +211,6 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
     await loadFolders({ quiet: true, syncSelection: true });
   }
 
-  function changeFontSetting(key, value) {
-    const nextValue = key === 'fontSize' ? Number(value) : value;
-    setFontSettings((current) => ({ ...current, [key]: nextValue }));
-    if (typeof onAppSettingChange === 'function') {
-      onAppSettingChange(key, nextValue);
-      return;
-    }
-    const nextSettings = { ...loadSavedSettings(), [key]: nextValue };
-    localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(nextSettings));
-    applySavedTheme();
-  }
 
   const scan = normalizeScan(folders.scan);
   const selectedLabel = selectedFolders.size ? [...selectedFolders].join(', ') : 'No folders selected yet';
@@ -277,8 +260,6 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
             onScanChanges={() => saveSelectedFolders({ scanMode: 'changes' })}
             onScanFolder={(folder) => saveSelectedFolders({ scanMode: 'folders', scanFolders: [folder] })}
             onFullScan={() => saveSelectedFolders({ scanMode: 'full' })}
-            fontSettings={fontSettings}
-            onFontSettingChange={changeFontSetting}
           />
         ) : null}
       </div>
@@ -368,8 +349,6 @@ export function AdminSettingsPanel({ embedded = false, appSettings = null, onApp
             onScanChanges={() => saveSelectedFolders({ scanMode: 'changes' })}
             onScanFolder={(folder) => saveSelectedFolders({ scanMode: 'folders', scanFolders: [folder] })}
             onFullScan={() => saveSelectedFolders({ scanMode: 'full' })}
-            fontSettings={fontSettings}
-            onFontSettingChange={changeFontSetting}
           />
         ) : null}
       </main>
@@ -794,10 +773,9 @@ function SystemPanel({
   onScanChanges,
   onScanFolder,
   onFullScan,
-  fontSettings,
-  onFontSettingChange,
 }) {
   const importInputRef = useRef(null);
+  const [systemSection, setSystemSection] = useState('library');
   const [databaseStatus, setDatabaseStatus] = useState('');
   const [excelStatus, setExcelStatus] = useState('');
   const [excelWishlistOnly, setExcelWishlistOnly] = useState(false);
@@ -815,11 +793,6 @@ function SystemPanel({
       setScanFolder(scanFolderOptions[0] || '');
     }
   }, [scanFolder, scanFolderOptions]);
-  const stats = useMemo(() => ({
-    tracks: scan.tracks || 0,
-    albums: scan.albums || 0,
-  }), [scan]);
-  const scanDetail = `${scan.currentFolder ? `Scanning ${scan.currentFolder}` : selectedLabel} · ${scan.processed}/${scan.total} files · ${scan.reused} cached · ${scan.parsed} parsed · ${stats.tracks} tracks · ${stats.albums} albums`;
 
   function toggleFolder(folder) {
     setSelectedFolders((current) => {
@@ -917,9 +890,8 @@ function SystemPanel({
     const response = await fetch('/api/admin/database/import', {
       method: 'POST',
       cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/vnd.sqlite3',
-      },
+      credentials: 'same-origin',
+      headers: buildProtectedHeaders({ 'Content-Type': 'application/vnd.sqlite3' }),
       body: file,
     });
     const data = await response.json().catch(() => ({}));
@@ -932,135 +904,40 @@ function SystemPanel({
   }
 
   return (
-    <>
-      <PanelGroup title="App Font" description="Choose the font used by this browser. The existing selection remains stored with the app settings.">
-        <label className={settingsFieldClassName}>
-          <span>Font Preset</span>
-          <select
-            value={fontSettings.fontPreset}
-            onChange={(event) => onFontSettingChange('fontPreset', event.target.value)}
-          >
-            {FONT_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-        </label>
-        <label className={settingsFieldClassName}>
-          <span>Font Size <strong>{fontSettings.fontSize}%</strong></span>
-          <input
-            type="range"
-            min="75"
-            max="140"
-            step="5"
-            value={fontSettings.fontSize}
-            onChange={(event) => onFontSettingChange('fontSize', event.target.value)}
-          />
-        </label>
-      </PanelGroup>
-
+    <div className="system-settings">
+      <header className="system-settings-header">
+        <div><h3>System</h3><p>Manage your library, scans, backups, and exports.</p></div>
+        <span className="system-scan-badge" role="status"><i className="fa-solid fa-circle" aria-hidden="true" />{scan.statusLabel}</span>
+      </header>
+      <nav className="system-section-nav" aria-label="System sections">
+        {[
+          ['library', 'Library', 'fa-folder-open'],
+          ['backup', 'Backup & export', 'fa-database'],
+        ].map(([id, label, icon]) => (
+          <button key={id} type="button" aria-pressed={systemSection === id} aria-controls={`system-section-${id}`} onClick={() => setSystemSection(id)}>
+            <i className={`fa-solid ${icon}`} aria-hidden="true" />{label}
+          </button>
+        ))}
+      </nav>
+      <div id="system-section-library" className="system-section-content" hidden={systemSection !== 'library'}>
       <PanelGroup title="Scan Status" description="Watch the current scan and choose which folders are included.">
         <div className={`${settingRowClassName} scan-status-row`}>
           <div>
             <strong>{scan.statusLabel} · {scan.percent}%</strong>
-            <span>{scanDetail}</span>
+            <span>{scan.currentFolder ? `Scanning ${scan.currentFolder}` : 'Library indexing'}</span>
           </div>
           <button type="button" className="secondary-button" onClick={onRefresh}>Refresh Folders</button>
         </div>
-        <div className={scanProgressClassName} aria-label="Scan progress">
+        <div className={scanProgressClassName} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={scan.percent} aria-label="Scan progress">
           <span className="tw-block tw-h-full tw-rounded-pill tw-bg-[linear-gradient(90deg,var(--accent),color-mix(in_srgb,var(--accent)_55%,#fff))] tw-transition-[width]" style={{ width: `${scan.percent}%` }} />
         </div>
-        <p className={settingsHelpClassName}>Selected folders: {selectedLabel}</p>
+        <dl className="system-scan-stats">
+          <div><dt>Selected folders</dt><dd>{selectedFolders.size}</dd></div>
+          <div><dt>Files processed</dt><dd>{scan.processed.toLocaleString()} / {scan.total.toLocaleString()}</dd></div>
+          <div><dt>Cached</dt><dd>{scan.reused.toLocaleString()}</dd></div>
+          <div><dt>Parsed</dt><dd>{scan.parsed.toLocaleString()}</dd></div>
+        </dl>
       </PanelGroup>
-
-      <PanelGroup title="Database Backup" description="Export or import the SQLite library database, including scanned albums and local overrides.">
-        <div className={settingRowClassName}>
-          <div>
-            <strong>Library Database</strong>
-            <span>Export creates a consistent SQLite snapshot. Import validates the file and saves a timestamped backup before replacing the current database.</span>
-            {databaseStatus ? <p className={settingsHelpClassName}>{databaseStatus}</p> : null}
-          </div>
-          <div className={settingsActionsClassName}>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => exportDatabase().catch((error) => setDatabaseStatus(error.message))}
-            >
-              Export Database
-            </button>
-            <button
-              type="button"
-              className="primary-button"
-              onClick={() => importInputRef.current?.click()}
-            >
-              Import Database
-            </button>
-            <input
-              ref={importInputRef}
-              type="file"
-              accept=".sqlite,.sqlite3,.db,application/vnd.sqlite3,application/octet-stream"
-              hidden
-              onChange={(event) => importDatabase(event).catch((error) => setDatabaseStatus(error.message))}
-            />
-          </div>
-        </div>
-      </PanelGroup>
-
-      <PanelGroup title="Excel Export" description="Export a filtered album spreadsheet for cataloging, sharing, or checking your collection outside the app.">
-        <label className={settingRowClassName}>
-          <span>
-            <strong>Wishlist only</strong>
-            <span>Only include albums marked as Wishlist.</span>
-          </span>
-          <input
-            type="checkbox"
-            checked={excelWishlistOnly}
-            onChange={(event) => setExcelWishlistOnly(event.target.checked)}
-          />
-        </label>
-        <div className={settingRowClassName}>
-          <div>
-            <strong>Media types</strong>
-            <span>Leave everything off to export every media type.</span>
-          </div>
-          <div className={settingsActionsClassName}>
-            {EXCEL_MEDIA_TYPES.map((mediaType) => (
-              <button
-                key={mediaType}
-                type="button"
-                className={excelMediaTypes.has(mediaType) ? 'primary-button' : 'secondary-button'}
-                onClick={() => toggleExcelMediaType(mediaType)}
-              >
-                {mediaType}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className={settingsFieldStackClassName}>
-          <div>
-            <strong>Folders</strong>
-            <p className={settingsHelpClassName}>Leave all folders off to export every selected album in the database.</p>
-          </div>
-          <div className={libraryFolderListClassName}>
-            {folders.length ? folders.map((folder) => (
-              <label key={folder} className={libraryFolderOptionClassName}>
-                <input type="checkbox" checked={excelFolders.has(folder)} onChange={() => toggleExcelFolder(folder)} />
-                <span>{folder}</span>
-              </label>
-            )) : <p className={settingsHelpClassName}>No top-level folders were found in the mounted music folder.</p>}
-          </div>
-        </div>
-        <div className={settingsActionsClassName}>
-          <button
-            type="button"
-            className="primary-button"
-            onClick={() => exportExcel().catch((error) => setExcelStatus(error.message))}
-          >
-            Export Excel
-          </button>
-          {excelStatus ? <span className={settingsHelpClassName}>{excelStatus}</span> : null}
-        </div>
-      </PanelGroup>
-
       <PanelGroup title="Library Folders" description="Choose which top-level folders inside your mounted music folder should be indexed.">
         <div className={libraryFolderListClassName}>
           {folders.length ? folders.map((folder) => (
@@ -1100,7 +977,98 @@ function SystemPanel({
         </div>
         <p className={settingsHelpClassName}>Scan Changes reuses unchanged tags. Scan Folder fully rereads one selected folder. Full Rescan rereads every selected folder.</p>
       </PanelGroup>
-    </>
+      </div>
+      <div id="system-section-backup" className="system-section-content" hidden={systemSection !== 'backup'}>
+      <PanelGroup title="Database Backup" description="Export or import the SQLite library database, including scanned albums and local overrides.">
+        <div className={settingRowClassName}>
+          <div>
+            <strong>Library Database</strong>
+            <span>Export creates a consistent SQLite snapshot. Import validates the file and saves a timestamped backup before replacing the current database.</span>
+            {databaseStatus ? <p className={settingsHelpClassName}>{databaseStatus}</p> : null}
+          </div>
+          <div className={settingsActionsClassName}>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => exportDatabase().catch((error) => setDatabaseStatus(error.message))}
+            >
+              Export Database
+            </button>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => importInputRef.current?.click()}
+            >
+              Import Database
+            </button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".sqlite,.sqlite3,.db,application/vnd.sqlite3,application/octet-stream"
+              hidden
+              onChange={(event) => importDatabase(event).catch((error) => setDatabaseStatus(error.message))}
+            />
+          </div>
+        </div>
+      </PanelGroup>
+      <PanelGroup title="Excel Export" description="Export a filtered album spreadsheet for cataloging, sharing, or checking your collection outside the app.">
+        <label className={settingRowClassName}>
+          <span>
+            <strong>Wishlist only</strong>
+            <span>Only include albums marked as Wishlist.</span>
+          </span>
+          <input
+            type="checkbox"
+            checked={excelWishlistOnly}
+            onChange={(event) => setExcelWishlistOnly(event.target.checked)}
+          />
+        </label>
+        <div className={settingRowClassName}>
+          <div>
+            <strong>Media types</strong>
+            <span>Leave everything off to export every media type.</span>
+          </div>
+          <div className={settingsActionsClassName}>
+            {EXCEL_MEDIA_TYPES.map((mediaType) => (
+              <button
+                key={mediaType}
+                type="button"
+                className={excelMediaTypes.has(mediaType) ? 'primary-button' : 'secondary-button'}
+                aria-pressed={excelMediaTypes.has(mediaType)}
+                onClick={() => toggleExcelMediaType(mediaType)}
+              >
+                {mediaType}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className={settingsFieldStackClassName}>
+          <div>
+            <strong>Folders</strong>
+            <p className={settingsHelpClassName}>Leave all folders off to export every selected album in the database.</p>
+          </div>
+          <div className={libraryFolderListClassName}>
+            {folders.length ? folders.map((folder) => (
+              <label key={folder} className={libraryFolderOptionClassName}>
+                <input type="checkbox" checked={excelFolders.has(folder)} onChange={() => toggleExcelFolder(folder)} />
+                <span>{folder}</span>
+              </label>
+            )) : <p className={settingsHelpClassName}>No top-level folders were found in the mounted music folder.</p>}
+          </div>
+        </div>
+        <div className={settingsActionsClassName}>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => exportExcel().catch((error) => setExcelStatus(error.message))}
+          >
+            Export Excel
+          </button>
+          {excelStatus ? <span className={settingsHelpClassName}>{excelStatus}</span> : null}
+        </div>
+      </PanelGroup>
+      </div>
+    </div>
   );
 }
 
@@ -1248,12 +1216,6 @@ function loadSavedSettings() {
   }
 }
 
-function getFontSettings(settings = DEFAULT_SETTINGS) {
-  return {
-    fontPreset: FONT_PRESETS[settings.fontPreset] ? settings.fontPreset : DEFAULT_SETTINGS.fontPreset,
-    fontSize: Number.isFinite(Number(settings.fontSize)) ? Number(settings.fontSize) : DEFAULT_SETTINGS.fontSize,
-  };
-}
 
 export function mountStandaloneAdmin(rootElement) {
   if (!rootElement) return null;

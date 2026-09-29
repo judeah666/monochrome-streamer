@@ -1017,3 +1017,45 @@ body.light-ui .album-hero-scrim {
   font-size: 1.1rem;
 }
 
+
+/* Artwork-led stories carousel for the Home banner. */
+.recent-stories { margin-bottom: 28px; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--glass); overflow: hidden; }
+.recent-stories-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 22px; }
+.recent-stories-header h2 { margin: 0; font-family: var(--font-display); font-size: 1.1rem; letter-spacing: -0.03em; }
+.recent-stories-header > span { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.recent-stories-stage { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 4fr); align-items: start; gap: 20px; touch-action: pan-y; }
+.recent-story-feature { min-width: 0; width: 100%; max-width: 288px; align-self: start; }
+.recent-story-artwork { display: block; width: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.recent-story-cover { display: block; width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; }
+.recent-cover-placeholder, .recent-cover-fallback { display: grid; width: 100%; aspect-ratio: 1; }
+.recent-story-neighbors { display: flex; align-items: start; gap: 14px; min-width: 0; }
+.recent-story-neighbors .recent-story-peek { flex: 1 1 0; max-width: 240px; width: 0; min-width: 0; padding: 0; color: var(--text); font: inherit; }
+.recent-story-peek .album-card-title, .recent-story-copy .album-card-title { font-size: 1rem; font-weight: 700; overflow-wrap: anywhere; }
+.recent-story-copy .album-card-title { font-size: 1.1rem; }
+.recent-story-copy { min-width: 0; }
+.recent-story-peek .album-card-text, .recent-story-copy .album-card-text { overflow-wrap: anywhere; }
+.recent-story-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.recent-story-actions button { min-height: 44px; padding: 10px 16px; border-radius: 7px; }
+.recent-story-actions i { margin-right: 6px; }
+.recent-stories-footer { display: flex; align-items: center; gap: 8px; margin-top: 24px; }
+.recent-story-position { position: relative; flex: 1; height: 3px; background: var(--line); margin-right: 16px; overflow: hidden; }
+.recent-story-position span { position: absolute; top: 0; bottom: 0; background: var(--accent); transition: left 200ms ease; }
+.recent-stories-footer button { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surface); color: var(--text); cursor: pointer; }
+.recent-stories-footer button:disabled { opacity: 0.35; cursor: default; }
+.recent-stories button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 960px) {
+  .recent-stories-stage { grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr); gap: 10px; }
+  .recent-story-neighbors .recent-story-peek { width: 0; }
+  .recent-story-peek.is-distant { display: none; }
+}
+@media (max-width: 560px) {
+  .recent-stories { padding: 16px; }
+  .recent-stories-stage { grid-template-columns: minmax(0, 1fr); }
+  .recent-story-neighbors { display: none; }
+  .recent-story-feature { justify-self: start; }
+  .recent-story-copy { text-align: center; }
+  .recent-story-actions { justify-content: center; margin-top: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recent-story-peek, .recent-story-position span { transition: none; }
+}

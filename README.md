@@ -157,6 +157,7 @@ The built-in defaults allow guest browsing while keeping downloads private. Sign
 - Guests can browse and play music but cannot download files.
 - Downloads require a signed-in non-guest account with download permission.
 - Admin and authenticated mutations use per-session CSRF tokens and same-origin validation.
+- Logins persist across container restarts in `sessions.json` beside `users.json`. There is no server idle or absolute logout timer. Logout, account deletion, and credential changes revoke sessions. Cookies are isolated by port and renewed during authenticated requests; clearing browser cookies or browser-enforced cookie expiry still requires login. After upgrading from memory-only sessions, sign in once again. Keep the data volume mounted persistently.
 - Login attempts are rate-limited and logout uses a protected POST request.
 - Widget access requires a real API key and a specific `http://` or `https://` CORS origin.
 
