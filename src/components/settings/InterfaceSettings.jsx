@@ -37,7 +37,7 @@ export function InterfaceSettings({
         <SettingToggle
           settingKey="showLibrary"
           title="Show Library in Sidebar"
-          description="Display the Library link in sidebar navigation."
+          description="Display Albums, Artists, and Songs in sidebar navigation."
           checked={settings.showLibrary}
         />
         <SettingToggle
@@ -61,7 +61,7 @@ export function InterfaceSettings({
         </div>
       </SettingsGroup>
 
-      <SettingsGroup title="Navigation" description="Interaction behavior adapted to this local app.">
+      <SettingsGroup title="Browsing & navigation" description="Choose what appears on Home and how you move around the library.">
         <SettingToggle
           settingKey="showRecentlyAdded"
           title="Show Recently Added on Home"
@@ -77,7 +77,7 @@ export function InterfaceSettings({
         <SettingToggle
           settingKey="showFolderBrowser"
           title="Show Folder Browser"
-          description="Adds the advanced Folders tab back to Library for checking the raw server folder structure."
+          description="Show the Folders tab to browse the music folders on your server."
           checked={settings.showFolderBrowser}
         />
         <label className={settingsFieldClassName}>

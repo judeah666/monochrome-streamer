@@ -40,7 +40,8 @@ export function AudioSettings({
   replayGainModeOptions = [],
 }) {
   return (
-    <SettingsGroup title="Playback" description="Controls that work with the browser audio element and your local files.">
+    <>
+    <SettingsGroup title="Playback quality" description="Choose the audio format used when listening.">
       <label className={settingsFieldClassName}>
         <span>Playback Quality</span>
         <select data-setting="playbackQuality" defaultValue={settings.playbackQuality}>
@@ -50,6 +51,8 @@ export function AudioSettings({
         </select>
       </label>
       <p className={settingsHelpClassName}>Original keeps the source file as-is. CD FLAC only normalizes hi-res tracks down to 16-bit / 44.1 KHz. MP3 320 creates a remote-friendly stream.</p>
+    </SettingsGroup>
+    <SettingsGroup title="Volume normalization" description="Keep listening levels consistent across your music.">
       <label className={settingsFieldClassName}>
         <SettingFieldLabel title="ReplayGain Mode" description="Normalize volume across tracks." />
         <select data-setting="replayGainMode" defaultValue={settings.replayGainMode}>
@@ -69,6 +72,8 @@ export function AudioSettings({
           defaultValue={settings.replayGainPreamp}
         />
       </label>
+    </SettingsGroup>
+    <SettingsGroup title="Player & queue" description="Customize the player and how the next track starts.">
       <label className={settingsFieldClassName}>
         <span>Player Layout</span>
         <select data-setting="playerLayout" defaultValue={settings.playerLayout}>
@@ -80,6 +85,7 @@ export function AudioSettings({
       <SettingToggle settingKey="showQualityInfo" title="Show Quality Badges" description="Show the audio quality block in the player." checked={settings.showQualityInfo} />
       <SettingToggle settingKey="gaplessPlayback" title="Gapless Autoplay" description="Prepare the next queued track near the end so playback can continue with less delay." checked={settings.gaplessPlayback} />
     </SettingsGroup>
+    </>
   );
 }
 

@@ -58,8 +58,8 @@ export function WishlistIntro({
 }
 
 export function SettingsIntro({
-  title = 'Settings',
-  caption = 'Local-first controls adapted from Monochrome for your self-hosted library.',
+  title = 'Options',
+  caption = 'Personalize the look, navigation, and playback. Changes save automatically in this browser.',
 }) {
   return (
     <div className="section-heading">

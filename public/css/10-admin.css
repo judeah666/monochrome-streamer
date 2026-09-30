@@ -182,3 +182,89 @@
     font-size: clamp(2.1rem, 13vw, 3.8rem);
   }
 }
+/* User management: compact account cards and a focused account editor. */
+.users-workspace { display: grid; gap: 20px; min-width: 0; }
+.users-overview { display: flex; flex-wrap: wrap; gap: 12px 32px; padding-bottom: 16px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .85rem; }
+.users-overview > span { display: inline-flex; align-items: baseline; gap: 8px; }
+.users-overview strong { color: var(--text); font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.users-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.users-search { display: flex; align-items: center; gap: 10px; width: min(100%, 360px); border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; color: var(--muted); background: var(--glass); }
+.users-search input { width: 100%; min-width: 0; border: 0; background: transparent; padding: 10px 0; }
+.users-editor { padding: 20px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--glass); }
+.users-editor-heading h3, .users-identity h3 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
+.users-editor-heading p { color: var(--muted); font-size: .85rem; margin: 6px 0 18px; }
+.users-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.users-form-grid label, .users-quality { display: grid; gap: 8px; min-width: 0; font-size: .86rem; }
+.users-form-grid :is(input, select), .users-quality select { width: 100%; min-width: 0; max-width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); }
+.users-editor-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.users-account-list { display: grid; gap: 12px; }
+.users-account { min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--glass); overflow: hidden; }
+.users-account-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px 0; }
+.users-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.users-avatar { flex: 0 0 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 700; }
+.users-role, .users-account-note { color: var(--muted); font-size: .78rem; }
+.users-presence { display: inline-flex; align-items: center; gap: 7px; font-size: .78rem; color: var(--muted); white-space: nowrap; }
+.users-presence > span { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.users-presence.is-online > span { background: #22c55e; }
+.users-account-details { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(100px, .6fr) minmax(0, 1fr); gap: 20px; padding: 20px; align-items: start; }
+.users-label { color: var(--muted); font-size: .72rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.users-activity, .users-downloads { display: grid; justify-items: start; gap: 8px; min-width: 0; font-size: .86rem; }
+.users-activity > :not(.users-label) { overflow-wrap: anywhere; max-width: 100%; }
+.users-activity > span:not(.users-label) { color: var(--muted); }
+.users-downloads [aria-checked='true'] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.users-account-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--line); }
+.users-manage-actions { display: flex; gap: 8px; margin-left: auto; }
+.users-history { min-width: 0; padding: 0 12px 12px; }
+.users-error { margin: 0; padding: 12px; border: 1px solid currentColor; border-radius: 8px; color: var(--text); }
+.users-empty { padding: 32px 16px; margin: 0; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 12px; }
+.users-workspace button:disabled { opacity: .5; cursor: wait; }
+.users-workspace :is(button, input, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 720px) {
+  .users-account-details { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+  .users-activity { grid-column: 1 / -1; }
+  .users-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .users-account-note { flex-basis: 100%; order: 3; }
+  .users-overview { gap: 12px 18px; }
+}
+@media (max-width: 420px) {
+  .users-toolbar { flex-wrap: wrap; }
+  .users-account-details { grid-template-columns: minmax(0, 1fr); }
+  .users-account-header, .users-account-details, .users-account-actions { padding-left: 14px; padding-right: 14px; }
+}
+.users-workspace .secondary-button { backdrop-filter: none; -webkit-backdrop-filter: none; color: var(--text); }
+.users-workspace .secondary-button.danger { color: var(--danger, #ff3757); }
+.users-downloads .secondary-button[aria-checked='true'] { color: var(--accent); }
+/* Download preferences */
+.downloads-workspace { display: grid; gap: 24px; min-width: 0; }
+.downloads-section { border: 0; border-bottom: 1px solid var(--line); margin: 0; padding: 0 0 24px; min-width: 0; }
+.downloads-section legend { padding: 0; font-weight: 700; font-size: 1rem; }
+.downloads-help { color: var(--muted); font-size: .84rem; line-height: 1.5; margin: 8px 0 16px; }
+.downloads-quality-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 175px), 1fr)); gap: 10px; }
+.downloads-method-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.downloads-choice { display: flex; align-items: start; gap: 10px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--glass); cursor: pointer; min-width: 0; }
+.downloads-choice:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--glass)); }
+.downloads-choice:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
+.downloads-choice input { flex: 0 0 16px; width: 16px; height: 16px; margin: 3px 0 0; accent-color: var(--accent); }
+.downloads-choice-copy { display: grid; gap: 8px; min-width: 0; }
+.downloads-choice-copy strong { font-size: .92rem; }
+.downloads-choice-copy > span { font-size: .8rem; color: var(--muted); line-height: 1.5; }
+.downloads-choice-copy .downloads-choice-subtitle { color: var(--text); font-size: .76rem; }
+.downloads-note { color: var(--muted); font-size: .79rem; margin: 14px 0 0; line-height: 1.5; }
+.downloads-naming { border: 1px solid var(--line); border-radius: 10px; background: var(--glass); min-width: 0; }
+.downloads-naming summary { padding: 16px 20px; cursor: pointer; font-weight: 600; }
+.downloads-naming summary small { display: block; color: var(--muted); font-size: .8rem; font-weight: 400; margin: 6px 0 0; }
+.downloads-template-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; padding: 4px 20px 20px; margin: 0; border: 0; min-width: 0; }
+.downloads-template { display: grid; align-content: start; gap: 10px; min-width: 0; font-size: .86rem; }
+.downloads-template input { min-width: 0; width: 100%; min-height: 42px; border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 10px; border-radius: 6px; font-family: monospace; }
+.downloads-template .downloads-help { margin: 0; }
+.downloads-tokens { display: flex; flex-wrap: wrap; gap: 6px; }
+.downloads-tokens code { color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; font-size: .73rem; }
+.downloads-save-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.downloads-save-row p { margin: 0; color: var(--muted); font-size: .84rem; }
+.downloads-save-row [role='alert'] { color: var(--text); }
+.downloads-workspace :is(button, summary, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.downloads-workspace button:disabled, .downloads-workspace fieldset:disabled { opacity: .6; }
+@media (max-width: 720px) {
+  .downloads-method-options, .downloads-template-fields { grid-template-columns: minmax(0, 1fr); }
+  .downloads-save-row { align-items: stretch; flex-direction: column; }
+}

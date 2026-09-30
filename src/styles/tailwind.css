@@ -1261,3 +1261,33 @@ body[data-view='settings'] .appearance-settings .background-pattern-grid { paddi
   body[data-view='settings'] .appearance-settings .settings-group { padding: 14px; }
   .typography-preview { padding: 18px; }
 }
+/* Shared Options and Admin navigation and section rhythm. */
+body[data-view='settings'] #settings-intro-root { display: block; }
+body[data-view='settings'] #settings-intro-root .section-heading, .settings-page-heading { margin: 0 0 22px; }
+body[data-view='settings'] #settings-intro-root h3, .settings-page-heading h2 { margin: 0; font-family: var(--font-display); font-size: 1.65rem; letter-spacing: -.04em; }
+body[data-view='settings'] #settings-intro-root p, .settings-page-heading p { margin: 8px 0 0; color: var(--muted); font-size: .87rem; line-height: 1.5; max-width: 760px; }
+body[data-view='settings'] #settings-tabs, body[data-view='admin'] .admin-settings-subtabs {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 0 0 22px; margin: 0 0 24px; border-bottom: 1px solid var(--line); overflow: visible;
+}
+body:is([data-view='settings'], [data-view='admin']) .settings-category {
+  display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 76px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--glass); color: var(--muted); text-align: left; cursor: pointer;
+}
+body:is([data-view='settings'], [data-view='admin']) .settings-category.is-active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--glass)); color: var(--text); }
+.settings-category > i { color: var(--accent); font-size: 1rem; }
+.settings-category > span { display: grid; gap: 5px; min-width: 0; }
+.settings-category strong { font-size: .9rem; font-weight: 600; }
+.settings-category small { font-size: .74rem; color: var(--muted); line-height: 1.35; }
+.settings-category:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.settings-category-panel { display: grid; gap: 22px; min-width: 0; }
+body:is([data-view='settings'], [data-view='admin']) .settings-category-panel > .settings-group { margin: 0; }
+body:is([data-view='settings'], [data-view='admin']) .settings-category-panel .settings-group-heading > h4 { color: var(--text); font-size: .98rem; text-transform: none; letter-spacing: -.01em; }
+body:is([data-view='settings'], [data-view='admin']) .settings-category-panel .settings-group-heading > p { max-width: 720px; line-height: 1.5; }
+body:is([data-view='settings'], [data-view='admin']) .settings-category-panel .settings-group-heading { padding-bottom: 12px; }
+body:is([data-view='settings'], [data-view='admin']) .settings-category-panel :is(input, select, button):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+body:is([data-view='settings'], [data-view='admin']) .settings-status { padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--glass); margin: 0; font-size: .86rem; }
+@media (max-width: 720px) {
+  body[data-view='settings'] #settings-tabs, body[data-view='admin'] .admin-settings-subtabs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  body:is([data-view='settings'], [data-view='admin']) .settings-category { padding: 12px; gap: 9px; }
+  .settings-category small { font-size: .7rem; }
+  .settings-category-panel { gap: 16px; }
+}

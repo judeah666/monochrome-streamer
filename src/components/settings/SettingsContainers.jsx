@@ -16,11 +16,7 @@ export function SettingsTabsContainer({ store, onSelect }) {
 export function SettingsPanelContainer({ store }) {
   const { panel } = useSettingsSnapshots(store);
 
-  if (panel.tab === 'appearance') return <AppearanceSettings {...panel} />;
-  if (panel.tab === 'interface') return <InterfaceSettings {...panel} />;
-  if (panel.tab === 'audio') return <AudioSettings {...panel} />;
-  if (panel.tab === 'downloads') return <DownloadSettings {...panel} />;
-  if (panel.tab === 'instances') return <InstanceSettings {...panel} />;
-  if (panel.tab === 'system') return <SystemSettings {...panel} />;
-  return null;
+  const components = { appearance: AppearanceSettings, interface: InterfaceSettings, audio: AudioSettings, downloads: DownloadSettings, instances: InstanceSettings, system: SystemSettings };
+  const Component = components[panel.tab];
+  return Component ? <div id="options-settings-panel" className="settings-category-panel" role="tabpanel" aria-labelledby={'options-tab-' + panel.tab}><Component {...panel} /></div> : null;
 }

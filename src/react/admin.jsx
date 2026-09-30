@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { SettingsTabs } from '../components/settings/SettingsTabs.jsx';
 import { DEFAULT_SETTINGS, FONT_PRESETS, STORAGE_KEYS } from '../controller/constants.js';
 import { isLightTheme, resolveThemePreset } from '../controller/themeResolver.js';
 import { getCsrfToken } from '../controller/utils.js';
@@ -218,23 +219,13 @@ export function AdminSettingsPanel({ embedded = false }) {
   if (embedded) {
     return (
       <div className="admin-settings-embedded tw-grid tw-gap-4">
+        <header className="settings-page-heading"><h2>Admin settings</h2><p>Manage accounts, download defaults, connections, and your library.</p></header>
         <div className="admin-settings-subtabs settings-tabs" role="tablist" aria-label="Admin settings sections">
-          {ADMIN_TABS.map(([id, label, icon]) => (
-            <button
-              key={id}
-              className={`admin-subtab${activeTab === id ? ' is-active' : ''}`}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === id}
-              onClick={() => setActiveTab(id)}
-            >
-              <i className={`fa-solid ${icon}`} aria-hidden="true"></i>
-              <span>{label}</span>
-            </button>
-          ))}
+          <SettingsTabs tabs={ADMIN_TABS} activeTab={activeTab} scope="admin" onSelect={setActiveTab} />
         </div>
 
-        {status ? <p className="settings-status admin-status">{status}</p> : null}
+        {status ? <p className="settings-status admin-status" role="status">{status}</p> : null}
+        <div id="admin-settings-panel" role="tabpanel" aria-labelledby={`admin-tab-${activeTab}`} className="settings-category-panel">
 
         {activeTab === 'users' ? (
           <>
@@ -262,6 +253,7 @@ export function AdminSettingsPanel({ embedded = false }) {
             onFullScan={() => saveSelectedFolders({ scanMode: 'full' })}
           />
         ) : null}
+        </div>
       </div>
     );
   }
@@ -399,7 +391,21 @@ function AccessPanel({ settings, onSaved, setStatus }) {
   );
 }
 
-function UsersPanel({ users, onUsersChanged, setStatus }) {
+export function UsersPanel({ users, onUsersChanged, setStatus }) {
+  const [query, setQuery] = useState('');
+  const [editor, setEditor] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [error, setError] = useState('');
+  async function runChange(action) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    try { await action(); }
+    catch (failure) { setError(failure.message || 'Unable to save changes. Please try again.'); }
+    finally { busyRef.current = false; setBusy(false); }
+  }
   const [expandedHistoryUser, setExpandedHistoryUser] = useState('');
   const [historyByUser, setHistoryByUser] = useState({});
   const [historyLoadingUser, setHistoryLoadingUser] = useState('');
@@ -408,8 +414,12 @@ function UsersPanel({ users, onUsersChanged, setStatus }) {
     event.preventDefault();
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
-    const updatedUsers = await api('/api/admin/users', {
-      method: 'POST',
+    const username = String(form.get('username') || '').trim().toLowerCase();
+    if (!editor?.username && [users.admin, ...(users.users || [])].some(user => user?.username.toLowerCase() === username)) {
+      throw new Error('That username already exists. Use Edit on the account to make changes.');
+    }
+    const updatedUsers = await api(editor?.username ? `/api/admin/users/${encodeURIComponent(editor.username)}` : '/api/admin/users', {
+      method: editor?.username ? 'PATCH' : 'POST',
       body: JSON.stringify({
         username: form.get('username'),
         password: form.get('password'),
@@ -418,6 +428,7 @@ function UsersPanel({ users, onUsersChanged, setStatus }) {
       }),
     });
     formElement.reset();
+    setEditor(null);
     onUsersChanged(updatedUsers);
     setStatus('User saved.');
   }
@@ -477,126 +488,54 @@ function UsersPanel({ users, onUsersChanged, setStatus }) {
     ...(users.users || []).map((user) => ({ ...user, roleLabel: 'User', managed: true })),
   ];
 
+  const visibleUsers = userRows.filter(user => user.username.toLowerCase().includes(query.trim().toLowerCase()));
   return (
-    <PanelGroup title="Users" description="Manage accounts, download permission and quality, online activity, and 30-day download history.">
-      <form className="admin-form" onSubmit={onSubmit}>
-        <label className={settingsFieldClassName}>
-          <span>Username</span>
-          <input name="username" required />
-        </label>
-        <label className={settingsFieldClassName}>
-          <span>Password</span>
-          <input name="password" type="password" minLength="6" required />
-        </label>
-        <label className={settingsFieldClassName}>
-          <span>Downloads</span>
-          <select name="downloadsEnabled" defaultValue="true">
-            <option value="true">Enabled</option>
-            <option value="false">Disabled</option>
-          </select>
-        </label>
-        <label className={settingsFieldClassName}>
-          <span>Download Quality</span>
-          <select name="downloadQuality" defaultValue="">
-            <option value="">Use global default</option>
-            {DOWNLOAD_QUALITY_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-        </label>
-        <div className={settingsActionsClassName}>
-          <button className="primary-button" type="submit">Add / Update User</button>
+    <PanelGroup title="Users" description="Manage library access, downloads, and account activity.">
+      <div className="users-workspace">
+        <div className="users-overview" aria-label="Account overview">
+          <span><strong>{userRows.length}</strong> Accounts</span>
+          <span><strong>{userRows.filter(user => user.online).length}</strong> Online now</span>
+          <span><strong>{userRows.filter(user => user.downloadsEnabled).length}</strong> Downloads enabled</span>
         </div>
-      </form>
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Status</th>
-              <th>User</th>
-              <th>Role</th>
-              <th>Now playing</th>
-              <th>Downloads</th>
-              <th>Download quality</th>
-              <th>History</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {userRows.map((user) => (
-              <React.Fragment key={user.username}>
-                <tr>
-                  <td>
-                    <span className="tw-inline-flex tw-items-center tw-gap-2">
-                      <span
-                        className={user.online
-                          ? 'tw-h-2.5 tw-w-2.5 tw-rounded-full tw-bg-emerald-500'
-                          : 'tw-h-2.5 tw-w-2.5 tw-rounded-full tw-bg-line'}
-                        aria-hidden="true"
-                      ></span>
-                      <span>{user.online ? 'Online' : 'Offline'}</span>
-                    </span>
-                  </td>
-                  <td>{user.username}</td>
-                  <td>{user.roleLabel}</td>
-                  <td>
-                    {user.nowPlaying ? (
-                      <span className="tw-grid tw-min-w-[180px] tw-gap-0.5">
-                        <strong>{user.nowPlaying.title}</strong>
-                        <span className="tw-text-sm tw-text-muted">
-                          {user.nowPlaying.artist} - {user.nowPlaying.playing ? 'Playing' : 'Paused'}
-                        </span>
-                      </span>
-                    ) : <span className="tw-text-muted">Nothing playing</span>}
-                  </td>
-                  <td>
-                    {user.managed ? (
-                      <button className="secondary-button" type="button" onClick={() => toggleDownloads(user.username)}>
-                        {user.downloadsEnabled ? 'Enabled' : 'Disabled'}
-                      </button>
-                    ) : 'Enabled'}
-                  </td>
-                  <td>
-                    {user.managed ? (
-                      <select
-                        aria-label={`Download quality for ${user.username}`}
-                        value={user.downloadQuality || ''}
-                        onChange={(event) => updateDownloadQuality(user.username, event.target.value)}
-                      >
-                        <option value="">Use global default ({getDownloadQualityLabel(user.effectiveDownloadQuality)})</option>
-                        {DOWNLOAD_QUALITY_OPTIONS.map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
-                        ))}
-                      </select>
-                    ) : getDownloadQualityLabel(user.effectiveDownloadQuality)}
-                  </td>
-                  <td>
-                    <button className="secondary-button" type="button" onClick={() => toggleDownloadHistory(user.username)}>
-                      {historyLoadingUser === user.username
-                        ? 'Loading...'
-                        : expandedHistoryUser === user.username ? 'Hide' : 'View 30 days'}
-                    </button>
-                  </td>
-                  <td>
-                    {user.managed
-                      ? <button className="secondary-button danger" type="button" onClick={() => deleteUser(user.username)}>Delete</button>
-                      : 'Environment'}
-                  </td>
-                </tr>
-                {expandedHistoryUser === user.username ? (
-                  <tr>
-                    <td colSpan="8">
-                      <DownloadHistoryTable
-                        downloads={historyByUser[user.username] || []}
-                        loading={historyLoadingUser === user.username}
-                      />
-                    </td>
-                  </tr>
-                ) : null}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
+        <div className="users-toolbar">
+          <label className="users-search"><i className="fa-solid fa-magnifying-glass" aria-hidden="true" /><input type="search" aria-label="Search users" placeholder="Search users…" value={query} onChange={event => setQuery(event.target.value)} /></label>
+          <button className="primary-button" type="button" disabled={busy} aria-expanded={editor !== null} aria-controls="user-account-editor" onClick={() => { setError(''); setEditor({}); }}>Add user</button>
+        </div>
+        {error ? <p className="users-error" role="alert">{error}</p> : null}
+        {editor !== null ? (
+          <form id="user-account-editor" className="users-editor" key={editor.username || 'new'} onSubmit={event => { event.preventDefault(); runChange(() => onSubmit(event)); }}>
+            <div className="users-editor-heading"><h3>{editor.username ? 'Edit ' + editor.username : 'New account'}</h3><p>{editor.username ? 'Leave the password blank to keep the current password.' : 'Create an account with its own library access and download preferences.'}</p></div>
+            <fieldset disabled={busy} className="users-form-grid">
+              <label>Username<input name="username" autoComplete="off" autoFocus={!editor.username} required readOnly={Boolean(editor.username)} defaultValue={editor.username || ''} /></label>
+              <label>{editor.username ? 'New password' : 'Password'}<input name="password" type="password" autoComplete="new-password" autoFocus={Boolean(editor.username)} minLength="6" required={!editor.username} placeholder={editor.username ? 'Keep current password' : 'At least 6 characters'} /></label>
+              <label>Downloads<select name="downloadsEnabled" defaultValue={String(editor.downloadsEnabled ?? true)}><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
+              <label>Download quality<select name="downloadQuality" defaultValue={editor.downloadQuality || ''}><option value="">Use global default</option>{DOWNLOAD_QUALITY_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            </fieldset>
+            <div className="users-editor-actions"><button className="secondary-button" type="button" disabled={busy} onClick={() => setEditor(null)}>Cancel</button><button className="primary-button" type="submit" disabled={busy}>{busy ? 'Saving…' : editor.username ? 'Save changes' : 'Create account'}</button></div>
+          </form>
+        ) : null}
+        <div className="users-account-list">
+          {visibleUsers.map(user => (
+            <article className="users-account" key={user.username} aria-label={'Account ' + user.username}>
+              <header className="users-account-header">
+                <div className="users-identity"><span className="users-avatar" aria-hidden="true">{user.username.slice(0, 1).toUpperCase()}</span><div><h3>{user.username}</h3><span className="users-role">{user.roleLabel}</span></div></div>
+                <span className={'users-presence' + (user.online ? ' is-online' : '')}><span aria-hidden="true" />{user.online ? 'Online' : 'Offline'}</span>
+              </header>
+              <div className="users-account-details">
+                <div className="users-activity"><span className="users-label">Now playing</span>{user.nowPlaying ? <><strong>{user.nowPlaying.title}</strong><span>{user.nowPlaying.artist} · {user.nowPlaying.playing ? 'Playing' : 'Paused'}</span></> : <span>Nothing playing</span>}</div>
+                <div className="users-downloads"><span className="users-label">Downloads</span>{user.managed ? <button className="secondary-button" type="button" role="switch" aria-checked={Boolean(user.downloadsEnabled)} aria-label={'Downloads for ' + user.username} disabled={busy} onClick={() => runChange(() => toggleDownloads(user.username))}>{user.downloadsEnabled ? 'Enabled' : 'Disabled'}</button> : <span>Enabled</span>}</div>
+                <label className="users-quality"><span className="users-label">Download quality</span>{user.managed ? <select aria-label={'Download quality for ' + user.username} disabled={busy} value={user.downloadQuality || ''} onChange={event => { const value = event.target.value; runChange(() => updateDownloadQuality(user.username, value)); }}><option value="">Use global default ({getDownloadQualityLabel(user.effectiveDownloadQuality)})</option>{DOWNLOAD_QUALITY_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select> : <span>{getDownloadQualityLabel(user.effectiveDownloadQuality)}</span>}</label>
+              </div>
+              <footer className="users-account-actions">
+                <button className="secondary-button" type="button" aria-expanded={expandedHistoryUser === user.username} onClick={() => toggleDownloadHistory(user.username)}>{historyLoadingUser === user.username ? 'Loading…' : expandedHistoryUser === user.username ? 'Hide history' : 'Download history'}</button>
+                <span className="users-account-note">{user.managed ? 'Last 30 days' : 'Admin account managed in server settings'}</span>
+                {user.managed ? <div className="users-manage-actions"><button className="secondary-button" type="button" disabled={busy} onClick={() => { setError(''); setEditor(user); }}>Edit</button><button className="secondary-button danger" type="button" disabled={busy} onClick={() => runChange(() => deleteUser(user.username))}>Delete</button></div> : null}
+              </footer>
+              {expandedHistoryUser === user.username ? <div className="users-history"><DownloadHistoryTable downloads={historyByUser[user.username] || []} loading={historyLoadingUser === user.username} /></div> : null}
+            </article>
+          ))}
+          {!visibleUsers.length ? <p className="users-empty">{query.trim() ? 'No users match your search.' : 'No accounts to show.'}</p> : null}
+        </div>
       </div>
     </PanelGroup>
   );
@@ -637,63 +576,80 @@ function formatAdminDate(value) {
   return date.toLocaleString();
 }
 
-function DownloadsPanel({ settings, onSaved, setStatus }) {
+export function DownloadsPanel({ settings, onSaved, setStatus }) {
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState(null);
+  const savingRef = useRef(false);
   if (!settings) return <LoadingPanel />;
 
   async function onSubmit(event) {
     event.preventDefault();
+    if (savingRef.current) return;
     const form = new FormData(event.currentTarget);
-    const savedSettings = await api('/api/admin/download-settings', {
-      method: 'POST',
-      body: JSON.stringify(Object.fromEntries(form.entries())),
-    });
-    localStorage.setItem(STORAGE_KEYS.downloadSettingsSync, JSON.stringify({
-      timestamp: Date.now(),
-      settings: savedSettings,
-    }));
-    window.dispatchEvent(new CustomEvent('monochrome:download-settings-updated', {
-      detail: savedSettings,
-    }));
-    setStatus('Download settings saved.');
-    await onSaved(savedSettings);
+    savingRef.current = true;
+    setSaving(true);
+    setFeedback(null);
+    try {
+      const savedSettings = await api('/api/admin/download-settings', {
+        method: 'POST',
+        body: JSON.stringify(Object.fromEntries(form.entries())),
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.downloadSettingsSync, JSON.stringify({ timestamp: Date.now(), settings: savedSettings }));
+      } catch { /* The server save still succeeds when browser storage is unavailable. */ }
+      window.dispatchEvent(new CustomEvent('monochrome:download-settings-updated', { detail: savedSettings }));
+      await onSaved(savedSettings);
+      setStatus('Download settings saved.');
+      setFeedback({ message: 'Download settings saved.', error: false });
+    } catch (error) {
+      setFeedback({ message: error.message || 'Unable to save download settings. Please try again.', error: true });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   }
 
+  const qualityProfiles = [
+    ['original', 'Original', 'Keep the source file', 'Download the file in its original format and quality.'],
+    ['cd', 'CD quality', 'FLAC · 16-bit / 44.1 kHz', 'Convert audio above 16-bit. Existing 16-bit and lossy files stay original.'],
+    ['mp3', 'MP3 · 320', '320 kbps', 'The highest available MP3 bitrate.'],
+    ['mp3-256', 'MP3 · 256', '256 kbps', 'A balance of file size and quality.'],
+    ['mp3-128', 'MP3 · 128', '128 kbps', 'Smaller files for limited storage.'],
+  ];
   return (
-    <PanelGroup title="Downloads" description="Set the global defaults inherited by managed users without an override.">
-      <form className="admin-form" onSubmit={onSubmit}>
-        <label className={settingsFieldClassName}>
-          <span>Download Quality</span>
-          <select name="downloadQuality" defaultValue={settings.downloadQuality}>
-            {DOWNLOAD_QUALITY_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
+    <PanelGroup title="Downloads" description="Choose the default quality, delivery method, and filenames for downloads.">
+      <form className="downloads-workspace" onSubmit={onSubmit} onChange={() => setFeedback(null)}>
+        <fieldset className="downloads-section" disabled={saving}>
+          <legend>Audio quality</legend>
+          <p className="downloads-help">Users inherit this default unless you set a quality override on their account. Playback quality stays the same.</p>
+          <div className="downloads-quality-options">
+            {qualityProfiles.map(([value, title, subtitle, description]) => (
+              <label className="downloads-choice" key={value}>
+                <input type="radio" name="downloadQuality" value={value} defaultChecked={settings.downloadQuality === value} required />
+                <span className="downloads-choice-copy"><strong>{title}</strong><span className="downloads-choice-subtitle">{subtitle}</span><span>{description}</span></span>
+              </label>
             ))}
-          </select>
-        </label>
-        <p className={settingsHelpClassName}>CD Quality converts only audio above 16-bit to 16-bit / 44.1 KHz FLAC. Existing 16-bit and lossy files stay original. MP3 profiles use ffmpeg. Playback is unchanged.</p>
-        <label className={settingsFieldClassName}>
-          <span>Bulk Download Method</span>
-          <select name="bulkDownloadMethod" defaultValue={settings.bulkDownloadMethod}>
-            <option value="browser">One-by-one browser downloads</option>
-            <option value="zip">ZIP archive before downloading</option>
-          </select>
-        </label>
-        <div className={settingsFieldClassName}>
-          <span>Filename Templates</span>
-          <div className={settingsFieldStackClassName}>
-            <label className={settingsFieldStackClassName}>
-              <span>Tracks Filename Template</span>
-              <input name="filenameTemplate" defaultValue={settings.filenameTemplate} />
-            </label>
-            <label className={settingsFieldStackClassName}>
-              <span>ZIP Filename Template</span>
-              <input name="archiveFilenameTemplate" defaultValue={settings.archiveFilenameTemplate} />
-            </label>
           </div>
-        </div>
-        <p className={settingsHelpClassName}>Tracks template is used for one-by-one browser downloads. Available: {'{discNumber}'}, {'{trackNumber}'}, {'{artist}'}, {'{title}'}, {'{album}'}, {'{albumArtist}'}, {'{year}'}.</p>
-        <p className={settingsHelpClassName}>ZIP template is only used to name queue and album ZIP downloads. Available: {'{name}'}, {'{album}'}, {'{albumTitle}'}, {'{albumArtist}'}, {'{artist}'}, {'{year}'}, {'{trackCount}'}.</p>
-        <div className={settingsActionsClassName}>
-          <button className="primary-button" type="submit">Save Downloads</button>
+          <p className="downloads-note">Audio conversion requires FFmpeg on the server and may take longer than downloading the original file.</p>
+        </fieldset>
+        <fieldset className="downloads-section" disabled={saving}>
+          <legend>Multiple files</legend>
+          <p className="downloads-help">Choose how album and queue downloads are delivered.</p>
+          <div className="downloads-method-options">
+            <label className="downloads-choice"><input type="radio" name="bulkDownloadMethod" value="browser" defaultChecked={settings.bulkDownloadMethod === 'browser'} required /><span className="downloads-choice-copy"><strong>Individual files</strong><span>Download each track separately. Your browser may ask to allow multiple downloads.</span></span></label>
+            <label className="downloads-choice"><input type="radio" name="bulkDownloadMethod" value="zip" defaultChecked={settings.bulkDownloadMethod === 'zip'} required /><span className="downloads-choice-copy"><strong>One ZIP archive</strong><span>Prepare one archive containing the selected tracks, then download it.</span></span></label>
+          </div>
+        </fieldset>
+        <details className="downloads-naming">
+          <summary><span>File naming<small>Customize track and ZIP filenames</small></span></summary>
+          <fieldset disabled={saving} className="downloads-template-fields">
+            <label className="downloads-template"><span>Track filename template</span><input name="filenameTemplate" defaultValue={settings.filenameTemplate} spellCheck="false" aria-describedby="track-template-help" /><span id="track-template-help" className="downloads-help">Used for individual browser downloads.</span><span className="downloads-tokens">{['discNumber', 'trackNumber', 'artist', 'title', 'album', 'albumArtist', 'year'].map(token => <code key={token}>{'{' + token + '}'}</code>)}</span></label>
+            <label className="downloads-template"><span>ZIP filename template</span><input name="archiveFilenameTemplate" defaultValue={settings.archiveFilenameTemplate} spellCheck="false" aria-describedby="zip-template-help" /><span id="zip-template-help" className="downloads-help">Used for album and queue ZIP archives.</span><span className="downloads-tokens">{['name', 'album', 'albumTitle', 'albumArtist', 'artist', 'year', 'trackCount'].map(token => <code key={token}>{'{' + token + '}'}</code>)}</span></label>
+          </fieldset>
+        </details>
+        <div className="downloads-save-row">
+          <p role={feedback?.error ? 'alert' : 'status'}>{feedback?.message || 'Changes apply after you save.'}</p>
+          <button className="primary-button" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save downloads'}</button>
         </div>
       </form>
     </PanelGroup>
